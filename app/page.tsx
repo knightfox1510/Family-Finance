@@ -525,25 +525,42 @@ function parseImport(file: any, callback: any) {
         const sh = wb.Sheets[name];
         return sh ? XLSX.utils.sheet_to_json(sh) : [];
       };
-      const expenses = getSheet('Expenses').map((r: any) => ({
-        id: r.ID || uid(),
-        date: r.Date || today(),
-        type: r.Type || 'expense',
-        category: r.Category || 'Other',
-        amount: Number(r.Amount) || 0,
-        account: r.Account || 'Joint',
-        addedBy: r['Added By'] || 'Partner A',
-        note: r.Note || '',
-        toSettle: r['To Settle'] === 'Yes',
-        settled: r.Settled === 'Yes',
-        settledFor: r['Settled For'] || null,
-      }));
-      const contribs = getSheet('Contributions').map((r: any) => ({
-        id: r.Month,
-        month: r.Month,
-        partnerA: Number(r['Partner A']) || 0,
-        partnerB: Number(r['Partner B']) || 0,
-      }));
+      
+      const expenses = getSheet('Expenses').map((r: any) => {
+        // Normalize all keys to lowercase without spaces to prevent header bugs
+        const row: Record<string, any> = {};
+        Object.keys(r).forEach((k) => {
+          row[k.toLowerCase().replace(/\s+/g, '')] = r[k];
+        });
+
+        return {
+          id: row.id || null, // Missing IDs are safely set to null here
+          date: row.date || today(),
+          type: row.type || 'expense',
+          category: row.category || 'Other',
+          amount: Number(row.amount) || 0,
+          account: row.account || 'Joint',
+          addedBy: row.addedby || 'Partner A',
+          note: row.note || '',
+          toSettle: row.tosettle === 'Yes' || row.tosettle === 'true' || row.tosettle === true,
+          settled: row.settled === 'Yes' || row.settled === 'true' || row.settled === true,
+          settledFor: row.settledfor || null,
+        };
+      });
+
+      const contribs = getSheet('Contributions').map((r: any) => {
+        const row: Record<string, any> = {};
+        Object.keys(r).forEach((k) => {
+          row[k.toLowerCase().replace(/\s+/g, '')] = r[k];
+        });
+        return {
+          id: row.month,
+          month: row.month,
+          partnerA: Number(row.partnera) || 0,
+          partnerB: Number(row.partnerb) || 0,
+        };
+      });
+
       callback({ expenses, contributions: contribs.length ? contribs : null });
     } catch (err: any) {
       callback(null, 'Failed to parse file: ' + err.message);
@@ -3579,9 +3596,18 @@ export default function App() {
       setLoading(false);
       alert("Successfully joined partner's household!");
     },
-    importData: ({ expenses, contributions }: any) => {
+importData: async ({ expenses, contributions }: any) => {
+      // 1. Sanitize IDs: If Excel didn't provide an ID, or provided a non-UUID placeholder, assign a proper UUID instantly
+      const sanitizedExpenses = expenses.map((e: any) => {
+        const isValidUUID = e.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.id);
+        return {
+          ...e,
+          id: isValidUUID ? e.id : uid() // Flawlessly falls back to generating a fresh UUID
+        };
+      });
+
       const existingIds = new Set(data.expenses.map((e: any) => e.id));
-      const newExp = expenses.filter((e: any) => !existingIds.has(e.id));
+      const newExp = sanitizedExpenses.filter((e: any) => !existingIds.has(e.id));
       const mergedContribs = contributions
         ? [
             ...data.contributions.filter(
@@ -3590,11 +3616,37 @@ export default function App() {
             ...contributions,
           ]
         : data.contributions;
-      persist({
-        ...data,
-        expenses: [...data.expenses, ...newExp],
+
+      // 2. Refresh local UI state layout with the brand new clean dataset
+      setData((prev: any) => ({
+        ...prev,
+        expenses: [...prev.expenses, ...newExp],
         contributions: mergedContribs,
-      });
+      }));
+
+      // 3. Fire a high-speed batch insert statement straight to the Supabase cloud tables
+      if (newExp.length > 0) {
+        const rowsToInsert = newExp.map((e: any) => ({
+          id: e.id, // Explicitly binds the client UI key to the database primary key
+          household_id: data.householdId,
+          date: e.date,
+          amount: e.amount,
+          category: e.category,
+          type: e.type,
+          account_used: e.account,
+          added_by: e.addedBy,
+          note: e.note,
+          to_settle: e.toSettle,
+          settled: e.settled,
+        }));
+
+        const { error } = await supabase.from('transactions').insert(rowsToInsert);
+        if (error) {
+          alert('Local layout updated, but cloud synchronization bounced: ' + error.message);
+        } else {
+          alert(`Successfully synced ${newExp.length} rows to your cloud profile!`);
+        }
+      }
     },
   };
 
