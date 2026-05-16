@@ -1438,21 +1438,21 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
                     </td>
                     
                     {/* Render exact custom settlement criteria states */}
-                    <td style={{ padding: '10px 14px' }}>
-                      {e.type === 'income' ? (
-                        <span style={{ color: C.muted }}>—</span>
-                      ) : e.account === 'Joint' ? (
-                        <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Direct Shared</span>
-                      ) : !e.toSettle ? (
-                        <span style={{ color: C.text2, fontSize: 12 }}>Personal (No Settlement)</span>
-                      ) : e.settled ? (
-                        <Badge color={C.green}>
-                          ✓ Settled with {e.settledFor === 'Partner A' ? names.a : names.b}
-                        </Badge>
-                      ) : (
-                        <Badge color={C.amber}>⏳ Pending</Badge>
-                      )}
-                    </td>
+<td style={{ padding: '10px 14px' }}>
+  {e.type === 'income' ? (
+    <span style={{ color: C.muted }}>—</span>
+  ) : e.settled ? (
+    <Badge color={C.green}>
+      ✓ Settled with {e.settledFor === 'Partner A' ? names.a : names.b}
+    </Badge>
+  ) : e.account === 'Joint' ? (
+    <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Direct Shared</span>
+  ) : !e.toSettle ? (
+    <span style={{ color: C.text2, fontSize: 12 }}>Personal (No Settlement)</span>
+  ) : (
+    <Badge color={C.amber}>⏳ Pending</Badge>
+  )}
+</td>
                     
                     <td
   style={{ padding: '10px 14px', display: 'flex', gap: 6 }}
@@ -1725,49 +1725,50 @@ const settleSelected = () => {
       </div>
 
       <Card>
-        <SectionTitle>Recently Settled</SectionTitle>
-        {(() => {
-          const recent = data.expenses
-            .filter((e: any) => e.settled)
-            .slice(-5)
-            .reverse();
-          if (!recent.length)
-            return (
-              <p style={{ color: C.muted, fontSize: 13 }}>
-                No settlements yet.
-              </p>
-            );
-          return recent.map((e: any) => (
-            <div
-              key={e.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '8px 0',
-                borderBottom: `1px solid ${C.border}`,
-              }}
-            >
-              <div>
-                <span style={{ color: C.text1, fontSize: 13 }}>
-                  {e.category}
-                </span>
-                <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>
-                  {e.date}
-                </span>
-                {e.settledFor && (
-                  <Badge color={C.teal} style={{ marginLeft: 8 }}>
-                    ↩ {e.settledFor.includes('A') ? names.a : names.b}
-                  </Badge>
-                )}
-              </div>
-              <span style={{ color: C.green, fontWeight: 700 }}>
-                {fmt(e.amount, data.settings.currency)}
-              </span>
-            </div>
-          ));
-        })()}
-      </Card>
+  <SectionTitle>Recently Settled</SectionTitle>
+  {(() => {
+    const recent = data.expenses
+      .filter((e: any) => e.settled)
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+
+    if (!recent.length)
+      return (
+        <p style={{ color: C.muted, fontSize: 13 }}>
+          No settlements yet.
+        </p>
+      );
+    return recent.map((e: any) => (
+      <div
+        key={e.id}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '8px 0',
+          borderBottom: `1px solid ${C.border}`,
+        }}
+      >
+        <div>
+          <span style={{ color: C.text1, fontSize: 13 }}>
+            {e.category}
+          </span>
+          <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>
+            {e.date}
+          </span>
+          {e.settledFor && (
+            <Badge color={C.teal} style={{ marginLeft: 8 }}>
+              ↩ {e.settledFor === 'Partner A' ? names.a : names.b}
+            </Badge>
+          )}
+        </div>
+        <span style={{ color: C.green, fontWeight: 700 }}>
+          {fmt(e.amount, data.settings.currency)}
+        </span>
+      </div>
+    ));
+  })()}
+</Card>
     </div>
   );
 }
@@ -4016,7 +4017,7 @@ importData: async ({ expenses, contributions }: any) => {
           {view === 'dashboard' && (
             <Dashboard data={data} onAddExpense={actions.addExpense} />
           )}
-          // 1. Update your action router links for view === 'add' to pass these props down
+          
   {view === 'add' && (
     <AddExpense
       data={data}
@@ -4030,7 +4031,6 @@ importData: async ({ expenses, contributions }: any) => {
     />
   )}
 
-  // 2. Update your action router links for view === 'expenses' to hook the duplication pipeline
   {view === 'expenses' && (
     <ExpenseList
       data={data}
