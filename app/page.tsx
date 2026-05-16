@@ -952,7 +952,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
       settled: false,
       settledFor: null,
     });
-    setForm((f) => ({ ...f, amount: '', note: '', toSettle: false }));
+    setForm((f: any) => ({ ...f, amount: '', note: '', toSettle: false }));
     setFlash(true);
     setTimeout(() => setFlash(false), 2000);
   };
