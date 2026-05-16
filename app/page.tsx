@@ -69,7 +69,7 @@ const DEFAULT_SETTINGS = {
   partnerBName: 'Partner B',
   expenseCategories: DEFAULT_EXPENSE_CATS,
   incomeCategories: DEFAULT_INCOME_CATS,
-  budgets: {},
+  budgets: {} as Record<string, number | undefined>,
   notifications: {
     enabled: false,
     newExpense: true,
@@ -80,7 +80,7 @@ const DEFAULT_SETTINGS = {
   currency: 'INR',
 };
 
-function fmt(n: number, currency: string = 'INR') {
+function fmt(n: number, currency: string = 'INR') {  
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
@@ -91,7 +91,7 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 function monthKey(dateStr: string) {
-  const d = new Date(dateStr); // ✕ Changed 'date' to 'dateStr'
+  const d = new Date(dateStr);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 function monthLabel(key: string) {
@@ -113,10 +113,10 @@ function uid() {
 function seedData() {
   const mk = monthKey(today());
   return {
-    expenses: [], // Start with a completely clean slate!
+    expenses: [] as any[], // Start with a completely clean slate!
     contributions: [{ id: uid(), month: mk, partnerA: 0, partnerB: 0 }],
-    goals: [],
-    loans: [],
+    goals: [] as any[],
+    loans: [] as any[],
     settings: DEFAULT_SETTINGS,
   };
 }
@@ -151,7 +151,7 @@ async function loadData(userId: string) {
 
     const formattedData = {
       householdId: hId,
-      expenses: (tx.data || []).map((r) => ({
+      expenses: (tx.data || []).map((r: any) => ({
         id: r.id,
         date: r.date,
         amount: r.amount,
@@ -165,14 +165,14 @@ async function loadData(userId: string) {
         settledFor: r.settled_with,
       })),
       goals: gl.data || [],
-      loans: (ln.data || []).map((r) => ({
+      loans: (ln.data || []).map((r: any) => ({
         ...r,
         interestRate: r.interest_rate,
         startDate: r.start_date,
         tenureMonths: r.tenure_months,
         paymentDay: r.payment_day || 1,
       })),
-      contributions: (cb.data || []).map((r) => ({
+      contributions: (cb.data || []).map((r: any) => ({
         id: r.month,
         month: r.month,
         partnerA: r.partner_a,
@@ -207,7 +207,7 @@ const C = {
 };
 
 function Card({ children, style = {} }: { children: React.ReactNode; style?: any }) {
-  return (
+    return (
     <div
       style={{
         background: C.surface,
@@ -356,47 +356,57 @@ function ProgressBar({ pct, color = C.amber, height = 8 }: { pct: number; color?
     </div>
   );
 }
-function Toggle({ checked, onChange, label }) {
+function Toggle({ checked, onChange, label }: any) {
   return (
     <label
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        justifyContent: 'space-between',
+        padding: '12px 14px',
+        background: C.surface,
+        borderRadius: 10,
+        border: `1px solid ${C.border}`,
         cursor: 'pointer',
+        width: '100%',
+        boxSizing: 'border-box',
       }}
     >
-      <div
-        onClick={() => onChange(!checked)}
-        style={{
-          width: 40,
-          height: 22,
-          borderRadius: 99,
-          background: checked ? C.green : C.border,
-          position: 'relative',
-          transition: 'background .2s',
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}
-      >
-        <div
+      <span style={{ fontSize: 14, color: C.text1 }}>{label}</span>
+      <div style={{ position: 'relative', display: 'inline-block', width: 44, height: 24 }}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          style={{ opacity: 0, width: 0, height: 0 }}
+        />
+        <span
           style={{
             position: 'absolute',
-            top: 3,
-            left: checked ? 21 : 3,
-            width: 16,
-            height: 16,
+            cursor: 'pointer',
+            top: 0,left: 0, right: 0, bottom: 0,
+            backgroundColor: checked ? C.amber : C.border,
+            transition: '0.3s',
+            borderRadius: 24,
+          }}
+        />
+        <span
+          style={{
+            position: 'absolute',
+            content: '""',
+            height: 18, width: 18,
+            left: checked ? 22 : 3,
+            bottom: 3,
+            backgroundColor: checked ? C.bg : C.text2,
+            transition: '0.3s',
             borderRadius: '50%',
-            background: '#fff',
-            transition: 'left .2s',
           }}
         />
       </div>
-      {label && <span style={{ color: C.text1, fontSize: 13 }}>{label}</span>}
     </label>
   );
 }
-function StatCard({ label, value, sub, accent = C.amber, icon }) {
+function StatCard({ label, value, sub, accent = C.amber, icon }: any) {
   return (
     <Card style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div
@@ -447,10 +457,10 @@ const NAV = [
 ];
 
 // ─── EXPORT HELPER ────────────────────────────────────────────────────────────
-function exportToExcel(data) {
+function exportToExcel(data: any) {
   const wb = XLSX.utils.book_new();
   // Expenses sheet
-  const expRows = data.expenses.map((e) => ({
+  const expRows = data.expenses.map((e: any) => ({
     ID: e.id,
     Date: e.date,
     Type: e.type || 'expense',
@@ -469,7 +479,7 @@ function exportToExcel(data) {
     'Expenses'
   );
   // Contributions
-  const cRows = data.contributions.map((c) => ({
+  const cRows = data.contributions.map((c: any) => ({
     Month: c.month,
     'Partner A': c.partnerA,
     'Partner B': c.partnerB,
@@ -481,7 +491,7 @@ function exportToExcel(data) {
     'Contributions'
   );
   // Goals
-  const gRows = data.goals.map((g) => ({
+  const gRows = data.goals.map((g: any) => ({
     Name: g.name,
     Target: g.target,
     Current: g.current,
@@ -489,7 +499,7 @@ function exportToExcel(data) {
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gRows), 'Goals');
   // Loans
-  const lRows = data.loans.map((l) => ({
+  const lRows = data.loans.map((l: any) => ({
     Name: l.name,
     Lender: l.lender,
     Principal: l.principal,
@@ -505,16 +515,16 @@ function exportToExcel(data) {
 }
 
 // ─── IMPORT HELPER ────────────────────────────────────────────────────────────
-function parseImport(file, callback) {
+function parseImport(file: any, callback: any) {
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = (e: any) => {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array' });
-      const getSheet = (name) => {
+      const getSheet = (name: string) => {
         const sh = wb.Sheets[name];
         return sh ? XLSX.utils.sheet_to_json(sh) : [];
       };
-      const expenses = getSheet('Expenses').map((r) => ({
+      const expenses = getSheet('Expenses').map((r: any) => ({
         id: r.ID || uid(),
         date: r.Date || today(),
         type: r.Type || 'expense',
@@ -527,14 +537,14 @@ function parseImport(file, callback) {
         settled: r.Settled === 'Yes',
         settledFor: r['Settled For'] || null,
       }));
-      const contribs = getSheet('Contributions').map((r) => ({
+      const contribs = getSheet('Contributions').map((r: any) => ({
         id: r.Month,
         month: r.Month,
         partnerA: Number(r['Partner A']) || 0,
         partnerB: Number(r['Partner B']) || 0,
       }));
       callback({ expenses, contributions: contribs.length ? contribs : null });
-    } catch (err) {
+    } catch (err: any) {
       callback(null, 'Failed to parse file: ' + err.message);
     }
   };
@@ -542,7 +552,7 @@ function parseImport(file, callback) {
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
-function Dashboard({ data, onAddExpense }) {
+function Dashboard({ data, onAddExpense }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
@@ -557,20 +567,20 @@ function Dashboard({ data, onAddExpense }) {
 
   // Filter expenses based on selected dates
   const filteredExp = data.expenses.filter(
-    (e) => e.date >= dates.start && e.date <= dates.end && e.type !== 'income'
+    (e: any) => e.date >= dates.start && e.date <= dates.end && e.type !== 'income'
   );
 
   const pool = data.contributions.reduce(
-    (sum, c) => sum + c.partnerA + c.partnerB,
+    (sum: number, c: any) => sum + c.partnerA + c.partnerB,
     0
   );
   const jointSpent = filteredExp
-    .filter((e) => e.account === 'Joint')
-    .reduce((s, e) => s + e.amount, 0);
-  const totalPeriod = filteredExp.reduce((s, e) => s + e.amount, 0);
+    .filter((e: any) => e.account === 'Joint')
+    .reduce((s: number, e: any) => s + e.amount, 0);
+  const totalPeriod = filteredExp.reduce((s: number, e: any) => s + e.amount, 0);
 
-  const catMap = {};
-  filteredExp.forEach((e) => {
+  const catMap = {} as Record<string, number>;
+  filteredExp.forEach((e: any) => {
     catMap[e.category] = (catMap[e.category] || 0) + e.amount;
   });
   const topCats = Object.entries(catMap)
@@ -580,7 +590,7 @@ function Dashboard({ data, onAddExpense }) {
 
   // EMI Reminders (Is today the payment day?)
   const currentDay = new Date().getDate();
-  const dueLoans = data.loans.filter((l) => l.paymentDay === currentDay);
+  const dueLoans = data.loans.filter((l: any) => l.paymentDay === currentDay);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -608,14 +618,14 @@ function Dashboard({ data, onAddExpense }) {
           <Inp
             type="date"
             value={dates.start}
-            onChange={(e) => setDates({ ...dates, start: e.target.value })}
+            onChange={(e: any) => setDates({ ...dates, start: e.target.value })}
             style={{ width: 130, padding: '4px 8px' }}
           />
           <span style={{ color: C.muted }}>to</span>
           <Inp
             type="date"
             value={dates.end}
-            onChange={(e) => setDates({ ...dates, end: e.target.value })}
+            onChange={(e: any) => setDates({ ...dates, end: e.target.value })}
             style={{ width: 130, padding: '4px 8px' }}
           />
         </Card>
@@ -633,7 +643,7 @@ function Dashboard({ data, onAddExpense }) {
           <SectionTitle style={{ color: C.amber, marginBottom: 8 }}>
             🔔 EMI Due Today
           </SectionTitle>
-          {dueLoans.map((l) => (
+          {dueLoans.map((l: any) => (
             <div
               key={l.id}
               style={{
@@ -651,7 +661,7 @@ function Dashboard({ data, onAddExpense }) {
                 style={{ padding: '6px 12px', fontSize: 12 }}
                 onClick={() => {
                   onAddExpense({
-                    id: crypto.randomUUID(),
+                    id: uid(),
                     date: today(),
                     amount: l.emi,
                     category: 'Other',
@@ -661,6 +671,7 @@ function Dashboard({ data, onAddExpense }) {
                     toSettle: false,
                     type: 'expense',
                     settled: false,
+                    settledFor: null,
                   });
                 }}
               >
@@ -694,7 +705,7 @@ function Dashboard({ data, onAddExpense }) {
         <StatCard
           label="Monthly EMI Load"
           value={fmt(
-            data.loans.reduce((s, l) => s + l.emi, 0),
+            data.loans.reduce((s: number, l: any) => s + l.emi, 0),
             data.settings.currency
           )}
           accent={C.teal}
@@ -746,7 +757,7 @@ function Dashboard({ data, onAddExpense }) {
 }
 
 // ─── ADD EXPENSE ──────────────────────────────────────────────────────────────
-function AddExpense({ data, onAdd, onClose }) {
+function AddExpense({ data, onAdd, onClose }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
@@ -762,10 +773,10 @@ function AddExpense({ data, onAdd, onClose }) {
     type: 'expense',
   });
   const [flash, setFlash] = useState(false);
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = () => {
-    if (!form.amount || isNaN(form.amount) || Number(form.amount) <= 0) return;
+    if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) return;
     onAdd({
       ...form,
       amount: Number(form.amount),
@@ -786,7 +797,7 @@ function AddExpense({ data, onAdd, onClose }) {
   return (
     <div style={{ maxWidth: 560 }}>
       <Card>
-        {/* NEW: Header with Close Button */}
+        {/* Header with Close Button */}
         <div
           style={{
             display: 'flex',
@@ -841,7 +852,7 @@ function AddExpense({ data, onAdd, onClose }) {
               <Inp
                 type="date"
                 value={form.date}
-                onChange={(e) => set('date', e.target.value)}
+                onChange={(e: any) => set('date', e.target.value)}
               />
             </div>
             <div>
@@ -850,7 +861,7 @@ function AddExpense({ data, onAdd, onClose }) {
                 type="number"
                 placeholder="0"
                 value={form.amount}
-                onChange={(e) => set('amount', e.target.value)}
+                onChange={(e: any) => set('amount', e.target.value)}
               />
             </div>
           </div>
@@ -858,9 +869,9 @@ function AddExpense({ data, onAdd, onClose }) {
             <Label>Category</Label>
             <Sel
               value={form.category}
-              onChange={(e) => set('category', e.target.value)}
+              onChange={(e: any) => set('category', e.target.value)}
             >
-              {cats.map((c) => (
+              {cats.map((c: string) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -874,7 +885,7 @@ function AddExpense({ data, onAdd, onClose }) {
               <Label>Paid From</Label>
               <Sel
                 value={form.account}
-                onChange={(e) => set('account', e.target.value)}
+                onChange={(e: any) => set('account', e.target.value)}
               >
                 <option value="Joint">Joint Account</option>
                 <option value={names.a}>{names.a}</option>
@@ -885,7 +896,7 @@ function AddExpense({ data, onAdd, onClose }) {
               <Label>Added By</Label>
               <Sel
                 value={form.addedBy}
-                onChange={(e) => set('addedBy', e.target.value)}
+                onChange={(e: any) => set('addedBy', e.target.value)}
               >
                 <option value="Partner A">{names.a}</option>
                 <option value="Partner B">{names.b}</option>
@@ -915,17 +926,18 @@ function AddExpense({ data, onAdd, onClose }) {
               accept="image/*"
               id="receipt-upload"
               style={{ display: 'none' }}
-              onChange={async (e) => {
+              onChange={async (e: any) => {
                 const file = e.target.files[0];
                 if (!file) return;
 
                 const btn = document.getElementById('scan-btn');
-                btn.innerText = '🤖 Scanning receipt...';
+                if (btn) btn.innerText = '🤖 Scanning receipt...';
 
                 // Convert image to base64 for Gemini API
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
                 reader.onload = async () => {
+                  if (typeof reader.result !== 'string') return;
                   const base64Data = reader.result.split(',')[1];
                   try {
                     const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
@@ -960,19 +972,19 @@ function AddExpense({ data, onAdd, onClose }) {
                       jsonRes.candidates[0].content.parts[0].text.trim();
                     const parsed = JSON.parse(
                       txt.replace(/\`\`\`json|\`\`\`/g, '')
-                    ); // Strip codeblocks if model ignores instructions
+                    );
 
                     if (parsed.amount) set('amount', parsed.amount);
                     if (parsed.date) set('date', parsed.date);
                     if (parsed.category) set('category', parsed.category);
                     if (parsed.note) set('note', parsed.note);
-                    btn.innerText = '✨ Scan Successful!';
+                    if (btn) btn.innerText = '✨ Scan Successful!';
                   } catch (err) {
                     console.error(err);
                     alert(
                       'AI failed to parse receipt. Please enter details manually.'
                     );
-                    btn.innerText = '📸 Scan Receipt';
+                    if (btn) btn.innerText = '📸 Scan Receipt';
                   }
                 };
               }}
@@ -981,7 +993,7 @@ function AddExpense({ data, onAdd, onClose }) {
               id="scan-btn"
               variant="ghost"
               style={{ fontSize: 13, width: '100%' }}
-              onClick={() => document.getElementById('receipt-upload').click()}
+              onClick={() => document.getElementById('receipt-upload')?.click()}
             >
               📸 Scan Receipt / Bill
             </Btn>
@@ -992,7 +1004,7 @@ function AddExpense({ data, onAdd, onClose }) {
             <Inp
               placeholder="What was this for?"
               value={form.note}
-              onChange={(e) => set('note', e.target.value)}
+              onChange={(e: any) => set('note', e.target.value)}
             />
           </div>
 
@@ -1018,12 +1030,11 @@ function AddExpense({ data, onAdd, onClose }) {
               </div>
               <Toggle
                 checked={form.toSettle}
-                onChange={(v) => set('toSettle', v)}
+                onChange={(v: boolean) => set('toSettle', v)}
               />
             </div>
           )}
 
-          {/* NEW: Side-by-side action buttons */}
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             <Btn
               variant={flash ? 'success' : 'primary'}
@@ -1051,7 +1062,7 @@ function AddExpense({ data, onAdd, onClose }) {
 }
 
 // ─── EXPENSE LIST ─────────────────────────────────────────────────────────────
-function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
+function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
@@ -1064,16 +1075,16 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
     type: 'All',
     settled: 'All',
   });
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
 
-  const sf = (k, v) => setFilter((f) => ({ ...f, [k]: v }));
-  const allMonths = [...new Set(data.expenses.map((e) => monthKey(e.date)))]
+  const sf = (k: string, v: string) => setFilter((f) => ({ ...f, [k]: v }));
+  const allMonths = [...new Set(data.expenses.map((e: any) => monthKey(e.date)))]
     .sort()
     .reverse();
 
   const filtered = data.expenses
-    .filter((e) => {
+    .filter((e: any) => {
       if (filter.month !== 'All' && monthKey(e.date) !== filter.month)
         return false;
       if (filter.account !== 'All' && e.account !== filter.account)
@@ -1087,9 +1098,9 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
       if (filter.settled === 'settled' && !e.settled) return false;
       return true;
     })
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
+    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const startEdit = (e) => {
+  const startEdit = (e: any) => {
     setEditingId(e.id);
     setEditForm({ ...e });
   };
@@ -1126,7 +1137,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
             onChange={(e) => sf('month', e.target.value)}
           >
             <option value="All">All Months</option>
-            {allMonths.map((m) => (
+            {allMonths.map((m: any) => (
               <option key={m} value={m}>
                 {monthLabel(m)}
               </option>
@@ -1201,7 +1212,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((e, i) => {
+              {filtered.map((e: any, i: number) => {
                 if (editingId === e.id) {
                   return (
                     <tr
@@ -1215,7 +1226,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
                         <Inp
                           type="date"
                           value={editForm.date}
-                          onChange={(ev) =>
+                          onChange={(ev: any) =>
                             setEditForm({ ...editForm, date: ev.target.value })
                           }
                         />
@@ -1223,7 +1234,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
                       <td style={{ padding: 8 }}>
                         <Sel
                           value={editForm.category}
-                          onChange={(ev) =>
+                          onChange={(ev: any) =>
                             setEditForm({
                               ...editForm,
                               category: ev.target.value,
@@ -1244,7 +1255,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
                         <Inp
                           type="number"
                           value={editForm.amount}
-                          onChange={(ev) =>
+                          onChange={(ev: any) =>
                             setEditForm({
                               ...editForm,
                               amount: ev.target.value,
@@ -1256,7 +1267,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
                       <td style={{ padding: 8 }}>
                         <Sel
                           value={editForm.account}
-                          onChange={(ev) =>
+                          onChange={(ev: any) =>
                             setEditForm({
                               ...editForm,
                               account: ev.target.value,
@@ -1273,7 +1284,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
                       <td style={{ padding: 8 }}>
                         <Inp
                           value={editForm.note}
-                          onChange={(ev) =>
+                          onChange={(ev: any) =>
                             setEditForm({ ...editForm, note: ev.target.value })
                           }
                         />
@@ -1360,37 +1371,37 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }) {
 }
 
 // ─── SETTLEMENT DASHBOARD ─────────────────────────────────────────────────────
-function SettleDashboard({ data, onBulkSettle, onSettleOne }) {
+function SettleDashboard({ data, onBulkSettle }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
   };
-  const [selected, setSelected] = useState(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const pending = data.expenses.filter(
-    (e) => e.toSettle && !e.settled && e.account !== 'Joint'
+    (e: any) => e.toSettle && !e.settled && e.account !== 'Joint'
   );
   const pendingA = pending.filter(
-    (e) => e.account.includes(names.a) || e.account.includes('Partner A')
+    (e: any) => e.account.includes(names.a) || e.account.includes('Partner A')
   );
   const pendingB = pending.filter(
-    (e) => e.account.includes(names.b) || e.account.includes('Partner B')
+    (e: any) => e.account.includes(names.b) || e.account.includes('Partner B')
   );
-  const totalA = pendingA.reduce((s, e) => s + e.amount, 0);
-  const totalB = pendingB.reduce((s, e) => s + e.amount, 0);
+  const totalA = pendingA.reduce((s: number, e: any) => s + e.amount, 0);
+  const totalB = pendingB.reduce((s: number, e: any) => s + e.amount, 0);
 
-  const toggle = (id) =>
+  const toggle = (id: string) =>
     setSelected((s) => {
       const n = new Set(s);
       n.has(id) ? n.delete(id) : n.add(id);
       return n;
     });
-  const selectAll = (arr) =>
+  const selectAll = (arr: any[]) =>
     setSelected((s) => {
       const n = new Set(s);
       arr.forEach((e) => n.add(e.id));
       return n;
     });
-  const clearGroup = (arr) =>
+  const clearGroup = (arr: any[]) =>
     setSelected((s) => {
       const n = new Set(s);
       arr.forEach((e) => n.delete(e.id));
@@ -1402,7 +1413,7 @@ function SettleDashboard({ data, onBulkSettle, onSettleOne }) {
     setSelected(new Set());
   };
 
-  const SettleTable = ({ items, partner, color }) => (
+  const SettleTable = ({ items, partner, color }: any) => (
     <Card style={{ marginBottom: 0 }}>
       <div
         style={{
@@ -1423,7 +1434,7 @@ function SettleDashboard({ data, onBulkSettle, onSettleOne }) {
             }}
           >
             {fmt(
-              items.reduce((s, e) => s + e.amount, 0),
+              items.reduce((s: number, e: any) => s + e.amount, 0),
               data.settings.currency
             )}{' '}
             pending
@@ -1470,7 +1481,7 @@ function SettleDashboard({ data, onBulkSettle, onSettleOne }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((e, i) => (
+            {items.map((e: any) => (
               <tr
                 key={e.id}
                 style={{
@@ -1554,7 +1565,7 @@ function SettleDashboard({ data, onBulkSettle, onSettleOne }) {
                 Total:{' '}
                 {fmt(
                   [...selected].reduce((s, id) => {
-                    const e = data.expenses.find((x) => x.id === id);
+                    const e = data.expenses.find((x: any) => x.id === id);
                     return s + (e?.amount || 0);
                   }, 0),
                   data.settings.currency
@@ -1598,7 +1609,7 @@ function SettleDashboard({ data, onBulkSettle, onSettleOne }) {
         <SectionTitle>Recently Settled</SectionTitle>
         {(() => {
           const recent = data.expenses
-            .filter((e) => e.settled)
+            .filter((e: any) => e.settled)
             .slice(-5)
             .reverse();
           if (!recent.length)
@@ -1607,7 +1618,7 @@ function SettleDashboard({ data, onBulkSettle, onSettleOne }) {
                 No settlements yet.
               </p>
             );
-          return recent.map((e) => (
+          return recent.map((e: any) => (
             <div
               key={e.id}
               style={{
@@ -1643,7 +1654,7 @@ function SettleDashboard({ data, onBulkSettle, onSettleOne }) {
 }
 
 // ─── CONTRIBUTIONS ────────────────────────────────────────────────────────────
-function Contributions({ data, onUpdate }) {
+function Contributions({ data, onUpdate }: any) {
   const currentMonth = monthKey(today());
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
@@ -1660,7 +1671,7 @@ function Contributions({ data, onUpdate }) {
   });
 
   const existing = data.contributions.find(
-    (c) => c.month === selectedMonth
+    (c: any) => c.month === selectedMonth
   ) || {
     partnerA: 0,
     partnerB: 0,
@@ -1675,7 +1686,7 @@ function Contributions({ data, onUpdate }) {
   // Update inputs if the selected month changes
   useEffect(() => {
     setVals({ partnerA: existing.partnerA, partnerB: existing.partnerB });
-  }, [selectedMonth, data.contributions]);
+  }, [selectedMonth, data.contributions, existing.partnerA, existing.partnerB]);
 
   const save = () => {
     onUpdate(selectedMonth, Number(vals.partnerA), Number(vals.partnerB));
@@ -1684,14 +1695,14 @@ function Contributions({ data, onUpdate }) {
   };
 
   const pool = (Number(vals.partnerA) || 0) + (Number(vals.partnerB) || 0);
-  const history = [...data.contributions].sort((a, b) =>
+  const history = [...data.contributions].sort((a: any, b: any) =>
     b.month.localeCompare(a.month)
   );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <Card style={{ maxWidth: 520 }}>
-        {/* NEW HEADER WITH DROPDOWN */}
+        {/* HEADER WITH DROPDOWN */}
         <div
           style={{
             display: 'flex',
@@ -1738,7 +1749,7 @@ function Contributions({ data, onUpdate }) {
             <Inp
               type="number"
               value={vals.partnerA}
-              onChange={(e) =>
+              onChange={(e: any) =>
                 setVals((v) => ({ ...v, partnerA: e.target.value }))
               }
             />
@@ -1748,7 +1759,7 @@ function Contributions({ data, onUpdate }) {
             <Inp
               type="number"
               value={vals.partnerB}
-              onChange={(e) =>
+              onChange={(e: any) =>
                 setVals((v) => ({ ...v, partnerB: e.target.value }))
               }
             />
@@ -1802,7 +1813,7 @@ function Contributions({ data, onUpdate }) {
               </tr>
             </thead>
             <tbody>
-              {history.map((c, i) => (
+              {history.map((c: any, i: number) => (
                 <tr
                   key={c.month}
                   style={{
@@ -1857,9 +1868,9 @@ function Contributions({ data, onUpdate }) {
 }
 
 // ─── GOALS ────────────────────────────────────────────────────────────────────
-function Goals({ data, onUpdate, onAdd, onDelete }) {
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({});
+function Goals({ data, onUpdate, onAdd, onDelete }: any) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const [form, setForm] = useState<any>({});
   const [adding, setAdding] = useState(false);
   const [newGoal, setNewGoal] = useState({
     name: '',
@@ -1902,7 +1913,7 @@ function Goals({ data, onUpdate, onAdd, onDelete }) {
                 <Label>Name</Label>
                 <Inp
                   value={newGoal.name}
-                  onChange={(e) =>
+                  onChange={(e: any) =>
                     setNewGoal((g) => ({ ...g, name: e.target.value }))
                   }
                   placeholder="e.g. Emergency Fund"
@@ -1912,7 +1923,7 @@ function Goals({ data, onUpdate, onAdd, onDelete }) {
                 <Label>Icon (emoji)</Label>
                 <Inp
                   value={newGoal.icon}
-                  onChange={(e) =>
+                  onChange={(e: any) =>
                     setNewGoal((g) => ({ ...g, icon: e.target.value }))
                   }
                 />
@@ -1930,7 +1941,7 @@ function Goals({ data, onUpdate, onAdd, onDelete }) {
                 <Inp
                   type="number"
                   value={newGoal.target}
-                  onChange={(e) =>
+                  onChange={(e: any) =>
                     setNewGoal((g) => ({ ...g, target: e.target.value }))
                   }
                 />
@@ -1940,7 +1951,7 @@ function Goals({ data, onUpdate, onAdd, onDelete }) {
                 <Inp
                   type="number"
                   value={newGoal.current}
-                  onChange={(e) =>
+                  onChange={(e: any) =>
                     setNewGoal((g) => ({ ...g, current: e.target.value }))
                   }
                 />
@@ -1999,7 +2010,7 @@ function Goals({ data, onUpdate, onAdd, onDelete }) {
           gap: 16,
         }}
       >
-        {data.goals.map((g) => {
+        {data.goals.map((g: any) => {
           const pct = Math.min(100, (g.current / g.target) * 100);
           return (
             <Card key={g.id}>
@@ -2018,8 +2029,8 @@ function Goals({ data, onUpdate, onAdd, onDelete }) {
                       <Label>Name</Label>
                       <Inp
                         value={form.name}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, name: e.target.value }))
+                        onChange={(e: any) =>
+                          setForm((f: any) => ({ ...f, name: e.target.value }))
                         }
                       />
                     </div>
@@ -2027,8 +2038,8 @@ function Goals({ data, onUpdate, onAdd, onDelete }) {
                       <Label>Icon</Label>
                       <Inp
                         value={form.icon}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, icon: e.target.value }))
+                        onChange={(e: any) =>
+                          setForm((f: any) => ({ ...f, icon: e.target.value }))
                         }
                       />
                     </div>
@@ -2038,8 +2049,8 @@ function Goals({ data, onUpdate, onAdd, onDelete }) {
                     <Inp
                       type="number"
                       value={form.target}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, target: e.target.value }))
+                      onChange={(e: any) =>
+                        setForm((f: any) => ({ ...f, target: e.target.value }))
                       }
                     />
                   </div>
@@ -2048,8 +2059,8 @@ function Goals({ data, onUpdate, onAdd, onDelete }) {
                     <Inp
                       type="number"
                       value={form.current}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, current: e.target.value }))
+                      onChange={(e: any) =>
+                        setForm((f: any) => ({ ...f, current: e.target.value }))
                       }
                     />
                   </div>
@@ -2174,9 +2185,9 @@ function Goals({ data, onUpdate, onAdd, onDelete }) {
 }
 
 // ─── EMI TRACKER ─────────────────────────────────────────────────────────────
-function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
+function LoanTracker({ data, onAdd, onUpdate, onDelete }: any) {
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const blank = {
     name: '',
     lender: '',
@@ -2186,22 +2197,23 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
     interestRate: '',
     startDate: today(),
     tenureMonths: '',
+    paymentDay: 1,
     icon: '🏠',
   };
-  const [form, setForm] = useState(blank);
+  const [form, setForm] = useState<any>(blank);
   const cur = data.settings.currency;
 
-  const totalEMI = data.loans.reduce((s, l) => s + l.emi, 0);
-  const totalOutstanding = data.loans.reduce((s, l) => s + l.outstanding, 0);
+  const totalEMI = data.loans.reduce((s: number, l: any) => s + l.emi, 0);
+  const totalOutstanding = data.loans.reduce((s: number, l: any) => s + l.outstanding, 0);
 
-  const LoanForm = ({ val, onChange, onSave, onCancel }) => (
+  const LoanForm = ({ val, onChange, onSave, onCancel }: any) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div>
           <Label>Loan Name</Label>
           <Inp
             value={val.name}
-            onChange={(e) => onChange('name', e.target.value)}
+            onChange={(e: any) => onChange('name', e.target.value)}
             placeholder="e.g. Home Loan"
           />
         </div>
@@ -2209,7 +2221,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
           <Label>Icon</Label>
           <Inp
             value={val.icon}
-            onChange={(e) => onChange('icon', e.target.value)}
+            onChange={(e: any) => onChange('icon', e.target.value)}
           />
         </div>
       </div>
@@ -2217,7 +2229,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
         <Label>Lender</Label>
         <Inp
           value={val.lender}
-          onChange={(e) => onChange('lender', e.target.value)}
+          onChange={(e: any) => onChange('lender', e.target.value)}
           placeholder="Bank name"
         />
       </div>
@@ -2227,7 +2239,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
           <Inp
             type="number"
             value={val.principal}
-            onChange={(e) => onChange('principal', e.target.value)}
+            onChange={(e: any) => onChange('principal', e.target.value)}
           />
         </div>
         <div>
@@ -2235,7 +2247,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
           <Inp
             type="number"
             value={val.outstanding}
-            onChange={(e) => onChange('outstanding', e.target.value)}
+            onChange={(e: any) => onChange('outstanding', e.target.value)}
           />
         </div>
       </div>
@@ -2251,7 +2263,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
           <Inp
             type="number"
             value={val.emi}
-            onChange={(e) => onChange('emi', e.target.value)}
+            onChange={(e: any) => onChange('emi', e.target.value)}
           />
         </div>
         <div>
@@ -2260,7 +2272,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
             type="number"
             step="0.1"
             value={val.interestRate}
-            onChange={(e) => onChange('interestRate', e.target.value)}
+            onChange={(e: any) => onChange('interestRate', e.target.value)}
           />
         </div>
         <div>
@@ -2268,7 +2280,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
           <Inp
             type="number"
             value={val.tenureMonths}
-            onChange={(e) => onChange('tenureMonths', e.target.value)}
+            onChange={(e: any) => onChange('tenureMonths', e.target.value)}
           />
         </div>
         <div>
@@ -2278,7 +2290,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
             min="1"
             max="31"
             value={val.paymentDay || ''}
-            onChange={(e) => onChange('paymentDay', e.target.value)}
+            onChange={(e: any) => onChange('paymentDay', Number(e.target.value))}
           />
         </div>
       </div>
@@ -2287,7 +2299,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
         <Inp
           type="date"
           value={val.startDate}
-          onChange={(e) => onChange('startDate', e.target.value)}
+          onChange={(e: any) => onChange('startDate', e.target.value)}
         />
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
@@ -2342,7 +2354,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
           <SectionTitle>New Loan / EMI</SectionTitle>
           <LoanForm
             val={form}
-            onChange={(k, v) => setForm((f) => ({ ...f, [k]: v }))}
+            onChange={(k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }))}
             onSave={() => {
               onAdd({
                 ...form,
@@ -2367,7 +2379,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
           gap: 16,
         }}
       >
-        {data.loans.map((l) => {
+        {data.loans.map((l: any) => {
           const paidPct = ((l.principal - l.outstanding) / l.principal) * 100;
           const monthsLeft = Math.ceil(l.outstanding / l.emi);
           return (
@@ -2377,7 +2389,7 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
                   <SectionTitle>Edit — {l.name}</SectionTitle>
                   <LoanForm
                     val={form}
-                    onChange={(k, v) => setForm((f) => ({ ...f, [k]: v }))}
+                    onChange={(k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }))}
                     onSave={() => {
                       onUpdate(l.id, {
                         ...form,
@@ -2518,10 +2530,10 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }) {
 }
 
 // ─── AI INSIGHTS ─────────────────────────────────────────────────────────────
-function AIInsights({ data }) {
+function AIInsights({ data }: any) {
   const [loading, setLoading] = useState(false);
-  const [report, setReport] = useState(null);
-  const [error, setError] = useState(null);
+  const [report, setReport] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState('monthly');
 
   const MODES = [
@@ -2540,18 +2552,18 @@ function AIInsights({ data }) {
       b: data.settings.partnerBName,
     };
     const mk = monthKey(today());
-    const monthExp = data.expenses.filter((e) => monthKey(e.date) === mk);
-    const catTotals = {};
-    monthExp.forEach((e) => {
+    const monthExp = data.expenses.filter((e: any) => monthKey(e.date) === mk);
+    const catTotals = {} as Record<string, number>;
+    monthExp.forEach((e: any) => {
       catTotals[e.category] = (catTotals[e.category] || 0) + e.amount;
     });
-    const contrib = data.contributions.find((c) => c.month === mk) || {
+    const contrib = data.contributions.find((c: any) => c.month === mk) || {
       partnerA: 0,
       partnerB: 0,
     };
-    const totalEMI = data.loans.reduce((s, l) => s + l.emi, 0);
+    const totalEMI = data.loans.reduce((s: number, l: any) => s + l.emi, 0);
 
-    const prompts = {
+    const prompts: Record<string, string> = {
       monthly: `You are a personal finance advisor for a couple in India. Analyze their spending data and write a warm, practical monthly summary. Couple: ${
         names.a
       } and ${names.b}. Month: ${monthLabel(mk)}. Joint contributions: ${
@@ -2561,7 +2573,7 @@ function AIInsights({ data }) {
       }. Spending by category: ${JSON.stringify(
         catTotals
       )}. Total monthly EMI commitment: ₹${totalEMI}. Goals progress: ${data.goals
-        .map((g) => `${g.name}: ${((g.current / g.target) * 100).toFixed(0)}%`)
+        .map((g: any) => `${g.name}: ${((g.current / g.target) * 100).toFixed(0)}%`)
         .join(', ')}. Category budgets: ${JSON.stringify(
         data.settings.budgets
       )}. Write a 3-4 paragraph summary covering: (1) overall spending health, (2) notable patterns or concerns by category, (3) how they're tracking against budgets, (4) one actionable recommendation for next month. Be specific with numbers and direct. Format with clear paragraphs, no bullet points.`,
@@ -2578,18 +2590,18 @@ function AIInsights({ data }) {
         catTotals
       )}. Active loans: ${data.loans
         .map(
-          (l) => `${l.name}: ₹${l.outstanding} outstanding @ ${l.interestRate}%`
+          (l: any) => `${l.name}: ₹${l.outstanding} outstanding @ ${l.interestRate}%`
         )
         .join('; ')}. Financial goals: ${data.goals
         .map(
-          (g) => `${g.name}: ${((g.current / g.target) * 100).toFixed(0)}% done`
+          (g: any) => `${g.name}: ${((g.current / g.target) * 100).toFixed(0)}% done`
         )
         .join(
           '; '
         )}. Give advice that is practical for an Indian household. Reference their specific numbers. Write in clear paragraphs.`,
       loans: `You are a debt management expert. Analyze this couple's loan portfolio and give strategic advice. Loans: ${data.loans
         .map(
-          (l) =>
+          (l: any) =>
             `- ${l.name}: Principal ₹${l.principal}, Outstanding ₹${l.outstanding}, EMI ₹${l.emi}/month @ ${l.interestRate}%, started ${l.startDate}`
         )
         .join(
@@ -2622,7 +2634,7 @@ function AIInsights({ data }) {
       if (!text) throw new Error('No response from Gemini API');
 
       setReport(text);
-    } catch (e) {
+    } catch (e: any) {
       setError('Could not generate insights: ' + e.message);
     }
     setLoading(false);
@@ -2640,7 +2652,7 @@ function AIInsights({ data }) {
             lineHeight: 1.6,
           }}
         >
-          Get personalised insights generated by Claude based on your actual
+          Get personalised insights generated by Gemini based on your actual
           spending data, goals, and loans.
         </p>
         <div
@@ -2685,7 +2697,7 @@ function AIInsights({ data }) {
             ✨
           </div>
           <div style={{ color: C.text1, fontSize: 15 }}>
-            Claude is analysing your finances…
+            Gemini is analysing your finances…
           </div>
           <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
         </Card>
@@ -2693,7 +2705,7 @@ function AIInsights({ data }) {
 
       {error && (
         <Card
-          style={{ border: `1px solid ${C.red}44`, background: C.red + '11`' }}
+          style={{ border: `1px solid ${C.red}44`, background: C.red + '11' }}
         >
           <p style={{ color: C.red, margin: 0 }}>{error}</p>
         </Card>
@@ -2741,13 +2753,13 @@ function Settings({
   onExport,
   onImport,
   onJoinHousehold,
-}) {
+}: any) {
   const [s, setS] = useState(JSON.parse(JSON.stringify(data.settings)));
   const [flash, setFlash] = useState(false);
-  const [importMsg, setImportMsg] = useState(null);
+  const [importMsg, setImportMsg] = useState<any>(null);
   const [newExpCat, setNewExpCat] = useState('');
   const [newIncCat, setNewIncCat] = useState('');
-  const fileRef = useRef();
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const save = () => {
     onSave(s);
@@ -2756,7 +2768,7 @@ function Settings({
   };
   const addExpCat = () => {
     if (newExpCat.trim()) {
-      setS((x) => ({
+      setS((x: any) => ({
         ...x,
         expenseCategories: [...x.expenseCategories, newExpCat.trim()],
       }));
@@ -2765,28 +2777,28 @@ function Settings({
   };
   const addIncCat = () => {
     if (newIncCat.trim()) {
-      setS((x) => ({
+      setS((x: any) => ({
         ...x,
         incomeCategories: [...x.incomeCategories, newIncCat.trim()],
       }));
       setNewIncCat('');
     }
   };
-  const removeExpCat = (c) =>
-    setS((x) => ({
+  const removeExpCat = (c: string) =>
+    setS((x: any) => ({
       ...x,
-      expenseCategories: x.expenseCategories.filter((e) => e !== c),
+      expenseCategories: x.expenseCategories.filter((e: string) => e !== c),
     }));
-  const removeIncCat = (c) =>
-    setS((x) => ({
+  const removeIncCat = (c: string) =>
+    setS((x: any) => ({
       ...x,
-      incomeCategories: x.incomeCategories.filter((e) => e !== c),
+      incomeCategories: x.incomeCategories.filter((e: string) => e !== c),
     }));
 
-  const handleImport = (e) => {
+  const handleImport = (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
-    parseImport(file, (result, err) => {
+    parseImport(file, (result: any, err: any) => {
       if (err) {
         setImportMsg({ type: 'error', text: err });
         return;
@@ -2820,8 +2832,8 @@ function Settings({
             <Label>Partner A Name</Label>
             <Inp
               value={s.partnerAName}
-              onChange={(e) =>
-                setS((x) => ({ ...x, partnerAName: e.target.value }))
+              onChange={(e: any) =>
+                setS((x: any) => ({ ...x, partnerAName: e.target.value }))
               }
             />
           </div>
@@ -2829,8 +2841,8 @@ function Settings({
             <Label>Partner B Name</Label>
             <Inp
               value={s.partnerBName}
-              onChange={(e) =>
-                setS((x) => ({ ...x, partnerBName: e.target.value }))
+              onChange={(e: any) =>
+                setS((x: any) => ({ ...x, partnerBName: e.target.value }))
               }
             />
           </div>
@@ -2845,7 +2857,7 @@ function Settings({
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Option A: Share Code */}
+          {/* Share Code */}
           <div style={{ background: C.bg, padding: 14, borderRadius: 10 }}>
             <Label>Your Household Code</Label>
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
@@ -2866,7 +2878,7 @@ function Settings({
             </div>
           </div>
 
-          {/* Option B: Join Partner */}
+          {/* Join Partner */}
           <div style={{ background: C.bg, padding: 14, borderRadius: 10 }}>
             <Label>Join a Partner's Household</Label>
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
@@ -2878,7 +2890,8 @@ function Settings({
               <Btn
                 variant="primary"
                 onClick={() => {
-                  const val = document.getElementById('join-code-input').value;
+                  const el = document.getElementById('join-code-input') as HTMLInputElement;
+                  const val = el?.value;
                   if (val && val.length > 20) {
                     if (
                       confirm(
@@ -2910,7 +2923,7 @@ function Settings({
             marginBottom: 12,
           }}
         >
-          {s.expenseCategories.map((c) => (
+          {s.expenseCategories.map((c: string) => (
             <span
               key={c}
               style={{
@@ -2944,9 +2957,9 @@ function Settings({
         <div style={{ display: 'flex', gap: 8 }}>
           <Inp
             value={newExpCat}
-            onChange={(e) => setNewExpCat(e.target.value)}
+            onChange={(e: any) => setNewExpCat(e.target.value)}
             placeholder="Add new category…"
-            onKeyDown={(e) => e.key === 'Enter' && addExpCat()}
+            onKeyDown={(e: any) => e.key === 'Enter' && addExpCat()}
             style={{ flex: 1 }}
           />
           <Btn variant="ghost" onClick={addExpCat}>
@@ -2965,7 +2978,7 @@ function Settings({
             marginBottom: 12,
           }}
         >
-          {s.incomeCategories.map((c) => (
+          {s.incomeCategories.map((c: string) => (
             <span
               key={c}
               style={{
@@ -2999,9 +3012,9 @@ function Settings({
         <div style={{ display: 'flex', gap: 8 }}>
           <Inp
             value={newIncCat}
-            onChange={(e) => setNewIncCat(e.target.value)}
+            onChange={(e: any) => setNewIncCat(e.target.value)}
             placeholder="Add income category…"
-            onKeyDown={(e) => e.key === 'Enter' && addIncCat()}
+            onKeyDown={(e: any) => e.key === 'Enter' && addIncCat()}
             style={{ flex: 1 }}
           />
           <Btn variant="ghost" onClick={addIncCat}>
@@ -3020,7 +3033,7 @@ function Settings({
         <div
           style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}
         >
-          {s.expenseCategories.map((c) => (
+          {s.expenseCategories.map((c: string) => (
             <div
               key={c}
               style={{ display: 'flex', alignItems: 'center', gap: 8 }}
@@ -3041,9 +3054,9 @@ function Settings({
               <Inp
                 type="number"
                 value={s.budgets[c] || ''}
-                onChange={(e) => {
+                onChange={(e: any) => {
                   const v = e.target.value;
-                  setS((x) => ({
+                  setS((x: any) => ({
                     ...x,
                     budgets: { ...x.budgets, [c]: v ? Number(v) : undefined },
                   }));
@@ -3062,8 +3075,8 @@ function Settings({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Toggle
             checked={s.notifications.enabled}
-            onChange={(v) =>
-              setS((x) => ({
+            onChange={(v: boolean) =>
+              setS((x: any) => ({
                 ...x,
                 notifications: { ...x.notifications, enabled: v },
               }))
@@ -3074,8 +3087,8 @@ function Settings({
             <>
               <Toggle
                 checked={s.notifications.newExpense}
-                onChange={(v) =>
-                  setS((x) => ({
+                onChange={(v: boolean) =>
+                  setS((x: any) => ({
                     ...x,
                     notifications: { ...x.notifications, newExpense: v },
                   }))
@@ -3084,8 +3097,8 @@ function Settings({
               />
               <Toggle
                 checked={s.notifications.settlement}
-                onChange={(v) =>
-                  setS((x) => ({
+                onChange={(v: boolean) =>
+                  setS((x: any) => ({
                     ...x,
                     notifications: { ...x.notifications, settlement: v },
                   }))
@@ -3094,8 +3107,8 @@ function Settings({
               />
               <Toggle
                 checked={s.notifications.budgetAlert}
-                onChange={(v) =>
-                  setS((x) => ({
+                onChange={(v: boolean) =>
+                  setS((x: any) => ({
                     ...x,
                     notifications: { ...x.notifications, budgetAlert: v },
                   }))
@@ -3104,12 +3117,12 @@ function Settings({
               />
               {s.notifications.budgetAlert && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Label style={{ margin: 0 }}>Alert at</Label>
+                  <Label>Alert at</Label>
                   <Inp
                     type="number"
                     value={s.notifications.budgetThreshold}
-                    onChange={(e) =>
-                      setS((x) => ({
+                    onChange={(e: any) =>
+                      setS((x: any) => ({
                         ...x,
                         notifications: {
                           ...x.notifications,
@@ -3252,18 +3265,17 @@ function Settings({
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
-  // 1. ALL state and hooks must be declared at the very top
-  const [session, setSession] = useState(null);
-  const [data, setData] = useState(null);
+  const [session, setSession] = useState<any>(null);
+  const [data, setData] = useState<any>(null);
 
   const [view, setView] = useState('dashboard');
-  const [prevView, setPrevView] = useState('dashboard'); // <-- NEW: Remembers where you came from
-  const [sidebarOpen, setSidebarOpen] = useState(true); // <-- NEW: Controls sidebar width
+  const [prevView, setPrevView] = useState('dashboard'); 
+  const [sidebarOpen, setSidebarOpen] = useState(true); 
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile(); // Check immediately
+    checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
@@ -3284,7 +3296,7 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load data ONLY if a session exists (This is the newly updated one!)
+  // Load data ONLY if a session exists
   useEffect(() => {
     if (session) {
       loadData(session.user.id).then((d) => {
@@ -3294,11 +3306,11 @@ export default function App() {
     }
   }, [session]);
 
-  const persist = useCallback((nd) => {
+  const persist = useCallback((nd: any) => {
     setData(nd);
   }, []);
 
-  const notify = (title, body, settings) => {
+  const notify = (title: string, body: string, settings: any) => {
     if (
       settings?.notifications?.enabled &&
       'Notification' in window &&
@@ -3308,12 +3320,6 @@ export default function App() {
     }
   };
 
-  // 2. Conditional returns happen AFTER all hooks are declared
-  if (!session) {
-    return <Auth />;
-  }
-
-  // 2. NOW we can do conditional returns (after all hooks are declared)
   if (!session) {
     return <Auth />;
   }
@@ -3345,7 +3351,7 @@ export default function App() {
   };
 
   const actions = {
-    addExpense: async (e) => {
+    addExpense: async (e: any) => {
       const nd = { ...data, expenses: [...data.expenses, e] };
       setData(nd);
       const { error } = await supabase.from('transactions').insert([
@@ -3365,15 +3371,15 @@ export default function App() {
       if (error) alert('Failed to save to cloud: ' + error.message);
       else
         notify(
-          'New Expense Added',
+          'New Transaction Added',
           `Added ₹${e.amount} for ${e.category}`,
           data.settings
         );
     },
-    updateExpense: async (id, updated) => {
-      setData((prev) => ({
+    updateExpense: async (id: string, updated: any) => {
+      setData((prev: any) => ({
         ...prev,
-        expenses: prev.expenses.map((e) => (e.id === id ? updated : e)),
+        expenses: prev.expenses.map((e: any) => (e.id === id ? updated : e)),
       }));
       const { error } = await supabase
         .from('transactions')
@@ -3389,10 +3395,10 @@ export default function App() {
         .eq('id', id);
       if (error) alert('Failed to update: ' + error.message);
     },
-    deleteExpense: async (id) => {
-      setData((prev) => ({
+    deleteExpense: async (id: string) => {
+      setData((prev: any) => ({
         ...prev,
-        expenses: prev.expenses.filter((e) => e.id !== id),
+        expenses: prev.expenses.filter((e: any) => e.id !== id),
       }));
       const { error } = await supabase
         .from('transactions')
@@ -3400,12 +3406,12 @@ export default function App() {
         .eq('id', id);
       if (error) alert('Failed to delete: ' + error.message);
     },
-    toggleToSettle: async (id) => {
-      const expense = data.expenses.find((e) => e.id === id);
+    toggleToSettle: async (id: string) => {
+      const expense = data.expenses.find((e: any) => e.id === id);
       const newValue = !expense.toSettle;
-      setData((prev) => ({
+      setData((prev: any) => ({
         ...prev,
-        expenses: prev.expenses.map((e) =>
+        expenses: prev.expenses.map((e: any) =>
           e.id === id ? { ...e, toSettle: newValue } : e
         ),
       }));
@@ -3415,11 +3421,11 @@ export default function App() {
         .eq('id', id);
       if (error) alert('Failed to update status: ' + error.message);
     },
-    bulkSettle: (ids) => {
+    bulkSettle: async (ids: string[]) => {
       const idSet = new Set(ids);
       const nd = {
         ...data,
-        expenses: data.expenses.map((e) => {
+        expenses: data.expenses.map((e: any) => {
           if (!idSet.has(e.id)) return e;
           const partner =
             e.account.includes(names.a) || e.account.includes('Partner A')
@@ -3435,11 +3441,11 @@ export default function App() {
         data.settings
       );
     },
-    updateContrib: async (month, pA, pB) => {
-      setData((prev) => ({
+    updateContrib: async (month: string, pA: number, pB: number) => {
+      setData((prev: any) => ({
         ...prev,
         contributions: [
-          ...prev.contributions.filter((c) => c.month !== month),
+          ...prev.contributions.filter((c: any) => c.month !== month),
           { id: month, month, partnerA: pA, partnerB: pB },
         ],
       }));
@@ -3451,14 +3457,14 @@ export default function App() {
         partner_b: pB,
       });
     },
-    addGoal: async (g) => {
+    addGoal: async (g: any) => {
       const newGoal = {
         ...g,
         id: uid(),
         target: Number(g.target),
         current: Number(g.current),
       };
-      setData((prev) => ({ ...prev, goals: [...prev.goals, newGoal] }));
+      setData((prev: any) => ({ ...prev, goals: [...prev.goals, newGoal] }));
       await supabase.from('goals').insert({
         id: newGoal.id,
         household_id: data.householdId,
@@ -3469,10 +3475,10 @@ export default function App() {
         color: newGoal.color,
       });
     },
-    updateGoal: async (id, f) => {
-      setData((prev) => ({
+    updateGoal: async (id: string, f: any) => {
+      setData((prev: any) => ({
         ...prev,
-        goals: prev.goals.map((g) =>
+        goals: prev.goals.map((g: any) =>
           g.id === id
             ? {
                 ...g,
@@ -3494,15 +3500,15 @@ export default function App() {
         })
         .eq('id', id);
     },
-    deleteGoal: async (id) => {
-      setData((prev) => ({
+    deleteGoal: async (id: string) => {
+      setData((prev: any) => ({
         ...prev,
-        goals: prev.goals.filter((g) => g.id !== id),
+        goals: prev.goals.filter((g: any) => g.id !== id),
       }));
       await supabase.from('goals').delete().eq('id', id);
     },
-    addLoan: async (l) => {
-      setData((prev) => ({ ...prev, loans: [...prev.loans, l] }));
+    addLoan: async (l: any) => {
+      setData((prev: any) => ({ ...prev, loans: [...prev.loans, l] }));
       await supabase.from('loans').insert({
         id: l.id,
         household_id: data.householdId,
@@ -3518,10 +3524,10 @@ export default function App() {
         icon: l.icon,
       });
     },
-    updateLoan: async (id, f) => {
-      setData((prev) => ({
+    updateLoan: async (id: string, f: any) => {
+      setData((prev: any) => ({
         ...prev,
-        loans: prev.loans.map((l) => (l.id === id ? { ...l, ...f } : l)),
+        loans: prev.loans.map((l: any) => (l.id === id ? { ...l, ...f } : l)),
       }));
       await supabase
         .from('loans')
@@ -3539,29 +3545,24 @@ export default function App() {
         })
         .eq('id', id);
     },
-    deleteLoan: async (id) => {
-      setData((prev) => ({
+    deleteLoan: async (id: string) => {
+      setData((prev: any) => ({
         ...prev,
-        loans: prev.loans.filter((l) => l.id !== id),
+        loans: prev.loans.filter((l: any) => l.id !== id),
       }));
       await supabase.from('loans').delete().eq('id', id);
     },
-    saveSettings: async (s) => {
-      // 1. Update the local UI state instantly
-      setData((prev) => ({ ...prev, settings: s }));
-
-      // 2. Push to Supabase and explicitly grab the error token
+    saveSettings: async (s: any) => {
+      setData((prev: any) => ({ ...prev, settings: s }));
       const { error } = await supabase.from('household_settings').upsert({
         household_id: data.householdId,
         settings_data: s,
       });
-
-      // 3. Alert us immediately if the cloud bounces it back
       if (error) {
         alert('Supabase rejected settings change: ' + error.message);
       }
     },
-    joinHousehold: async (newHouseholdId) => {
+    joinHousehold: async (newHouseholdId: string) => {
       const { error } = await supabase
         .from('profiles')
         .update({ household_id: newHouseholdId })
@@ -3576,13 +3577,13 @@ export default function App() {
       setLoading(false);
       alert("Successfully joined partner's household!");
     },
-    importData: ({ expenses, contributions }) => {
-      const existingIds = new Set(data.expenses.map((e) => e.id));
-      const newExp = expenses.filter((e) => !existingIds.has(e.id));
+    importData: ({ expenses, contributions }: any) => {
+      const existingIds = new Set(data.expenses.map((e: any) => e.id));
+      const newExp = expenses.filter((e: any) => !existingIds.has(e.id));
       const mergedContribs = contributions
         ? [
             ...data.contributions.filter(
-              (c) => !contributions.find((nc) => nc.month === c.month)
+              (c: any) => !contributions.find((nc: any) => nc.month === c.month)
             ),
             ...contributions,
           ]
@@ -3606,7 +3607,7 @@ export default function App() {
         flexDirection: isMobile ? 'column' : 'row',
       }}
     >
-      {/* DESKTOP COLLAPSIBLE SIDEBAR (Hidden on Mobile) */}
+      {/* DESKTOP SIDEBAR */}
       {!isMobile && (
         <div
           style={{
@@ -3737,7 +3738,7 @@ export default function App() {
         </div>
       )}
 
-      {/* MAIN CONTENT AREA */}
+      {/* MAIN AREA */}
       <div
         style={{
           flex: 1,
@@ -3858,7 +3859,7 @@ export default function App() {
           )}
         </div>
 
-        {/* FLOATING ACTION BUTTON (FAB) */}
+        {/* FLOATING ACTION BUTTON */}
         {view !== 'add' && (
           <button
             onClick={() => {
@@ -3894,7 +3895,7 @@ export default function App() {
         )}
       </div>
 
-      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      {/* MOBILE BOTTOM NAVIGATION */}
       {isMobile && (
         <div
           style={{
