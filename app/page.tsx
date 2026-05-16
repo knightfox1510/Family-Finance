@@ -80,7 +80,7 @@ const DEFAULT_SETTINGS = {
   currency: 'INR',
 };
 
-function fmt(n, currency = 'INR') {
+function fmt(n: number, currency: string = 'INR') {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
@@ -90,11 +90,11 @@ function fmt(n, currency = 'INR') {
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
-function monthKey(date) {
+function monthKey(dateStr: string) {
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
-function monthLabel(key) {
+function monthLabel(key: string) {
   if (!key) return '';
   const [y, m] = key.split('-');
   return `${MONTHS[parseInt(m) - 1]} ${y}`;
