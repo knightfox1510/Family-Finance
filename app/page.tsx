@@ -1073,7 +1073,6 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
 
   const sf = (k: string, v: string) => setFilter((f) => ({ ...f, [k]: v }));
   
-  // Safe array de-duplication loop for Vercel target rules
   const allMonths = data.expenses
     .map((e: any) => monthKey(e.date))
     .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
@@ -1091,7 +1090,6 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
       if (filter.type !== 'All' && (e.type || 'expense') !== filter.type)
         return false;
       
-      // Advanced granular settlement filter engine
       if (filter.settled === 'pending' && (!e.toSettle || e.settled))
         return false;
       if (filter.settled === 'personal' && e.toSettle) 
@@ -1144,70 +1142,32 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Card style={{ padding: '12px 18px' }}>
-        <div
-          style={{
-            display: 'flex',
-            gap: 8,
-            flexWrap: 'wrap',
-            alignItems: 'center',
-          }}
-        >
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ color: C.muted, fontSize: 12 }}>Filter:</span>
-          <select
-            style={selStyle}
-            value={filter.month}
-            onChange={(e) => sf('month', e.target.value)}
-          >
+          <select style={selStyle} value={filter.month} onChange={(e) => sf('month', e.target.value)}>
             <option value="All">All Months</option>
             {allMonths.map((m: any) => (
-              <option key={m} value={m}>
-                {monthLabel(m)}
-              </option>
+              <option key={m} value={m}>{monthLabel(m)}</option>
             ))}
           </select>
-          <select
-            style={selStyle}
-            value={filter.type}
-            onChange={(e) => sf('type', e.target.value)}
-          >
+          <select style={selStyle} value={filter.type} onChange={(e) => sf('type', e.target.value)}>
             <option value="All">All Types</option>
             <option value="expense">Expenses</option>
             <option value="income">Income</option>
           </select>
-          <select
-            style={selStyle}
-            value={filter.account}
-            onChange={(e) => sf('account', e.target.value)}
-          >
+          <select style={selStyle} value={filter.account} onChange={(e) => sf('account', e.target.value)}>
             <option value="All">All Accounts</option>
             {ACCOUNT_TYPES(names).map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
+              <option key={a} value={a}>{a}</option>
             ))}
           </select>
-          <select
-            style={selStyle}
-            value={filter.category}
-            onChange={(e) => sf('category', e.target.value)}
-          >
+          <select style={selStyle} value={filter.category} onChange={(e) => sf('category', e.target.value)}>
             <option value="All">All Categories</option>
-            {[
-              ...data.settings.expenseCategories,
-              ...data.settings.incomeCategories,
-            ].map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+            {[...data.settings.expenseCategories, ...data.settings.incomeCategories].map((c) => (
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
-
-          {/* Expanded Status Filtering Dropdown Options */}
-          <select
-            style={selStyle}
-            value={filter.settled}
-            onChange={(e) => sf('settled', e.target.value)}
-          >
+          <select style={selStyle} value={filter.settled} onChange={(e) => sf('settled', e.target.value)}>
             <option value="All">All Settlement Statuses</option>
             <option value="pending">⏳ Pending</option>
             <option value="personal">👤 Personal (No Settlement)</option>
@@ -1218,70 +1178,36 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
       </Card>
 
       {selectedIds.size > 0 && (
-        <Card style={{
-          background: C.red + '15',
-          border: `1px solid ${C.red}44`,
-          padding: '12px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
+        <Card style={{ background: C.red + '15', border: `1px solid ${C.red}44`, padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <span style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>
-              💥 {selectedIds.size} entries selected
-            </span>
+            <span style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>💥 {selectedIds.size} entries selected</span>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Btn variant="ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setSelectedIds(new Set())}>
-              Deselect All
-            </Btn>
+            <Btn variant="ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setSelectedIds(new Set())}>Deselect All</Btn>
             <Btn variant="danger" style={{ fontSize: 12, padding: '6px 14px', fontWeight: 700 }} onClick={() => {
               const idsToDelete: string[] = [];
               selectedIds.forEach((id: string) => idsToDelete.push(id));
               onBulkDelete(idsToDelete);
               setSelectedIds(new Set());
-            }}>
-              🗑️ Delete Selected
-            </Btn>
+            }}>🗑️ Delete Selected</Btn>
           </div>
         </Card>
       )}
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table
-            style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}
-          >
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: C.bg }}>
+                {/* 1. Selection Checkbox Slot */}
                 <th style={{ padding: '11px 14px', width: 40 }}>
-                  <input
-                    type="checkbox"
-                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
-                    onChange={toggleAll}
-                    style={{ cursor: 'pointer', accentColor: C.amber }}
-                  />
+                  <input type="checkbox" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleAll} style={{ cursor: 'pointer', accentColor: C.amber }} />
                 </th>
-                {[
-                  'Date',
-                  'Category',
-                  'Amount',
-                  'Account',
-                  'Settlement Status',
-                  'Note',
-                  'Actions',
-                ].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: '11px 14px',
-                      color: C.muted,
-                      fontWeight: 600,
-                      textAlign: 'left',
-                    }}
-                  >
-                    {h}
-                  </th>
+                {/* 2. Copy Button Column Header */}
+                <th style={{ padding: '11px 14px', width: 65, color: C.muted, fontWeight: 600, textAlign: 'left' }}>Copy</th>
+                {/* 3 through 9. Rest of Headers Re-indexed */}
+                {['Date', 'Note', 'Category', 'Amount', 'Account', 'Settlement Status', 'Actions'].map((h) => (
+                  <th key={h} style={{ padding: '11px 14px', color: C.muted, fontWeight: 600, textAlign: 'left' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1289,70 +1215,29 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
               {filtered.map((e: any, i: number) => {
                 if (editingId === e.id) {
                   return (
-                    <tr
-                      key={e.id}
-                      style={{
-                        background: C.bg + '99',
-                        borderTop: `1px solid ${C.amber}`,
-                      }}
-                    >
-                      <td />
+                    <tr key={e.id} style={{ background: C.bg + '99', borderTop: `1px solid ${C.amber}` }}>
+                      <td /> {/* Checkbox slot padding */}
+                      <td /> {/* Copy slot padding */}
                       <td style={{ padding: 8 }}>
-                        <Inp
-                          type="date"
-                          value={editForm.date}
-                          onChange={(ev: any) =>
-                            setEditForm({ ...editForm, date: ev.target.value })
-                          }
-                        />
+                        <Inp type="date" value={editForm.date} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, date: ev.target.value }))} />
                       </td>
                       <td style={{ padding: 8 }}>
-                        <Sel
-                          value={editForm.category}
-                          onChange={(ev: any) =>
-                            setEditForm({
-                              ...editForm,
-                              category: ev.target.value,
-                            })
-                          }
-                        >
-                          {[
-                            ...data.settings.expenseCategories,
-                            ...data.settings.incomeCategories,
-                          ].map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
+                        <Inp placeholder="Add note..." value={editForm.note} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, note: ev.target.value }))} />
+                      </td>
+                      <td style={{ padding: 8 }}>
+                        <Sel value={editForm.category} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, category: ev.target.value }))}>
+                          {[...data.settings.expenseCategories, ...data.settings.incomeCategories].map((c) => (
+                            <option key={c} value={c}>{c}</option>
                           ))}
                         </Sel>
                       </td>
                       <td style={{ padding: 8 }}>
-                        <Inp
-                          type="number"
-                          value={editForm.amount}
-                          onChange={(ev: any) =>
-                            setEditForm({
-                              ...editForm,
-                              amount: ev.target.value,
-                            })
-                          }
-                          style={{ width: 80 }}
-                        />
+                        <Inp type="number" value={editForm.amount} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, amount: ev.target.value }))} style={{ width: 80 }} />
                       </td>
                       <td style={{ padding: 8 }}>
-                        <Sel
-                          value={editForm.account}
-                          onChange={(ev: any) =>
-                            setEditForm({
-                              ...editForm,
-                              account: ev.target.value,
-                            })
-                          }
-                        >
+                        <Sel value={editForm.account} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, account: ev.target.value }))}>
                           {ACCOUNT_TYPES(names).map((a) => (
-                            <option key={a} value={a}>
-                              {a}
-                            </option>
+                            <option key={a} value={a}>{a}</option>
                           ))}
                         </Sel>
                       </td>
@@ -1361,124 +1246,62 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
                           <span style={{ color: C.muted, fontSize: 12 }}>N/A</span>
                         ) : (
                           <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: C.text1 }}>
-                            <input
-                              type="checkbox"
-                              checked={editForm.toSettle}
-                              onChange={(ev: any) => setEditForm({ ...editForm, toSettle: ev.target.checked })}
-                              style={{ accentColor: C.amber }}
-                            />
+                            <input type="checkbox" checked={editForm.toSettle} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, toSettle: ev.target.checked }))} style={{ accentColor: C.amber }} />
                             Shared
                           </label>
                         )}
                       </td>
-                      <td style={{ padding: 8 }}>
-                        <Inp
-                          value={editForm.note}
-                          onChange={(ev: any) =>
-                            setEditForm({ ...editForm, note: ev.target.value })
-                          }
-                        />
-                      </td>
                       <td style={{ padding: 8, display: 'flex', gap: 6 }}>
-                        <Btn
-                          variant="success"
-                          onClick={saveEdit}
-                          style={{ padding: '6px 10px' }}
-                        >
-                          ✓
-                        </Btn>
-                        <Btn
-                          variant="ghost"
-                          onClick={() => setEditingId(null)}
-                          style={{ padding: '6px 10px' }}
-                        >
-                          ✕
-                        </Btn>
+                        <Btn variant="success" onClick={saveEdit} style={{ padding: '6px 10px' }}>✓</Btn>
+                        <Btn variant="ghost" onClick={() => setEditingId(null)} style={{ padding: '6px 10px' }}>✕</Btn>
                       </td>
                     </tr>
                   );
                 }
 
                 return (
-                  <tr
-                    key={e.id}
-                    style={{
-                      borderTop: `1px solid ${C.border}`,
-                      background: selectedIds.has(e.id) ? C.red + '08' : (i % 2 === 0 ? 'transparent' : C.bg + '80'),
-                    }}
-                  >
+                  <tr key={e.id} style={{ borderTop: `1px solid ${C.border}`, background: selectedIds.has(e.id) ? C.red + '08' : (i % 2 === 0 ? 'transparent' : C.bg + '80') }}>
+                    {/* 1. Selection Checkbox Slot */}
                     <td style={{ padding: '10px 14px' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(e.id)}
-                        onChange={() => toggleSelect(e.id)}
-                        style={{ cursor: 'pointer', accentColor: C.amber }}
-                      />
+                      <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} style={{ cursor: 'pointer', accentColor: C.amber }} />
                     </td>
-                    <td style={{ padding: '10px 14px', color: C.text2 }}>
-                      {e.date}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: C.text1 }}>
-                      {e.category}
-                    </td>
-                    <td
-                      style={{
-                        padding: '10px 14px',
-                        color: e.type === 'income' ? C.green : C.textW,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {e.type === 'income' ? '+' : ''}
-                      {fmt(e.amount, data.settings.currency)}
-                    </td>
+                    {/* 2. Copy Button Slot (Now right next to checkbox at the start) */}
                     <td style={{ padding: '10px 14px' }}>
-                      <Badge color={e.account === 'Joint' ? C.green : C.blue}>
-                        {e.account}
-                      </Badge>
+                      <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11, color: C.amber, borderColor: `${C.amber}33` }} onClick={() => onDuplicate(e)}>📋 Copy</Btn>
                     </td>
-                    
-                    {/* Render exact custom settlement criteria states */}
-<td style={{ padding: '10px 14px' }}>
-  {e.type === 'income' ? (
-    <span style={{ color: C.muted }}>—</span>
-  ) : e.settled ? (
-    <Badge color={C.green}>
-      ✓ Settled with {e.settledFor === 'Partner A' ? names.a : names.b}
-    </Badge>
-  ) : e.account === 'Joint' ? (
-    <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Direct Shared</span>
-  ) : !e.toSettle ? (
-    <span style={{ color: C.text2, fontSize: 12 }}>Personal (No Settlement)</span>
-  ) : (
-    <Badge color={C.amber}>⏳ Pending</Badge>
-  )}
-</td>
-                    
-                    <td
-  style={{ padding: '10px 14px', display: 'flex', gap: 6 }}
->
-  <Btn
-    variant="ghost"
-    style={{ padding: '3px 8px', fontSize: 11 }}
-    onClick={() => startEdit(e)}
-  >
-    Edit
-  </Btn>
-  <Btn
-    variant="ghost"
-    style={{ padding: '3px 8px', fontSize: 11, color: C.amber, borderColor: `${C.amber}33` }}
-    onClick={() => onDuplicate(e)}
-  >
-    📋 Copy
-  </Btn>
-  <Btn
-    variant="danger"
-    style={{ padding: '3px 8px', fontSize: 11 }}
-    onClick={() => onDelete(e.id)}
-  >
-    ✕
-  </Btn>
-</td>
+                    {/* 3. Date Slot */}
+                    <td style={{ padding: '10px 14px', color: C.text2, whiteSpace: 'nowrap' }}>{e.date}</td>
+                    {/* 4. Note Slot (Moved up front right after date!) */}
+                    <td style={{ padding: '10px 14px', color: C.muted, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.note || '—'}</td>
+                    {/* 5. Category Slot */}
+                    <td style={{ padding: '10px 14px', color: C.text1 }}>{e.category}</td>
+                    {/* 6. Amount Slot */}
+                    <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>
+                      {e.type === 'income' ? '+' : ''}{fmt(e.amount, data.settings.currency)}
+                    </td>
+                    {/* 7. Account Used Slot */}
+                    <td style={{ padding: '10px 14px' }}>
+                      <Badge color={e.account === 'Joint' ? C.green : C.blue}>{e.account}</Badge>
+                    </td>
+                    {/* 8. Settlement Status Slot */}
+                    <td style={{ padding: '10px 14px' }}>
+                      {e.type === 'income' ? (
+                        <span style={{ color: C.muted }}>—</span>
+                      ) : e.settled ? (
+                        <Badge color={C.green}>✓ Settled with {e.settledFor === 'Partner A' ? names.a : names.b}</Badge>
+                      ) : e.account === 'Joint' ? (
+                        <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Direct Shared</span>
+                      ) : !e.toSettle ? (
+                        <span style={{ color: C.text2, fontSize: 12 }}>Personal (No Settlement)</span>
+                      ) : (
+                        <Badge color={C.amber}>⏳ Pending</Badge>
+                      )}
+                    </td>
+                    {/* 9. Core Row Inline Mutation Trigger Actions */}
+                    <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>
+                      <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => startEdit(e)}>Edit</Btn>
+                      <Btn variant="danger" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => onDelete(e.id)}>✕</Btn>
+                    </td>
                   </tr>
                 );
               })}
@@ -1711,18 +1534,22 @@ const settleSelected = () => {
         </Card>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-        <SettleTable
-          items={pendingA}
-          partner={`${names.a}'s Expenses`}
-          color={C.purple}
-        />
-        <SettleTable
-          items={pendingB}
-          partner={`${names.b}'s Expenses`}
-          color={C.blue}
-        />
-      </div>
+<div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', width: '100%' }}>
+  <div style={{ flex: '1 1 340px', minWidth: 300 }}>
+    <SettleTable
+      items={pendingA}
+      partner={`${names.a}'s Expenses`}
+      color={C.purple}
+    />
+  </div>
+  <div style={{ flex: '1 1 340px', minWidth: 300 }}>
+    <SettleTable
+      items={pendingB}
+      partner={`${names.b}'s Expenses`}
+      color={C.blue}
+    />
+  </div>
+</div>
 
       <Card>
   <SectionTitle>Recently Settled</SectionTitle>
