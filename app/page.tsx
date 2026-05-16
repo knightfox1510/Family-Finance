@@ -122,7 +122,7 @@ function seedData() {
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
-async function loadData(userId) {
+async function loadData(userId: string) {
   try {
     const { data: profile } = await supabase
       .from('profiles')
