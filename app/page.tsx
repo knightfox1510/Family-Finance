@@ -526,15 +526,12 @@ function parseImport(file: any, callback: any) {
         return sh ? XLSX.utils.sheet_to_json(sh) : [];
       };
 
-      // Helper function to dynamically translate Excel serial numbers to YYYY-MM-DD strings
       const normalizeDate = (val: any) => {
         if (!val) return today();
-        // Check if the cell value is a raw number (like 46023)
         if (!isNaN(val) && Number(val) > 30000) {
           const d = new Date((Number(val) - 25569) * 86400 * 1000);
           return d.toISOString().slice(0, 10);
         }
-        // If it's already an uploaded text string, return as is
         return String(val).trim();
       };
       
@@ -544,10 +541,14 @@ function parseImport(file: any, callback: any) {
           row[k.toLowerCase().replace(/\s+/g, '')] = r[k];
         });
 
+        // Normalize the transaction type to lowercase and clear extra spaces
+        const rawType = row.type ? String(row.type).toLowerCase().trim() : 'expense';
+
         return {
           id: row.id || null,
-          date: normalizeDate(row.date), // ⚡ Auto-converts serial number 46023 to '2026-04-01'
-          type: row.type || 'expense',
+          date: normalizeDate(row.date),
+          // Force strict compliance with the Supabase transactions_type_check constraint
+          type: rawType === 'income' ? 'income' : 'expense',
           category: row.category || 'Other',
           amount: Number(row.amount) || 0,
           account: row.account || 'Joint',
