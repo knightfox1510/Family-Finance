@@ -341,18 +341,16 @@ function SectionTitle({ children, style = {} }: { children: React.ReactNode; sty
     </h3>
   );
 }
-function ProgressBar({ pct, color = C.amber, height = 8 }) {
+function ProgressBar({ pct, color = C.amber, height = 8 }: { pct: number; color?: string; height?: number }) {
   return (
-    <div
-      style={{ background: C.bg, borderRadius: 99, height, overflow: 'hidden' }}
-    >
+    <div style={{ background: C.border, borderRadius: 99, height, overflow: 'hidden', width: '100%' }}>
       <div
         style={{
-          width: `${Math.min(100, pct)}%`,
+          background: color,
           height: '100%',
-          background: `linear-gradient(90deg,${color}88,${color})`,
+          width: `${Math.min(Math.max(pct, 0), 100)}%`,
           borderRadius: 99,
-          transition: 'width .6s ease',
+          transition: 'width 0.3s ease',
         }}
       />
     </div>
