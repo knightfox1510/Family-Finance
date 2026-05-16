@@ -588,26 +588,94 @@ function Dashboard({ data, onAddExpense }: any) {
     b: data.settings.partnerBName,
   };
 
-  // Date Range State (Defaults to current month)
+  // ⚡ New Toggle and Filter States
+  const [rangeMode, setRangeMode] = useState<'month' | 'custom'>('month');
   const d = new Date();
-  const defaultStart = new Date(d.getFullYear(), d.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
-  const [dates, setDates] = useState({ start: defaultStart, end: today() });
+  const currentMonthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
+  const defaultStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  const [customDates, setCustomDates] = useState({ start: defaultStart, end: today() });
+  
+  const [accountFilter, setAccountFilter] = useState<string>('All');
 
-  // Filter expenses based on selected dates
-  const filteredExp = data.expenses.filter(
-    (e: any) => e.date >= dates.start && e.date <= dates.end && e.type !== 'income'
-  );
+  // Safe Month Extractor loop (No forbidden spread operators)
+  const allAvailableMonths = data.expenses
+    .map((e: any) => monthKey(e.date))
+    .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
+    .sort()
+    .reverse();
 
-  const pool = data.contributions.reduce(
-    (sum: number, c: any) => sum + c.partnerA + c.partnerB,
+  // 1. ALL-TIME CALCULATIONS (For True Live Joint Balance)
+  const allTimePool = data.contributions.reduce(
+    (sum: number, c: any) => sum + (c.partnerA || 0) + (c.partnerB || 0),
     0
   );
-  const jointSpent = filteredExp
+  const allTimeJointSpent = data.expenses
+    .filter((e: any) => e.account === 'Joint' && e.type !== 'income')
+    .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+  
+  const currentJointBalance = allTimePool - allTimeJointSpent;
+
+  // 2. RUN RATE CALCULATION ENGINE (Last 6 Months Trend Matrix)
+  const last6Months = Array.from({ length: 6 }).map((_, i) => {
+    const target = new Date();
+    target.setMonth(target.getMonth() - i);
+    return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`;
+  }).reverse();
+
+  const monthlyTrendData = last6Months.map((mKey) => {
+    const totalSpentInMonth = data.expenses
+      .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income')
+      .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    return { monthLabel: monthLabel(mKey), total: totalSpentInMonth };
+  });
+  
+  const maxTrendValue = monthlyTrendData.reduce((max, m) => m.total > max ? m.total : max, 1);
+
+  // 3. APPLY FILTER CRITERIA (Range Mode + Account Filters)
+  const filteredExp = data.expenses.filter((e: any) => {
+    // Stage A: Date Evaluation
+    if (rangeMode === 'month') {
+      if (monthKey(e.date) !== selectedMonth) return false;
+    } else {
+      if (e.date < customDates.start || e.date > customDates.end) return false;
+    }
+    // Stage B: Account Evaluation
+    if (accountFilter !== 'All' && e.account !== accountFilter) return false;
+    // Stage C: Strip income profiles from base metrics
+    if (e.type === 'income') return false;
+
+    return true;
+  });
+
+  // Calculate matching income parameters for the active scope
+  const periodIncome = data.expenses.filter((e: any) => {
+    if (rangeMode === 'month') {
+      if (monthKey(e.date) !== selectedMonth) return false;
+    } else {
+      if (e.date < customDates.start || e.date > customDates.end) return false;
+    }
+    if (accountFilter !== 'All' && e.account !== accountFilter) return false;
+    return e.type === 'income';
+  }).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+
+  const jointSpentPeriod = filteredExp
     .filter((e: any) => e.account === 'Joint')
     .reduce((s: number, e: any) => s + e.amount, 0);
-  const totalPeriod = filteredExp.reduce((s: number, e: any) => s + e.amount, 0);
+
+  const totalPeriodExpenses = filteredExp.reduce((s: number, e: any) => s + e.amount, 0);
+
+  const personalSpentA = filteredExp
+    .filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner A' || e.account === names.a))
+    .reduce((s: number, e: any) => s + e.amount, 0);
+
+  const personalSpentB = filteredExp
+    .filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner B' || e.account === names.b))
+    .reduce((s: number, e: any) => s + e.amount, 0);
+
+  const savingsDelta = periodIncome - totalPeriodExpenses;
+  const savingsRate = periodIncome > 0 ? Math.max(0, (savingsDelta / periodIncome) * 100) : 0;
 
   const catMap = {} as Record<string, number>;
   filteredExp.forEach((e: any) => {
@@ -618,71 +686,79 @@ function Dashboard({ data, onAddExpense }: any) {
     .slice(0, 6);
   const maxCat = topCats[0]?.[1] || 1;
 
-  // EMI Reminders (Is today the payment day?)
   const currentDay = new Date().getDate();
   const dueLoans = data.loans.filter((l: any) => l.paymentDay === currentDay);
 
+  const labelStyle = { color: C.muted, fontSize: 12, fontWeight: 600, marginRight: 4 };
+  const toggleBtnStyle = (active: boolean) => ({
+    padding: '4px 10px',
+    fontSize: 12,
+    borderRadius: 6,
+    background: active ? C.amber : 'transparent',
+    color: active ? C.bg : C.text1,
+    border: 'none',
+    cursor: 'pointer',
+    fontWeight: 600,
+    transition: 'all 0.2s'
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      {/* Date Filter */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 10,
-        }}
-      >
-        <Card
-          style={{
-            padding: '10px 14px',
-            display: 'flex',
-            gap: 10,
-            alignItems: 'center',
-            margin: 0,
-          }}
-        >
-          <span style={{ color: C.muted, fontSize: 13, fontWeight: 600 }}>
-            Date Range:
-          </span>
-          <Inp
-            type="date"
-            value={dates.start}
-            onChange={(e: any) => setDates({ ...dates, start: e.target.value })}
-            style={{ width: 130, padding: '4px 8px' }}
-          />
-          <span style={{ color: C.muted }}>to</span>
-          <Inp
-            type="date"
-            value={dates.end}
-            onChange={(e: any) => setDates({ ...dates, end: e.target.value })}
-            style={{ width: 130, padding: '4px 8px' }}
-          />
+      
+      {/* 🛠️ UPGRADED FILTER CONTROL PANEL */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <Card style={{ padding: '12px 18px', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
+          
+          {/* Section A: Date Range vs Month Selector Toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ background: C.bg, padding: 3, borderRadius: 8, display: 'inline-flex', border: `1px solid ${C.border}` }}>
+              <button onClick={() => setRangeMode('month')} style={toggleBtnStyle(rangeMode === 'month' as any)}>Single Month</button>
+              <button onClick={() => setRangeMode('custom')} style={toggleBtnStyle(rangeMode === 'custom' as any)}>Custom Range</button>
+            </div>
+
+            {rangeMode === 'month' ? (
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}
+              >
+                {allAvailableMonths.map((m: any) => (
+                  <option key={m} value={m}>{monthLabel(m)}</option>
+                ))}
+              </select>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Inp type="date" value={customDates.start} onChange={(e: any) => setCustomDates({ ...customDates, start: e.target.value })} style={{ width: 130, padding: '4px 8px' }} />
+                <span style={{ color: C.muted, fontSize: 12 }}>to</span>
+                <Inp type="date" value={customDates.end} onChange={(e: any) => setCustomDates({ ...customDates, end: e.target.value })} style={{ width: 130, padding: '4px 8px' }} />
+              </div>
+            )}
+          </div>
+
+          {/* Section B: Account Dynamic Filter Dropdown */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={labelStyle}>Account:</span>
+            <select
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}
+            >
+              <option value="All">All Accounts</option>
+              <option value="Joint">Joint Account Only</option>
+              <option value={names.a}>{names.a} Only</option>
+              <option value={names.b}>{names.b} Only</option>
+            </select>
+          </div>
+
         </Card>
       </div>
 
-      {/* EMI Alerts */}
+      {/* EMI Due Banner Notification */}
       {dueLoans.length > 0 && (
-        <Card
-          style={{
-            border: `1px solid ${C.amber}66`,
-            background: C.amber + '11',
-            padding: '14px 20px',
-          }}
-        >
-          <SectionTitle style={{ color: C.amber, marginBottom: 8 }}>
-            🔔 EMI Due Today
-          </SectionTitle>
+        <Card style={{ border: `1px solid ${C.amber}66`, background: C.amber + '11', padding: '14px 20px' }}>
+          <SectionTitle style={{ color: C.amber, marginBottom: 8 }}>🔔 EMI Due Today</SectionTitle>
           {dueLoans.map((l: any) => (
-            <div
-              key={l.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginTop: 10,
-              }}
-            >
+            <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
               <span style={{ color: C.textW, fontSize: 14 }}>
                 {l.icon} <b>{l.name}</b> — {fmt(l.emi, data.settings.currency)}
               </span>
@@ -712,72 +788,116 @@ function Dashboard({ data, onAddExpense }: any) {
         </Card>
       )}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(175px,1fr))',
-          gap: 12,
-        }}
-      >
+      {/* Core Capital Metrics Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
         <StatCard
-          label="Total Spent (Period)"
-          value={fmt(totalPeriod, data.settings.currency)}
+          label="Joint Account Balance"
+          value={fmt(currentJointBalance, data.settings.currency)}
+          accent={currentJointBalance < 5000 ? C.red : C.green}
+          icon="💰"
+          sub={`Running shared cash pool balance`}
+        />
+        <StatCard
+          label="Scope Spent"
+          value={fmt(totalPeriodExpenses, data.settings.currency)}
           accent={C.amber}
           icon="💸"
-          sub={`${filteredExp.length} transactions`}
+          sub={`${filteredExp.length} cost rows matching criteria`}
         />
         <StatCard
-          label="Joint Spent (Period)"
-          value={fmt(jointSpent, data.settings.currency)}
-          accent={C.green}
+          label="Scope Shared Direct"
+          value={fmt(jointSpentPeriod, data.settings.currency)}
+          accent={C.blue}
           icon="🏦"
-        />
-        <StatCard
-          label="Monthly EMI Load"
-          value={fmt(
-            data.loans.reduce((s: number, l: any) => s + l.emi, 0),
-            data.settings.currency
-          )}
-          accent={C.teal}
-          icon="🏧"
-          sub={`${data.loans.length} active loans`}
+          sub={`Directly matching account parameters`}
         />
       </div>
 
+      {/* 📈 NEW WIDGET: RUN RATE & MONTHLY TREND HISTORY SPARK CHART */}
       <Card>
-        <SectionTitle>Top Categories — Selected Period</SectionTitle>
+        <SectionTitle>Household Run Rate — 6 Months Trend</SectionTitle>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 140, paddingTop: 20, paddingBottom: 10, gap: 12 }}>
+          {monthlyTrendData.map((m) => {
+            const barHeightPct = Math.max(8, (m.total / maxTrendValue) * 100);
+            return (
+              <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
+                  {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
+                </div>
+                <div style={{
+                  width: '100%',
+                  height: `${barHeightPct}%`,
+                  background: `linear-gradient(to top, ${C.surface}, ${C.amber})`,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: '6px 6px 0 0',
+                  minHeight: 6,
+                  transition: 'height 0.4s ease'
+                }} />
+                <div style={{ fontSize: 12, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Split Analytics and Personal Balances Layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
+        <Card>
+          <SectionTitle>Out of Pocket Splits (Filtered)</SectionTitle>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', background: C.bg, padding: '12px 14px', borderRadius: 10 }}>
+              <span style={{ color: C.purple, fontWeight: 600 }}>{names.a}:</span>
+              <span style={{ fontWeight: 700 }}>{fmt(personalSpentA, data.settings.currency)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', background: C.bg, padding: '12px 14px', borderRadius: 10 }}>
+              <span style={{ color: C.blue, fontWeight: 600 }}>{names.b}:</span>
+              <span style={{ fontWeight: 700 }}>{fmt(personalSpentB, data.settings.currency)}</span>
+            </div>
+          </div>
+        </Card>
+
+        <Card style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <SectionTitle>Savings velocity metrics</SectionTitle>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, marginTop: 10 }}>
+              <span style={{ color: C.text2, fontSize: 13 }}>Income in scope:</span>
+              <span style={{ color: C.green, fontWeight: 700 }}>{fmt(periodIncome, data.settings.currency)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+              <span style={{ color: C.text2, fontSize: 13 }}>Net Remaining Margin:</span>
+              <span style={{ color: savingsDelta >= 0 ? C.green : C.red, fontWeight: 700 }}>
+                {fmt(savingsDelta, data.settings.currency)}
+              </span>
+            </div>
+          </div>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Savings Threshold:</span>
+              <span style={{ fontSize: 12, color: C.textW, fontWeight: 700 }}>{savingsRate.toFixed(0)}%</span>
+            </div>
+            <ProgressBar pct={savingsRate} color={C.green} height={8} />
+          </div>
+        </Card>
+      </div>
+
+      {/* Target Budgets & Expense Distribution Cards */}
+      <Card>
+        <SectionTitle>Category Distribution Breakdown</SectionTitle>
         {topCats.length === 0 && (
-          <p style={{ color: C.muted, fontSize: 13 }}>
-            No expenses found in this range.
-          </p>
+          <p style={{ color: C.muted, fontSize: 13 }}>No expenses found matching current criteria.</p>
         )}
         {topCats.map(([cat, amt]) => {
           const budget = data.settings.budgets[cat];
           const over = budget && amt > budget;
           return (
             <div key={cat} style={{ marginBottom: 12 }}>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginBottom: 4,
-                }}
-              >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{ color: C.text1, fontSize: 13 }}>{cat}</span>
-                <span
-                  style={{
-                    color: over ? C.red : C.textW,
-                    fontSize: 13,
-                    fontWeight: 700,
-                  }}
-                >
+                <span style={{ color: over ? C.red : C.textW, fontSize: 13, fontWeight: 700 }}>
                   {fmt(amt, data.settings.currency)} {over ? ' ⚠️' : ''}
                 </span>
               </div>
-              <ProgressBar
-                pct={(amt / maxCat) * 100}
-                color={over ? C.red : C.amber}
-              />
+              <ProgressBar pct={(amt / maxCat) * 100} color={over ? C.red : C.amber} />
             </div>
           );
         })}
@@ -787,12 +907,14 @@ function Dashboard({ data, onAddExpense }: any) {
 }
 
 // ─── ADD EXPENSE ──────────────────────────────────────────────────────────────
-function AddExpense({ data, onAdd, onClose }: any) {
+function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
   };
-  const [form, setForm] = useState({
+
+  // Pre-fills state with the copied transaction parameters or falls back to defaults
+  const [form, setForm] = useState(duplicateData || {
     date: today(),
     amount: '',
     category: data.settings.expenseCategories[0],
@@ -802,8 +924,24 @@ function AddExpense({ data, onAdd, onClose }: any) {
     toSettle: false,
     type: 'expense',
   });
+  
   const [flash, setFlash] = useState(false);
   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Smart Identity Detection: Automatically sets logged-in identity for fresh entries
+  useEffect(() => {
+    if (!duplicateData && session?.user?.email) {
+      const email = session.user.email.toLowerCase();
+      const pAName = names.a.toLowerCase();
+      const pBName = names.b.toLowerCase();
+
+      if (email.includes('gaurav') || email.includes(pAName)) {
+        setForm((f: any) => ({ ...f, account: names.a, addedBy: 'Partner A' }));
+      } else if (email.includes('karishma') || email.includes(pBName)) {
+        setForm((f: any) => ({ ...f, account: names.b, addedBy: 'Partner B' }));
+      }
+    }
+  }, [session, duplicateData, names.a, names.b]);
 
   const submit = () => {
     if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) return;
@@ -819,32 +957,17 @@ function AddExpense({ data, onAdd, onClose }: any) {
     setTimeout(() => setFlash(false), 2000);
   };
 
-  const cats =
-    form.type === 'income'
-      ? data.settings.incomeCategories
-      : data.settings.expenseCategories;
+  const cats = form.type === 'income' ? data.settings.incomeCategories : data.settings.expenseCategories;
 
   return (
     <div style={{ maxWidth: 560 }}>
-      <Card>
-        {/* Header with Close Button */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 18,
-          }}
-        >
-          <SectionTitle style={{ margin: 0 }}>Add New Transaction</SectionTitle>
+      <Card style={{ border: duplicateData ? `1px solid ${C.amber}55` : `1px solid ${C.border}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+          <SectionTitle style={{ margin: 0 }}>
+            {duplicateData ? '📋 Duplicating Cost Entry' : 'Add New Transaction'}
+          </SectionTitle>
           {onClose && (
-            <Btn
-              variant="ghost"
-              onClick={onClose}
-              style={{ padding: '4px 10px', fontSize: 16 }}
-            >
-              ✕
-            </Btn>
+            <Btn variant="ghost" onClick={onClose} style={{ padding: '4px 10px', fontSize: 16 }}>✕</Btn>
           )}
         </div>
 
@@ -855,18 +978,9 @@ function AddExpense({ data, onAdd, onClose }: any) {
               variant={form.type === t ? 'primary' : 'ghost'}
               onClick={() => {
                 set('type', t);
-                set(
-                  'category',
-                  t === 'income'
-                    ? data.settings.incomeCategories[0]
-                    : data.settings.expenseCategories[0]
-                );
+                set('category', t === 'income' ? data.settings.incomeCategories[0] : data.settings.expenseCategories[0]);
               }}
-              style={{
-                flex: 1,
-                textAlign: 'center',
-                textTransform: 'capitalize',
-              }}
+              style={{ flex: 1, textAlign: 'center', textTransform: 'capitalize' }}
             >
               {t === 'expense' ? '💸 Expense' : '💰 Income'}
             </Btn>
@@ -874,49 +988,28 @@ function AddExpense({ data, onAdd, onClose }: any) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-          <div
-            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}
-          >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <Label>Date</Label>
-              <Inp
-                type="date"
-                value={form.date}
-                onChange={(e: any) => set('date', e.target.value)}
-              />
+              <Inp type="date" value={form.date} onChange={(e: any) => set('date', e.target.value)} />
             </div>
             <div>
               <Label>Amount (₹)</Label>
-              <Inp
-                type="number"
-                placeholder="0"
-                value={form.amount}
-                onChange={(e: any) => set('amount', e.target.value)}
-              />
+              <Inp type="number" placeholder="0" value={form.amount} onChange={(e: any) => set('amount', e.target.value)} />
             </div>
           </div>
           <div>
             <Label>Category</Label>
-            <Sel
-              value={form.category}
-              onChange={(e: any) => set('category', e.target.value)}
-            >
+            <Sel value={form.category} onChange={(e: any) => set('category', e.target.value)}>
               {cats.map((c: string) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </Sel>
           </div>
-          <div
-            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}
-          >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <Label>Paid From</Label>
-              <Sel
-                value={form.account}
-                onChange={(e: any) => set('account', e.target.value)}
-              >
+              <Sel value={form.account} onChange={(e: any) => set('account', e.target.value)}>
                 <option value="Joint">Joint Account</option>
                 <option value={names.a}>{names.a}</option>
                 <option value={names.b}>{names.b}</option>
@@ -924,165 +1017,34 @@ function AddExpense({ data, onAdd, onClose }: any) {
             </div>
             <div>
               <Label>Added By</Label>
-              <Sel
-                value={form.addedBy}
-                onChange={(e: any) => set('addedBy', e.target.value)}
-              >
+              <Sel value={form.addedBy} onChange={(e: any) => set('addedBy', e.target.value)}>
                 <option value="Partner A">{names.a}</option>
                 <option value="Partner B">{names.b}</option>
               </Sel>
             </div>
           </div>
 
-          {/* AI Receipt Scanner Slot */}
-          <div
-            style={{
-              background: C.surface,
-              border: `1px dashed ${C.amber}66`,
-              padding: 12,
-              borderRadius: 10,
-              marginBottom: 14,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span style={{ fontSize: 13, color: C.text2 }}>
-              ⚡ AI Receipt Scanner
-            </span>
-            <input
-              type="file"
-              accept="image/*"
-              id="receipt-upload"
-              style={{ display: 'none' }}
-              onChange={async (e: any) => {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const btn = document.getElementById('scan-btn');
-                if (btn) btn.innerText = '🤖 Scanning receipt...';
-
-                // Convert image to base64 for Gemini API
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = async () => {
-                  if (typeof reader.result !== 'string') return;
-                  const base64Data = reader.result.split(',')[1];
-                  try {
-                    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-                    const res = await fetch(
-                      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-                      {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          contents: [
-                            {
-                              parts: [
-                                {
-                                  text: `Analyze this receipt. Return ONLY a raw JSON object with keys: "amount" (number), "date" (YYYY-MM-DD string), "category" (must be strictly one of these: ${data.settings.expenseCategories.join(
-                                    ', '
-                                  )}), and "note" (brief description). Do not include markdown code blocks.`,
-                                },
-                                {
-                                  inlineData: {
-                                    mimeType: file.type,
-                                    data: base64Data,
-                                  },
-                                },
-                              ],
-                            },
-                          ],
-                        }),
-                      }
-                    );
-                    const jsonRes = await res.json();
-                    const txt =
-                      jsonRes.candidates[0].content.parts[0].text.trim();
-                    const parsed = JSON.parse(
-                      txt.replace(/\`\`\`json|\`\`\`/g, '')
-                    );
-
-                    if (parsed.amount) set('amount', parsed.amount);
-                    if (parsed.date) set('date', parsed.date);
-                    if (parsed.category) set('category', parsed.category);
-                    if (parsed.note) set('note', parsed.note);
-                    if (btn) btn.innerText = '✨ Scan Successful!';
-                  } catch (err) {
-                    console.error(err);
-                    alert(
-                      'AI failed to parse receipt. Please enter details manually.'
-                    );
-                    if (btn) btn.innerText = '📸 Scan Receipt';
-                  }
-                };
-              }}
-            />
-            <Btn
-              id="scan-btn"
-              variant="ghost"
-              style={{ fontSize: 13, width: '100%' }}
-              onClick={() => document.getElementById('receipt-upload')?.click()}
-            >
-              📸 Scan Receipt / Bill
-            </Btn>
-          </div>
-
           <div>
             <Label>Note (optional)</Label>
-            <Inp
-              placeholder="What was this for?"
-              value={form.note}
-              onChange={(e: any) => set('note', e.target.value)}
-            />
+            <Inp placeholder="What was this for?" value={form.note} onChange={(e: any) => set('note', e.target.value)} />
           </div>
 
           {form.type === 'expense' && form.account !== 'Joint' && (
-            <div
-              style={{
-                background: C.bg,
-                borderRadius: 10,
-                padding: '12px 14px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
+            <div style={{ background: C.bg, borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ color: C.text1, fontSize: 13, fontWeight: 600 }}>
-                  To be settled by Joint Account?
-                </div>
-                <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>
-                  Turn on if this personal expense should be reimbursed from the
-                  joint pool
-                </div>
+                <div style={{ color: C.text1, fontSize: 13, fontWeight: 600 }}>To be settled by Joint Account?</div>
+                <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Reimburse personal expense from joint pool</div>
               </div>
-              <Toggle
-                checked={form.toSettle}
-                onChange={(v: boolean) => set('toSettle', v)}
-              />
+              <Toggle checked={form.toSettle} onChange={(v: boolean) => set('toSettle', v)} />
             </div>
           )}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-            <Btn
-              variant={flash ? 'success' : 'primary'}
-              onClick={submit}
-              style={{ flex: 1, padding: 13, fontSize: 15 }}
-            >
-              {flash
-                ? '✓ Added!'
-                : `Add ${form.type === 'income' ? 'Income' : 'Expense'}`}
+            <Btn variant={flash ? 'success' : 'primary'} onClick={submit} style={{ flex: 1, padding: 13, fontSize: 15 }}>
+              {flash ? '✓ Added Successfully!' : (duplicateData ? '✓ Confirm Duplicate' : `Add ${form.type === 'income' ? 'Income' : 'Expense'}`)}
             </Btn>
             {onClose && (
-              <Btn
-                variant="ghost"
-                onClick={onClose}
-                style={{ padding: 13, fontSize: 15 }}
-              >
-                Cancel
-              </Btn>
+              <Btn variant="ghost" onClick={onClose} style={{ padding: 13, fontSize: 15 }}>Cancel</Btn>
             )}
           </div>
         </div>
@@ -1092,7 +1054,7 @@ function AddExpense({ data, onAdd, onClose }: any) {
 }
 
 // ─── EXPENSE LIST ─────────────────────────────────────────────────────────────
-function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete }: any) {
+function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete, onDuplicate }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
@@ -1103,18 +1065,20 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete 
     account: 'All',
     category: 'All',
     type: 'All',
-    settled: 'All', // ⚡ Holds the settlement status filter value
+    settled: 'All', 
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const sf = (k: string, v: string) => setFilter((f) => ({ ...f, [k]: v }));
+  
+  // Safe array de-duplication loop for Vercel target rules
   const allMonths = data.expenses
-  .map((e: any) => monthKey(e.date))
-  .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
-  .sort()
-  .reverse();
+    .map((e: any) => monthKey(e.date))
+    .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
+    .sort()
+    .reverse();
 
   const filtered = data.expenses
     .filter((e: any) => {
@@ -1127,12 +1091,14 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete 
       if (filter.type !== 'All' && (e.type || 'expense') !== filter.type)
         return false;
       
-      // ⚡ Active filtering logic for settlement states
+      // Advanced granular settlement filter engine
       if (filter.settled === 'pending' && (!e.toSettle || e.settled))
         return false;
-      if (filter.settled === 'settled' && !e.settled) 
-        return false;
       if (filter.settled === 'personal' && e.toSettle) 
+        return false;
+      if (filter.settled === 'settledA' && (!e.settled || e.settledFor !== 'Partner A')) 
+        return false;
+      if (filter.settled === 'settledB' && (!e.settled || e.settledFor !== 'Partner B')) 
         return false;
         
       return true;
@@ -1236,16 +1202,17 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete 
             ))}
           </select>
 
-          {/* ⚡ NEW: Settlement Dropdown Filter */}
+          {/* Expanded Status Filtering Dropdown Options */}
           <select
             style={selStyle}
             value={filter.settled}
             onChange={(e) => sf('settled', e.target.value)}
           >
             <option value="All">All Settlement Statuses</option>
-            <option value="pending">⏳ Pending Settlement</option>
-            <option value="settled">✅ Fully Settled</option>
-            <option value="personal">👤 Personal (No Shared Settlement)</option>
+            <option value="pending">⏳ Pending</option>
+            <option value="personal">👤 Personal (No Settlement)</option>
+            <option value="settledA">✅ Settled with {names.a}</option>
+            <option value="settledB">✅ Settled with {names.b}</option>
           </select>
         </div>
       </Card>
@@ -1300,7 +1267,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete 
                   'Category',
                   'Amount',
                   'Account',
-                  'Settlement', // ⚡ NEW COLUMN HEADER
+                  'Settlement Status',
                   'Note',
                   'Actions',
                 ].map((h) => (
@@ -1389,7 +1356,6 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete 
                           ))}
                         </Sel>
                       </td>
-                      {/* ⚡ NEW: Interactive settlement toggle inside row editor */}
                       <td style={{ padding: 8 }}>
                         {editForm.type === 'income' || editForm.account === 'Joint' ? (
                           <span style={{ color: C.muted, fontSize: 12 }}>N/A</span>
@@ -1470,43 +1436,49 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete 
                         {e.account}
                       </Badge>
                     </td>
-                    {/* ⚡ NEW: Settlement status layout engine rendering custom color badges */}
+                    
+                    {/* Render exact custom settlement criteria states */}
                     <td style={{ padding: '10px 14px' }}>
                       {e.type === 'income' ? (
                         <span style={{ color: C.muted }}>—</span>
                       ) : e.account === 'Joint' ? (
                         <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Direct Shared</span>
                       ) : !e.toSettle ? (
-                        <span style={{ color: C.muted, fontSize: 12 }}>Personal</span>
+                        <span style={{ color: C.text2, fontSize: 12 }}>Personal (No Settlement)</span>
                       ) : e.settled ? (
                         <Badge color={C.green}>
-                          ✓ Settled {e.settledFor && `(${e.settledFor.includes('A') ? names.a : names.b})`}
+                          ✓ Settled with {e.settledFor === 'Partner A' ? names.a : names.b}
                         </Badge>
                       ) : (
                         <Badge color={C.amber}>⏳ Pending</Badge>
                       )}
                     </td>
-                    <td style={{ padding: '10px 14px', color: C.muted }}>
-                      {e.note || '—'}
-                    </td>
+                    
                     <td
-                      style={{ padding: '10px 14px', display: 'flex', gap: 6 }}
-                    >
-                      <Btn
-                        variant="ghost"
-                        style={{ padding: '3px 8px', fontSize: 11 }}
-                        onClick={() => startEdit(e)}
-                      >
-                        Edit
-                      </Btn>
-                      <Btn
-                        variant="danger"
-                        style={{ padding: '3px 8px', fontSize: 11 }}
-                        onClick={() => onDelete(e.id)}
-                      >
-                        ✕
-                      </Btn>
-                    </td>
+  style={{ padding: '10px 14px', display: 'flex', gap: 6 }}
+>
+  <Btn
+    variant="ghost"
+    style={{ padding: '3px 8px', fontSize: 11 }}
+    onClick={() => startEdit(e)}
+  >
+    Edit
+  </Btn>
+  <Btn
+    variant="ghost"
+    style={{ padding: '3px 8px', fontSize: 11, color: C.amber, borderColor: `${C.amber}33` }}
+    onClick={() => onDuplicate(e)}
+  >
+    📋 Copy
+  </Btn>
+  <Btn
+    variant="danger"
+    style={{ padding: '3px 8px', fontSize: 11 }}
+    onClick={() => onDelete(e.id)}
+  >
+    ✕
+  </Btn>
+</td>
                   </tr>
                 );
               })}
@@ -3414,11 +3386,14 @@ function Settings({
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [data, setData] = useState<any>(null);
+  
 
   const [view, setView] = useState('dashboard');
   const [prevView, setPrevView] = useState('dashboard'); 
   const [sidebarOpen, setSidebarOpen] = useState(true); 
   const [isMobile, setIsMobile] = useState(false);
+
+  const [duplicateData, setDuplicateData] = useState<any>(null);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -3590,23 +3565,45 @@ deleteExpense: async (id: string) => {
     },
     bulkSettle: async (ids: string[]) => {
       const idSet = new Set(ids);
-      const nd = {
-        ...data,
-        expenses: data.expenses.map((e: any) => {
-          if (!idSet.has(e.id)) return e;
-          const partner =
-            e.account.includes(names.a) || e.account.includes('Partner A')
-              ? 'Partner A'
-              : 'Partner B';
-          return { ...e, settled: true, settledFor: partner, account: 'Joint' };
-        }),
-      };
-      persist(nd);
-      notify(
-        'Settlements Processed',
-        `${ids.length} expenses settled`,
-        data.settings
-      );
+      
+      // 1. Determine local state updates
+      const updatedExpenses = data.expenses.map((e: any) => {
+        if (!idSet.has(e.id)) return e;
+        const partner = e.account.includes(names.a) || e.account.includes('Partner A')
+          ? 'Partner A'
+          : 'Partner B';
+        return { ...e, settled: true, settledFor: partner, account: 'Joint' };
+      });
+
+      // 2. Update local UI state layout instantly for responsiveness
+      setData((prev: any) => ({ ...prev, expenses: updatedExpenses }));
+
+      // 3. Issue asynchronous batch update execution blocks straight to Supabase
+      try {
+        const promises = ids.map((id) => {
+          const e = data.expenses.find((x: any) => x.id === id);
+          const partner = e?.account.includes(names.a) || e?.account.includes('Partner A')
+            ? 'Partner A'
+            : 'Partner B';
+          
+          return supabase
+            .from('transactions')
+            .update({
+              settled: true,
+              settled_with: partner,
+              account_used: 'Joint'
+            })
+            .eq('id', id);
+        });
+
+        const results = await Promise.all(promises);
+        const primaryError = results.find(r => r.error);
+        if (primaryError) throw primaryError.error;
+
+        notify('Settlements Processed', `${ids.length} expenses successfully synchronized to cloud!`, data.settings);
+      } catch (err: any) {
+        alert('UI updated locally, but cloud settlement failed to persist: ' + err.message);
+      }
     },
     updateContrib: async (month: string, pA: number, pB: number) => {
       setData((prev: any) => ({
@@ -3911,6 +3908,10 @@ importData: async ({ expenses, contributions }: any) => {
             ))}
           </div>
 
+          <div style={{ padding: '0 20px 10px', fontSize: 11, color: C.text2, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+  👤 Logged in as: {session.user.email}
+</div>
+
           <div
             style={{
               padding: '20px',
@@ -3950,41 +3951,45 @@ importData: async ({ expenses, contributions }: any) => {
         }}
       >
         {/* MOBILE TOP HEADER */}
-        {isMobile && (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '16px 20px',
-              borderBottom: `1px solid ${C.border}`,
-              background: C.surface,
-              position: 'sticky',
-              top: 0,
-              zIndex: 50,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 22 }}>💰</span>
-              <span style={{ color: C.amber, fontWeight: 900, fontSize: 16 }}>
-                FamilyFinance
-              </span>
-            </div>
-            <button
-              onClick={() => supabase.auth.signOut()}
-              style={{
-                background: 'transparent',
-                border: `1px solid ${C.border}`,
-                color: C.text2,
-                borderRadius: 6,
-                padding: '4px 8px',
-                fontSize: 11,
-              }}
-            >
-              Log Out
-            </button>
-          </div>
-        )}
+        {/* MOBILE TOP HEADER */}
+{isMobile && (
+  <div
+    style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '16px 20px',
+      borderBottom: `1px solid ${C.border}`,
+      background: C.surface,
+      position: 'sticky',
+      top: 0,
+      zIndex: 50,
+    }}
+  >
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 22 }}>💰</span>
+      <span style={{ color: C.amber, fontWeight: 900, fontSize: 16 }}>
+        FamilyFinance
+      </span>
+    </div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+      <span style={{ fontSize: 10, color: C.text2, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.user.email}</span>
+      <button
+        onClick={() => supabase.auth.signOut()}
+        style={{
+          background: 'transparent',
+          border: `1px solid ${C.border}`,
+          color: C.text2,
+          borderRadius: 6,
+          padding: '2px 6px',
+          fontSize: 10,
+        }}
+      >
+        Log Out
+      </button>
+    </div>
+  </div>
+)}
 
         <div
           style={{
@@ -4011,22 +4016,41 @@ importData: async ({ expenses, contributions }: any) => {
           {view === 'dashboard' && (
             <Dashboard data={data} onAddExpense={actions.addExpense} />
           )}
-          {view === 'add' && (
-            <AddExpense
-              data={data}
-              onAdd={actions.addExpense}
-              onClose={() => setView(prevView)}
-            />
-          )}
-          {view === 'expenses' && (
-            <ExpenseList
-              data={data}
-              onToggleToSettle={actions.toggleToSettle}
-              onDelete={actions.deleteExpense}
-              onUpdate={actions.updateExpense}
-              onBulkDelete={actions.bulkDeleteExpense}
-            />
-          )}
+          // 1. Update your action router links for view === 'add' to pass these props down
+  {view === 'add' && (
+    <AddExpense
+      data={data}
+      session={session} // ⚡ Passes login token down
+      duplicateData={duplicateData} // ⚡ Passes copy data down
+      onAdd={actions.addExpense}
+      onClose={() => {
+        setDuplicateData(null); // Clear copy data on exit
+        setView(prevView);
+      }}
+    />
+  )}
+
+  // 2. Update your action router links for view === 'expenses' to hook the duplication pipeline
+  {view === 'expenses' && (
+    <ExpenseList
+      data={data}
+      onToggleToSettle={actions.toggleToSettle}
+      onDelete={actions.deleteExpense}
+      onUpdate={actions.updateExpense}
+      onBulkDelete={actions.bulkDeleteExpense}
+      onDuplicate={(e: any) => {
+        // Sets up a prefilled structure with today's date automatically assigned
+        setDuplicateData({
+          ...e,
+          date: today(), 
+          amount: e.amount.toString(), // Keep string formatting for form fields
+          id: null // Triggers a new UUID generation on save
+        });
+        setPrevView(view);
+        setView('add');
+      }}
+    />
+  )}
           {view === 'settle' && (
             <SettleDashboard data={data} onBulkSettle={actions.bulkSettle} />
           )}
