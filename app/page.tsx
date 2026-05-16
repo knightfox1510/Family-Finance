@@ -1410,8 +1410,10 @@ function SettleDashboard({ data, onBulkSettle }: any) {
       return n;
     });
 
-  const settleSelected = () => {
-    onBulkSettle([...selected]);
+const settleSelected = () => {
+    const selectedArr: string[] = [];
+    selected.forEach((id: string) => selectedArr.push(id));
+    onBulkSettle(selectedArr);
     setSelected(new Set());
   };
 
