@@ -588,7 +588,6 @@ function Dashboard({ data, onAddExpense }: any) {
     b: data.settings.partnerBName,
   };
 
-  // ⚡ New Toggle and Filter States
   const [rangeMode, setRangeMode] = useState<'month' | 'custom'>('month');
   const d = new Date();
   const currentMonthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -599,25 +598,26 @@ function Dashboard({ data, onAddExpense }: any) {
   
   const [accountFilter, setAccountFilter] = useState<string>('All');
 
-  // Safe Month Extractor loop (No forbidden spread operators)
   const allAvailableMonths = data.expenses
     .map((e: any) => monthKey(e.date))
     .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
     .sort()
     .reverse();
 
-  // 1. ALL-TIME CALCULATIONS (For True Live Joint Balance)
-  const allTimePool = data.contributions.reduce(
-    (sum: number, c: any) => sum + (c.partnerA || 0) + (c.partnerB || 0),
-    0
-  );
+  // 1. ALL-TIME CAPITAL METRICS
+  const allTimePool = data.contributions.reduce((sum: number, c: any) => sum + (c.partnerA || 0) + (c.partnerB || 0), 0);
   const allTimeJointSpent = data.expenses
     .filter((e: any) => e.account === 'Joint' && e.type !== 'income')
     .reduce((s: number, e: any) => s + (e.amount || 0), 0);
   
   const currentJointBalance = allTimePool - allTimeJointSpent;
 
-  // 2. RUN RATE CALCULATION ENGINE (Last 6 Months Trend Matrix)
+  // Cumulative Asset Base (Investment + Insurance)
+  const allTimeInvested = data.expenses
+    .filter((e: any) => (e.category === 'Investment' || e.category === 'Insurance') && e.type !== 'income')
+    .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+
+  // 2. RUN RATE CALCULATION ENGINE (Lifestyle Only)
   const last6Months = Array.from({ length: 6 }).map((_, i) => {
     const target = new Date();
     target.setMonth(target.getMonth() - i);
@@ -626,30 +626,25 @@ function Dashboard({ data, onAddExpense }: any) {
 
   const monthlyTrendData = last6Months.map((mKey) => {
     const totalSpentInMonth = data.expenses
-      .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income')
+      .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && e.category !== 'Investment' && e.category !== 'Insurance')
       .reduce((s: number, e: any) => s + (e.amount || 0), 0);
     return { monthLabel: monthLabel(mKey), total: totalSpentInMonth };
   });
   
   const maxTrendValue = monthlyTrendData.reduce((max, m) => m.total > max ? m.total : max, 1);
 
-  // 3. APPLY FILTER CRITERIA (Range Mode + Account Filters)
+  // 3. APPLY ACTIVE FILTER SCOPE
   const filteredExp = data.expenses.filter((e: any) => {
-    // Stage A: Date Evaluation
     if (rangeMode === 'month') {
       if (monthKey(e.date) !== selectedMonth) return false;
     } else {
       if (e.date < customDates.start || e.date > customDates.end) return false;
     }
-    // Stage B: Account Evaluation
     if (accountFilter !== 'All' && e.account !== accountFilter) return false;
-    // Stage C: Strip income profiles from base metrics
     if (e.type === 'income') return false;
-
     return true;
   });
 
-  // Calculate matching income parameters for the active scope
   const periodIncome = data.expenses.filter((e: any) => {
     if (rangeMode === 'month') {
       if (monthKey(e.date) !== selectedMonth) return false;
@@ -660,30 +655,67 @@ function Dashboard({ data, onAddExpense }: any) {
     return e.type === 'income';
   }).reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
-  const jointSpentPeriod = filteredExp
-    .filter((e: any) => e.account === 'Joint')
+  // Intercept and pool both categories
+  const periodInvested = filteredExp
+    .filter((e: any) => e.category === 'Investment' || e.category === 'Insurance')
     .reduce((s: number, e: any) => s + e.amount, 0);
 
-  const totalPeriodExpenses = filteredExp.reduce((s: number, e: any) => s + e.amount, 0);
+  const totalPeriodRawExpenses = filteredExp.reduce((s: number, e: any) => s + e.amount, 0);
+  const trueLifestyleExpenses = totalPeriodRawExpenses - periodInvested;
 
-  const personalSpentA = filteredExp
-    .filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner A' || e.account === names.a))
-    .reduce((s: number, e: any) => s + e.amount, 0);
+  // 🔎 EXPANDED KEYWORD PARSING ENGINE
+  const allocation = {
+    'Mutual Funds / SIP': 0,
+    'NJ E-wealth / NJ': 0,
+    'Stocks / Equity': 0,
+    'PPF': 0,
+    'NPS': 0,
+    'Gold': 0,
+    'Crypto': 0,
+    'Insurance Policies': 0,
+    'Other Assets': 0
+  };
 
-  const personalSpentB = filteredExp
-    .filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner B' || e.account === names.b))
-    .reduce((s: number, e: any) => s + e.amount, 0);
+  filteredExp.forEach((e: any) => {
+    if (e.category === 'Investment') {
+      const noteTxt = (e.note || '').toLowerCase();
+      
+      if (noteTxt.includes('ppf')) {
+        allocation['PPF'] += e.amount;
+      } else if (noteTxt.includes('nps')) {
+        allocation['NPS'] += e.amount;
+      } else if (noteTxt.includes('gold') || noteTxt.includes('sgb')) {
+        allocation['Gold'] += e.amount;
+      } else if (noteTxt.includes('crypto') || noteTxt.includes('bitcoin') || noteTxt.includes('btc')) {
+        allocation['Crypto'] += e.amount;
+      } else if (noteTxt.includes('nj')) {
+        allocation['NJ E-wealth / NJ'] += e.amount;
+      } else if (noteTxt.includes('mutual') || noteTxt.includes('mf') || noteTxt.includes('sip')) {
+        allocation['Mutual Funds / SIP'] += e.amount;
+      } else if (noteTxt.includes('stock') || noteTxt.includes('equity') || noteTxt.includes('share')) {
+        allocation['Stocks / Equity'] += e.amount;
+      } else {
+        allocation['Other Assets'] += e.amount;
+      }
+    } else if (e.category === 'Insurance') {
+      allocation['Insurance Policies'] += e.amount; // Directly assigned, safety bypassed text parsing
+    }
+  });
 
-  const savingsDelta = periodIncome - totalPeriodExpenses;
+  const maxAllocationValue = Object.values(allocation).reduce((max: number, val: number) => val > max ? val : max, 1);
+
+  const jointSpentPeriod = filteredExp.filter((e: any) => e.account === 'Joint').reduce((s: number, e: any) => s + e.amount, 0);
+  const personalSpentA = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner A' || e.account === names.a)).reduce((s: number, e: any) => s + e.amount, 0);
+  const personalSpentB = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner B' || e.account === names.b)).reduce((s: number, e: any) => s + e.amount, 0);
+
+  const savingsDelta = periodIncome - trueLifestyleExpenses;
   const savingsRate = periodIncome > 0 ? Math.max(0, (savingsDelta / periodIncome) * 100) : 0;
 
   const catMap = {} as Record<string, number>;
-  filteredExp.forEach((e: any) => {
+  filteredExp.filter((e: any) => e.category !== 'Investment' && e.category !== 'Insurance').forEach((e: any) => {
     catMap[e.category] = (catMap[e.category] || 0) + e.amount;
   });
-  const topCats = Object.entries(catMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6);
+  const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 6);
   const maxCat = topCats[0]?.[1] || 1;
 
   const currentDay = new Date().getDate();
@@ -705,26 +737,17 @@ function Dashboard({ data, onAddExpense }: any) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       
-      {/* 🛠️ UPGRADED FILTER CONTROL PANEL */}
+      {/* FILTER CONTROL PANEL */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <Card style={{ padding: '12px 18px', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
-          
-          {/* Section A: Date Range vs Month Selector Toggle */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ background: C.bg, padding: 3, borderRadius: 8, display: 'inline-flex', border: `1px solid ${C.border}` }}>
               <button onClick={() => setRangeMode('month')} style={toggleBtnStyle(rangeMode === 'month' as any)}>Single Month</button>
               <button onClick={() => setRangeMode('custom')} style={toggleBtnStyle(rangeMode === 'custom' as any)}>Custom Range</button>
             </div>
-
             {rangeMode === 'month' ? (
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}
-              >
-                {allAvailableMonths.map((m: any) => (
-                  <option key={m} value={m}>{monthLabel(m)}</option>
-                ))}
+              <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
+                {allAvailableMonths.map((m: any) => <option key={m} value={m}>{monthLabel(m)}</option>)}
               </select>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -734,59 +757,17 @@ function Dashboard({ data, onAddExpense }: any) {
               </div>
             )}
           </div>
-
-          {/* Section B: Account Dynamic Filter Dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={labelStyle}>Account:</span>
-            <select
-              value={accountFilter}
-              onChange={(e) => setAccountFilter(e.target.value)}
-              style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}
-            >
+            <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
               <option value="All">All Accounts</option>
               <option value="Joint">Joint Account Only</option>
               <option value={names.a}>{names.a} Only</option>
               <option value={names.b}>{names.b} Only</option>
             </select>
           </div>
-
         </Card>
       </div>
-
-      {/* EMI Due Banner Notification */}
-      {dueLoans.length > 0 && (
-        <Card style={{ border: `1px solid ${C.amber}66`, background: C.amber + '11', padding: '14px 20px' }}>
-          <SectionTitle style={{ color: C.amber, marginBottom: 8 }}>🔔 EMI Due Today</SectionTitle>
-          {dueLoans.map((l: any) => (
-            <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
-              <span style={{ color: C.textW, fontSize: 14 }}>
-                {l.icon} <b>{l.name}</b> — {fmt(l.emi, data.settings.currency)}
-              </span>
-              <Btn
-                variant="primary"
-                style={{ padding: '6px 12px', fontSize: 12 }}
-                onClick={() => {
-                  onAddExpense({
-                    id: uid(),
-                    date: today(),
-                    amount: l.emi,
-                    category: 'Other',
-                    account: 'Joint',
-                    addedBy: 'Partner A',
-                    note: `${l.name} EMI`,
-                    toSettle: false,
-                    type: 'expense',
-                    settled: false,
-                    settledFor: null,
-                  });
-                }}
-              >
-                Log EMI Expense
-              </Btn>
-            </div>
-          ))}
-        </Card>
-      )}
 
       {/* Core Capital Metrics Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
@@ -798,24 +779,59 @@ function Dashboard({ data, onAddExpense }: any) {
           sub={`Running shared cash pool balance`}
         />
         <StatCard
-          label="Scope Spent"
-          value={fmt(totalPeriodExpenses, data.settings.currency)}
+          label="Lifestyle Spending (Scope)"
+          value={fmt(trueLifestyleExpenses, data.settings.currency)}
           accent={C.amber}
-          icon="💸"
-          sub={`${filteredExp.length} cost rows matching criteria`}
+          icon="🛒"
+          sub={`Core operational cost burn rate`}
         />
         <StatCard
-          label="Scope Shared Direct"
-          value={fmt(jointSpentPeriod, data.settings.currency)}
-          accent={C.blue}
-          icon="🏦"
-          sub={`Directly matching account parameters`}
+          label="Allocated Capital (Scope)"
+          value={fmt(periodInvested, data.settings.currency)}
+          accent={C.teal}
+          icon="📈"
+          sub={`Total Net Worth Pool: ${fmt(allTimeInvested, data.settings.currency)}`}
         />
       </div>
 
-      {/* 📈 NEW WIDGET: RUN RATE & MONTHLY TREND HISTORY SPARK CHART */}
+      {/* PORTFOLIO BREAKDOWN ASSET ALLOCATION */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
+        <Card>
+          <SectionTitle>Asset Allocation Breakdown (Scope)</SectionTitle>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
+            {Object.entries(allocation).map(([assetClass, amount]) => (
+              <div key={assetClass}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}>
+                  <span style={{ color: C.text1 }}>{assetClass}</span>
+                  <span style={{ fontWeight: 700, color: amount > 0 ? C.textW : C.muted }}>{fmt(amount, data.settings.currency)}</span>
+                </div>
+                <ProgressBar pct={periodInvested > 0 ? (amount / maxAllocationValue) * 100 : 0} color={assetClass === 'Insurance Policies' ? C.blue : C.teal} height={6} />
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Out of Pocket Splits */}
+        <Card style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <SectionTitle>Out of Pocket Splits (Filtered)</SectionTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', background: C.bg, padding: '12px 14px', borderRadius: 10 }}>
+                <span style={{ color: C.purple, fontWeight: 600 }}>{names.a}:</span>
+                <span style={{ fontWeight: 700 }}>{fmt(personalSpentA, data.settings.currency)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', background: C.bg, padding: '12px 14px', borderRadius: 10 }}>
+                <span style={{ color: C.blue, fontWeight: 600 }}>{names.b}:</span>
+                <span style={{ fontWeight: 700 }}>{fmt(personalSpentB, data.settings.currency)}</span>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Run Rate Spark Chart */}
       <Card>
-        <SectionTitle>Household Run Rate — 6 Months Trend</SectionTitle>
+        <SectionTitle>Household Run Rate — 6 Months Trend (Lifestyle Only)</SectionTitle>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 140, paddingTop: 20, paddingBottom: 10, gap: 12 }}>
           {monthlyTrendData.map((m) => {
             const barHeightPct = Math.max(8, (m.total / maxTrendValue) * 100);
@@ -840,51 +856,33 @@ function Dashboard({ data, onAddExpense }: any) {
         </div>
       </Card>
 
-      {/* Split Analytics and Personal Balances Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
-        <Card>
-          <SectionTitle>Out of Pocket Splits (Filtered)</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', background: C.bg, padding: '12px 14px', borderRadius: 10 }}>
-              <span style={{ color: C.purple, fontWeight: 600 }}>{names.a}:</span>
-              <span style={{ fontWeight: 700 }}>{fmt(personalSpentA, data.settings.currency)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', background: C.bg, padding: '12px 14px', borderRadius: 10 }}>
-              <span style={{ color: C.blue, fontWeight: 600 }}>{names.b}:</span>
-              <span style={{ fontWeight: 700 }}>{fmt(personalSpentB, data.settings.currency)}</span>
-            </div>
-          </div>
-        </Card>
-
-        <Card style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      {/* Household Savings Velocity */}
+      <Card style={{ maxWidth: '100%' }}>
+        <SectionTitle>True Capital Retention Velocity</SectionTitle>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginTop: 10, marginBottom: 14 }}>
           <div>
-            <SectionTitle>Savings velocity metrics</SectionTitle>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, marginTop: 10 }}>
-              <span style={{ color: C.text2, fontSize: 13 }}>Income in scope:</span>
-              <span style={{ color: C.green, fontWeight: 700 }}>{fmt(periodIncome, data.settings.currency)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ color: C.text2, fontSize: 13 }}>Net Remaining Margin:</span>
-              <span style={{ color: savingsDelta >= 0 ? C.green : C.red, fontWeight: 700 }}>
-                {fmt(savingsDelta, data.settings.currency)}
-              </span>
-            </div>
+            <span style={{ color: C.text2, fontSize: 13 }}>Income in scope:</span>
+            <div style={{ color: C.green, fontWeight: 700, fontSize: 18, marginTop: 2 }}>{fmt(periodIncome, data.settings.currency)}</div>
           </div>
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Savings Threshold:</span>
-              <span style={{ fontSize: 12, color: C.textW, fontWeight: 700 }}>{savingsRate.toFixed(0)}%</span>
-            </div>
-            <ProgressBar pct={savingsRate} color={C.green} height={8} />
+            <span style={{ color: C.text2, fontSize: 13 }}>Capital Retained (Saved + Invested):</span>
+            <div style={{ color: savingsDelta >= 0 ? C.green : C.red, fontWeight: 700, fontSize: 18, marginTop: 2 }}>{fmt(savingsDelta, data.settings.currency)}</div>
           </div>
-        </Card>
-      </div>
+        </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Net Retention Rate:</span>
+            <span style={{ fontSize: 12, color: C.textW, fontWeight: 700 }}>{savingsRate.toFixed(0)}%</span>
+          </div>
+          <ProgressBar pct={savingsRate} color={C.green} height={8} />
+        </div>
+      </Card>
 
       {/* Target Budgets & Expense Distribution Cards */}
       <Card>
-        <SectionTitle>Category Distribution Breakdown</SectionTitle>
+        <SectionTitle>Lifestyle Category Distribution Breakdown</SectionTitle>
         {topCats.length === 0 && (
-          <p style={{ color: C.muted, fontSize: 13 }}>No expenses found matching current criteria.</p>
+          <p style={{ color: C.muted, fontSize: 13 }}>No lifestyle expenses found matching current criteria.</p>
         )}
         {topCats.map(([cat, amt]) => {
           const budget = data.settings.budgets[cat];
