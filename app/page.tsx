@@ -206,7 +206,7 @@ const C = {
   teal: '#06b6d4',
 };
 
-function Card({ children, style = {} }) {
+function Card({ children, style = {} }: { children: React.ReactNode; style?: any }) {
   return (
     <div
       style={{
@@ -221,7 +221,7 @@ function Card({ children, style = {} }) {
     </div>
   );
 }
-function Inp({ style = {}, ...p }) {
+function Inp({ style = {}, ...props }: any) {
   return (
     <input
       style={{
@@ -240,7 +240,7 @@ function Inp({ style = {}, ...p }) {
     />
   );
 }
-function Sel({ style = {}, children, ...p }) {
+function Sel({ children, style = {}, ...props }: any) {
   return (
     <select
       style={{
@@ -261,7 +261,7 @@ function Sel({ style = {}, children, ...p }) {
     </select>
   );
 }
-function Btn({ children, variant = 'primary', style = {}, ...p }) {
+function Btn({ children, variant = 'primary', onClick, style = {}, id }: { children: React.ReactNode; variant?: string; onClick?: any; style?: any; id?: string }) {
   const base = {
     border: 'none',
     borderRadius: 9,
@@ -303,7 +303,7 @@ function Btn({ children, variant = 'primary', style = {}, ...p }) {
     </button>
   );
 }
-function Label({ children }) {
+function Label({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
@@ -318,7 +318,7 @@ function Label({ children }) {
     </div>
   );
 }
-function Badge({ children, color = C.amber }) {
+function Badge({ children, color }: { children: React.ReactNode; color: string }) {
   return (
     <span
       style={{
@@ -336,7 +336,7 @@ function Badge({ children, color = C.amber }) {
     </span>
   );
 }
-function SectionTitle({ children }) {
+function SectionTitle({ children, style = {} }: { children: React.ReactNode; style?: any }) {
   return (
     <h3
       style={{
