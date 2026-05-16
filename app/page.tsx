@@ -2881,7 +2881,7 @@ function Settings({
 
           {/* Join Partner */}
           <div style={{ background: C.bg, padding: 14, borderRadius: 10 }}>
-            <Label>Join a Partner's Household</Label>
+            <Label>{"Join a Partner's Household"}</Label>
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <Inp
                 id="join-code-input"
