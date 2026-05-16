@@ -263,44 +263,32 @@ function Sel({ children, style = {}, ...p }: any) {
     </select>
   );
 }
-function Btn({ children, variant = 'primary', onClick, style = {}, id }: { children: React.ReactNode; variant?: string; onClick?: any; style?: any; id?: string }) {
+function Btn({ children, variant = 'primary', style = {}, ...p }: any) {
   const base = {
-    border: 'none',
-    borderRadius: 9,
-    padding: '9px 18px',
-    fontSize: 13,
-    fontWeight: 700,
+    padding: '10px 16px',
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 500,
     cursor: 'pointer',
-    transition: 'opacity .15s',
+    border: '1px solid transparent',
+    transition: 'all 0.2s',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    outline: 'none',
   };
-  const variants = {
-    primary: {
-      background: `linear-gradient(135deg,${C.amber},#d97706)`,
-      color: '#0b0f1a',
-    },
-    ghost: {
-      background: 'transparent',
-      border: `1px solid ${C.border}`,
-      color: C.text1,
-    },
-    danger: {
-      background: C.red + '22',
-      border: `1px solid ${C.red}44`,
-      color: C.red,
-    },
-    success: {
-      background: C.green + '22',
-      border: `1px solid ${C.green}44`,
-      color: C.green,
-    },
-    purple: {
-      background: C.purple + '22',
-      border: `1px solid ${C.purple}44`,
-      color: C.purple,
-    },
+
+  const variants: any = {
+    primary: { background: C.amber, color: C.bg, fontWeight: 600 },
+    ghost: { background: 'transparent', border: `1px solid ${C.border}`, color: C.text2 },
+    danger: { background: `${C.red}22`, border: `1px solid ${C.red}44`, color: C.red },
+    success: { background: `${C.green}22`, border: `1px solid ${C.green}44`, color: C.green },
+    purple: { background: `${C.purple}22`, border: `1px solid ${C.purple}44`, color: C.purple },
   };
+
   return (
-    <button style={{ ...base, ...variants[variant], ...style }} {...p}>
+    <button style={{ ...base, ...(variants[variant] || {}), ...style }} {...p}>
       {children}
     </button>
   );
