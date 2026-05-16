@@ -221,36 +221,38 @@ function Card({ children, style = {} }: { children: React.ReactNode; style?: any
     </div>
   );
 }
-function Inp({ style = {}, ...props }: any) {
+function Inp({ style = {}, ...p }: any) {
   return (
     <input
       style={{
         background: C.bg,
         border: `1px solid ${C.border}`,
         color: C.textW,
-        borderRadius: 9,
-        padding: '9px 13px',
+        borderRadius: 8,
+        padding: '10px 14px',
         fontSize: 14,
         width: '100%',
-        boxSizing: 'border-box',
         outline: 'none',
+        boxSizing: 'border-box',
+        transition: 'border-color 0.2s',
         ...style,
       }}
       {...p}
     />
   );
 }
-function Sel({ children, style = {}, ...props }: any) {
+function Sel({ children, style = {}, ...p }: any) {
   return (
     <select
       style={{
         background: C.bg,
         border: `1px solid ${C.border}`,
-        color: C.text1,
-        borderRadius: 9,
-        padding: '9px 13px',
+        color: C.textW,
+        borderRadius: 8,
+        padding: '10px 14px',
         fontSize: 14,
         width: '100%',
+        outline: 'none',
         boxSizing: 'border-box',
         cursor: 'pointer',
         ...style,
