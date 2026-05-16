@@ -1030,14 +1030,40 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
           </div>
 
           {form.type === 'expense' && form.account !== 'Joint' && (
-            <div style={{ background: C.bg, borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ color: C.text1, fontSize: 13, fontWeight: 600 }}>To be settled by Joint Account?</div>
-                <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Reimburse personal expense from joint pool</div>
-              </div>
-              <Toggle checked={form.toSettle} onChange={(v: boolean) => set('toSettle', v)} />
-            </div>
-          )}
+  <div style={{ background: C.bg, borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+    <div>
+      <div style={{ color: C.text1, fontSize: 13, fontWeight: 600 }}>To be settled by Joint Account?</div>
+      <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Reimburse personal expense from joint pool</div>
+    </div>
+    
+    {/* Ultra-clean custom inline toggle switch */}
+    <div 
+      onClick={() => set('toSettle', !form.toSettle)}
+      style={{
+        width: 44,
+        height: 24,
+        borderRadius: 12,
+        background: form.toSettle ? C.amber : `${C.border}aa`,
+        position: 'relative',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        flexShrink: 0,
+        border: `1px solid ${form.toSettle ? C.amber : C.border}`
+      }}
+    >
+      <div style={{
+        width: 18,
+        height: 18,
+        borderRadius: '50%',
+        background: form.toSettle ? C.surface : C.text2,
+        position: 'absolute',
+        top: 2,
+        left: form.toSettle ? 22 : 2,
+        transition: 'all 0.2s ease'
+      }} />
+    </div>
+  </div>
+)}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             <Btn variant={flash ? 'success' : 'primary'} onClick={submit} style={{ flex: 1, padding: 13, fontSize: 15 }}>
@@ -3575,12 +3601,13 @@ importData: async ({ expenses, contributions }: any) => {
         const isValidUUID = e.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.id);
         return {
           ...e,
-          id: isValidUUID ? e.id : uid() // Flawlessly falls back to generating a fresh UUID
+          id: isValidUUID ? e.id : uid() // Flawlessly falls back to generating a fresh client UUID
         };
       });
 
       const existingIds = new Set(data.expenses.map((e: any) => e.id));
       const newExp = sanitizedExpenses.filter((e: any) => !existingIds.has(e.id));
+      
       const mergedContribs = contributions
         ? [
             ...data.contributions.filter(
@@ -3611,6 +3638,7 @@ importData: async ({ expenses, contributions }: any) => {
           note: e.note,
           to_settle: e.toSettle,
           settled: e.settled,
+          settled_with: e.settledFor // ⚡ Aligns imported settlement history with your database schema
         }));
 
         const { error } = await supabase.from('transactions').insert(rowsToInsert);
@@ -3619,6 +3647,8 @@ importData: async ({ expenses, contributions }: any) => {
         } else {
           alert(`Successfully synced ${newExp.length} rows to your cloud profile!`);
         }
+      } else {
+        alert('No new unique transaction records found to import.');
       }
     },
   };
