@@ -46,7 +46,7 @@ const DEFAULT_INCOME_CATS = [
   'Gift',
   'Other Income',
 ];
-function ACCOUNT_TYPES(names) {
+function ACCOUNT_TYPES(names: { a: string; b: string }) {
   return ['Joint', names.a, names.b];
 }
 const MONTHS = [
@@ -100,8 +100,12 @@ function monthLabel(key) {
   return `${MONTHS[parseInt(m) - 1]} ${y}`;
 }
 function uid() {
-  // Generates a valid 36-character UUID that Supabase will accept
-  return crypto.randomUUID();
+  // Safe for both Server-Side Pre-rendering and Browser execution
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  // Fallback string generator if executed on Vercel's build server
+  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
 // ─── Seed data ────────────────────────────────────────────────────────────────
