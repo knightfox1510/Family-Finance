@@ -1110,9 +1110,11 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const sf = (k: string, v: string) => setFilter((f) => ({ ...f, [k]: v }));
-  const allMonths = [...new Set(data.expenses.map((e: any) => monthKey(e.date)))]
-    .sort()
-    .reverse();
+  const allMonths = data.expenses
+  .map((e: any) => monthKey(e.date))
+  .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
+  .sort()
+  .reverse();
 
   const filtered = data.expenses
     .filter((e: any) => {
