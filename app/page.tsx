@@ -1269,7 +1269,9 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete 
               Deselect All
             </Btn>
             <Btn variant="danger" style={{ fontSize: 12, padding: '6px 14px', fontWeight: 700 }} onClick={() => {
-              onBulkDelete([...selectedIds]);
+              const idsToDelete: string[] = [];
+              selectedIds.forEach((id: string) => idsToDelete.push(id));
+              onBulkDelete(idsToDelete);
               setSelectedIds(new Set());
             }}>
               🗑️ Delete Selected
