@@ -1565,13 +1565,10 @@ const settleSelected = () => {
               <span style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>
                 {selected.size} transactions selected
               </span>
-              <span style={{ color: C.text1, fontSize: 13, marginLeft: 10 }}>
+<span style={{ color: C.text1, fontSize: 13, marginLeft: 10 }}>
                 Total:{' '}
                 {fmt(
-                  [...selected].reduce((s, id) => {
-                    const e = data.expenses.find((x: any) => x.id === id);
-                    return s + (e?.amount || 0);
-                  }, 0),
+                  data.expenses.reduce((s: number, e: any) => selected.has(e.id) ? s + (e.amount || 0) : s, 0),
                   data.settings.currency
                 )}
               </span>
