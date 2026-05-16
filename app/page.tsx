@@ -1092,7 +1092,7 @@ function AddExpense({ data, onAdd, onClose }: any) {
 }
 
 // ─── EXPENSE LIST ─────────────────────────────────────────────────────────────
-function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }: any) {
+function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
@@ -1103,17 +1103,16 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }: any) {
     account: 'All',
     category: 'All',
     type: 'All',
-    settled: 'All',
+    settled: 'All', // ⚡ Holds the settlement status filter value
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const sf = (k: string, v: string) => setFilter((f) => ({ ...f, [k]: v }));
-  const allMonths = data.expenses
-  .map((e: any) => monthKey(e.date))
-  .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
-  .sort()
-  .reverse();
+  const allMonths = [...new Set(data.expenses.map((e: any) => monthKey(e.date)))]
+    .sort()
+    .reverse();
 
   const filtered = data.expenses
     .filter((e: any) => {
@@ -1125,12 +1124,35 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }: any) {
         return false;
       if (filter.type !== 'All' && (e.type || 'expense') !== filter.type)
         return false;
+      
+      // ⚡ Active filtering logic for settlement states
       if (filter.settled === 'pending' && (!e.toSettle || e.settled))
         return false;
-      if (filter.settled === 'settled' && !e.settled) return false;
+      if (filter.settled === 'settled' && !e.settled) 
+        return false;
+      if (filter.settled === 'personal' && e.toSettle) 
+        return false;
+        
       return true;
     })
     .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((e: any) => e.id)));
+    }
+  };
 
   const startEdit = (e: any) => {
     setEditingId(e.id);
@@ -1211,8 +1233,48 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }: any) {
               </option>
             ))}
           </select>
+
+          {/* ⚡ NEW: Settlement Dropdown Filter */}
+          <select
+            style={selStyle}
+            value={filter.settled}
+            onChange={(e) => sf('settled', e.target.value)}
+          >
+            <option value="All">All Settlement Statuses</option>
+            <option value="pending">⏳ Pending Settlement</option>
+            <option value="settled">✅ Fully Settled</option>
+            <option value="personal">👤 Personal (No Shared Settlement)</option>
+          </select>
         </div>
       </Card>
+
+      {selectedIds.size > 0 && (
+        <Card style={{
+          background: C.red + '15',
+          border: `1px solid ${C.red}44`,
+          padding: '12px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div>
+            <span style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>
+              💥 {selectedIds.size} entries selected
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Btn variant="ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setSelectedIds(new Set())}>
+              Deselect All
+            </Btn>
+            <Btn variant="danger" style={{ fontSize: 12, padding: '6px 14px', fontWeight: 700 }} onClick={() => {
+              onBulkDelete([...selectedIds]);
+              setSelectedIds(new Set());
+            }}>
+              🗑️ Delete Selected
+            </Btn>
+          </div>
+        </Card>
+      )}
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
@@ -1221,11 +1283,20 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }: any) {
           >
             <thead>
               <tr style={{ background: C.bg }}>
+                <th style={{ padding: '11px 14px', width: 40 }}>
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    onChange={toggleAll}
+                    style={{ cursor: 'pointer', accentColor: C.amber }}
+                  />
+                </th>
                 {[
                   'Date',
                   'Category',
                   'Amount',
                   'Account',
+                  'Settlement', // ⚡ NEW COLUMN HEADER
                   'Note',
                   'Actions',
                 ].map((h) => (
@@ -1254,6 +1325,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }: any) {
                         borderTop: `1px solid ${C.amber}`,
                       }}
                     >
+                      <td />
                       <td style={{ padding: 8 }}>
                         <Inp
                           type="date"
@@ -1313,6 +1385,22 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }: any) {
                           ))}
                         </Sel>
                       </td>
+                      {/* ⚡ NEW: Interactive settlement toggle inside row editor */}
+                      <td style={{ padding: 8 }}>
+                        {editForm.type === 'income' || editForm.account === 'Joint' ? (
+                          <span style={{ color: C.muted, fontSize: 12 }}>N/A</span>
+                        ) : (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: C.text1 }}>
+                            <input
+                              type="checkbox"
+                              checked={editForm.toSettle}
+                              onChange={(ev: any) => setEditForm({ ...editForm, toSettle: ev.target.checked })}
+                              style={{ accentColor: C.amber }}
+                            />
+                            Shared
+                          </label>
+                        )}
+                      </td>
                       <td style={{ padding: 8 }}>
                         <Inp
                           value={editForm.note}
@@ -1346,9 +1434,17 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }: any) {
                     key={e.id}
                     style={{
                       borderTop: `1px solid ${C.border}`,
-                      background: i % 2 === 0 ? 'transparent' : C.bg + '80',
+                      background: selectedIds.has(e.id) ? C.red + '08' : (i % 2 === 0 ? 'transparent' : C.bg + '80'),
                     }}
                   >
+                    <td style={{ padding: '10px 14px' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(e.id)}
+                        onChange={() => toggleSelect(e.id)}
+                        style={{ cursor: 'pointer', accentColor: C.amber }}
+                      />
+                    </td>
                     <td style={{ padding: '10px 14px', color: C.text2 }}>
                       {e.date}
                     </td>
@@ -1369,6 +1465,22 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate }: any) {
                       <Badge color={e.account === 'Joint' ? C.green : C.blue}>
                         {e.account}
                       </Badge>
+                    </td>
+                    {/* ⚡ NEW: Settlement status layout engine rendering custom color badges */}
+                    <td style={{ padding: '10px 14px' }}>
+                      {e.type === 'income' ? (
+                        <span style={{ color: C.muted }}>—</span>
+                      ) : e.account === 'Joint' ? (
+                        <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Direct Shared</span>
+                      ) : !e.toSettle ? (
+                        <span style={{ color: C.muted, fontSize: 12 }}>Personal</span>
+                      ) : e.settled ? (
+                        <Badge color={C.green}>
+                          ✓ Settled {e.settledFor && `(${e.settledFor.includes('A') ? names.a : names.b})`}
+                        </Badge>
+                      ) : (
+                        <Badge color={C.amber}>⏳ Pending</Badge>
+                      )}
                     </td>
                     <td style={{ padding: '10px 14px', color: C.muted }}>
                       {e.note || '—'}
@@ -3426,7 +3538,7 @@ export default function App() {
         .eq('id', id);
       if (error) alert('Failed to update: ' + error.message);
     },
-    deleteExpense: async (id: string) => {
+deleteExpense: async (id: string) => {
       setData((prev: any) => ({
         ...prev,
         expenses: prev.expenses.filter((e: any) => e.id !== id),
@@ -3436,6 +3548,26 @@ export default function App() {
         .delete()
         .eq('id', id);
       if (error) alert('Failed to delete: ' + error.message);
+    },
+    // ⚡ ADD THIS NEW BATCH DROP COMMAND HERE:
+    bulkDeleteExpense: async (ids: string[]) => {
+      if (!confirm(`Are you sure you want to permanently clear these ${ids.length} entries from the database?`)) return;
+
+      // 1. Instantly pull them out of the current layout interface
+      setData((prev: any) => ({
+        ...prev,
+        expenses: prev.expenses.filter((e: any) => !ids.includes(e.id)),
+      }));
+
+      // 2. Transmit an array delete constraint block to Supabase
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .in('id', ids);
+
+      if (error) {
+        alert('Local view cleared, but cloud synchronization bounced: ' + error.message);
+      }
     },
     toggleToSettle: async (id: string) => {
       const expense = data.expenses.find((e: any) => e.id === id);
@@ -3888,6 +4020,7 @@ importData: async ({ expenses, contributions }: any) => {
               onToggleToSettle={actions.toggleToSettle}
               onDelete={actions.deleteExpense}
               onUpdate={actions.updateExpense}
+              onBulkDelete={actions.bulkDeleteExpense}
             />
           )}
           {view === 'settle' && (
