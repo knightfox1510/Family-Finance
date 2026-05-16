@@ -926,7 +926,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   });
   
   const [flash, setFlash] = useState(false);
-  const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   // Smart Identity Detection: Automatically sets logged-in identity for fresh entries
   useEffect(() => {
