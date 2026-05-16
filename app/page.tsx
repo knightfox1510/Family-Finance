@@ -91,13 +91,14 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 function monthKey(dateStr: string) {
-  const d = new Date(date);
+  const d = new Date(dateStr); // ✕ Changed 'date' to 'dateStr'
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 function monthLabel(key: string) {
-  if (!key) return '';
-  const [y, m] = key.split('-');
-  return `${MONTHS[parseInt(m) - 1]} ${y}`;
+  if (!key || key === 'All') return 'All Months';
+  const [year, month] = key.split('-');
+  const d = new Date(Number(year), Number(month) - 1, 1);
+  return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 }
 function uid() {
   // Safe for both Server-Side Pre-rendering and Browser execution
