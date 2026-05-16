@@ -308,7 +308,7 @@ function Label({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-function Badge({ children, color }: { children: React.ReactNode; color: string }) {
+function Badge({ children, color, style = {} }: any) {
   return (
     <span
       style={{
@@ -320,6 +320,7 @@ function Badge({ children, color }: { children: React.ReactNode; color: string }
         fontSize: 11,
         fontWeight: 700,
         whiteSpace: 'nowrap',
+        ...style,
       }}
     >
       {children}
