@@ -3801,7 +3801,7 @@ importData: async ({ expenses, contributions }: any) => {
 
       alert('Historical data import sync completed successfully!');
     },
-
+};
   return (
     <div
       style={{
