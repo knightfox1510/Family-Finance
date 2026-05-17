@@ -138,7 +138,8 @@ async function loadData(userId: string) {
         .from('transactions')
         .select('*')
         .eq('household_id', hId)
-        .order('date', { ascending: false }),
+        .order('date', { ascending: false })
+      .range(0, 9999),
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
@@ -1373,7 +1374,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
   };
   const mk = monthKey(today());
   const [filter, setFilter] = useState({
-    month: 'All',
+    month: mk,
     account: 'All',
     category: 'All',
     type: 'All',
