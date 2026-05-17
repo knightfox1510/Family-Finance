@@ -642,22 +642,43 @@ function IncomeTracker({ data }: any) {
     b: data.settings.partnerBName,
   };
 
-  const [selectedMonth, setSelectedMonth] = useState<string>(
-    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
-  );
+  // ⚡ Requirement 1: Set 'CurrentYear' as the absolute default state view
+  const [timeFilter, setTimeFilter] = useState<string>('CurrentYear');
+  // ⚡ Requirement 4: Added Earner/Partner state filter selection logic
+  const [earnerFilter, setEarnerFilter] = useState<string>('All');
 
+  const currentYearStr = String(new Date().getFullYear());
+
+  // Gather unique months present in dataset
   const allAvailableMonths = data.expenses
     .map((e: any) => monthKey(e.date))
     .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
     .sort()
     .reverse();
 
-  // Filter down strictly to incoming cash channels for the active month scope
-  const periodInflows = data.expenses.filter(
-    (e: any) => e.type === 'income' && monthKey(e.date) === selectedMonth
-  );
+  // ⚡ Apply Master Filter Pipeline
+  const periodInflows = data.expenses.filter((e: any) => {
+    // Isolate income inflows only
+    if (e.type !== 'income') return false;
 
-  // Split calculations
+    // A. Apply Time Boundary Filter Scopes
+    if (timeFilter === 'CurrentYear') {
+      if (!e.date.startsWith(currentYearStr)) return false;
+    } else if (timeFilter !== 'All') {
+      if (monthKey(e.date) !== timeFilter) return false;
+    }
+
+    // B. Apply Earner Signature Check filters
+    const isA = e.addedBy === 'Partner A' || e.account === names.a;
+    const isB = e.addedBy === 'Partner B' || e.account === names.b;
+
+    if (earnerFilter === 'PartnerA' && !isA) return false;
+    if (earnerFilter === 'PartnerB' && !isB) return false;
+
+    return true;
+  });
+
+  // Calculate Aggregates for Metrics Panel cards
   const totalIncome = periodInflows.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
   const incomeA = periodInflows
     .filter((e: any) => e.addedBy === 'Partner A' || e.account === names.a)
@@ -666,7 +687,7 @@ function IncomeTracker({ data }: any) {
     .filter((e: any) => e.addedBy === 'Partner B' || e.account === names.b)
     .reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
 
-  // Grouping by categories (Salary, Bonus, returns etc)
+  // Group by Income Streams Categories
   const categoryMap = {} as Record<string, number>;
   periodInflows.forEach((e: any) => {
     categoryMap[e.category] = (categoryMap[e.category] || 0) + e.amount;
@@ -674,62 +695,131 @@ function IncomeTracker({ data }: any) {
   const sortedCategories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
   const maxCategoryValue = sortedCategories[0]?.[1] || 1;
 
+  // ⚡ Requirement 3: Build Trend Datastructure Matrix for Multi-Month selection
+  const showTrendWidget = timeFilter === 'CurrentYear' || timeFilter === 'All';
+  
+  const trendData = [...allAvailableMonths]
+    .reverse() // Display chronological flow from left to right
+    .filter(mKey => {
+      if (timeFilter === 'CurrentYear') return mKey.startsWith(currentYearStr);
+      return true;
+    })
+    .map(mKey => {
+      const monthTotal = data.expenses
+        .filter((e: any) => e.type === 'income' && monthKey(e.date) === mKey && (
+          earnerFilter === 'All' ||
+          (earnerFilter === 'PartnerA' && (e.addedBy === 'Partner A' || e.account === names.a)) ||
+          (earnerFilter === 'PartnerB' && (e.addedBy === 'Partner B' || e.account === names.b))
+        ))
+        .reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+      return { label: monthLabel(mKey), total: monthTotal };
+    });
+
+  const maxTrendValue = trendData.reduce((max, m) => m.total > max ? m.total : max, 1);
+
+  const selStyle = {
+    background: C.bg,
+    border: `1px solid ${C.border}`,
+    color: C.text1,
+    padding: '6px 12px',
+    borderRadius: 8,
+    fontSize: 13,
+    cursor: 'pointer',
+    outline: 'none'
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       
-      {/* PERIOD SELECTION HEADER */}
-      <Card style={{ padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* FILTER PANEL HEADER CONTROLS */}
+      <Card style={{ padding: '12px 18px', display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'space-between', alignItems: 'center' }}>
         <SectionTitle style={{ margin: 0 }}>💰 Income & Inflow Dashboard</SectionTitle>
-        <select
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          style={{
-            background: C.bg,
-            border: `1px solid ${C.border}`,
-            color: C.text1,
-            padding: '6px 12px',
-            borderRadius: 8,
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          {allAvailableMonths.map((m: any) => (
-            <option key={m} value={m}>{monthLabel(m)}</option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          
+          {/* Earner Split Select Element Dropdown */}
+          <select value={earnerFilter} onChange={(e) => setEarnerFilter(e.target.value)} style={selStyle}>
+            <option value="All">Both Partners Combined</option>
+            <option value="PartnerA">{names.a} Only</option>
+            <option value="PartnerB">{names.b} Only</option>
+          </select>
+
+          {/* Time View Select Element Dropdown */}
+          <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={selStyle}>
+            {/* ⚡ Requirement 2: Inject explicit collective grouping target nodes */}
+            <option value="CurrentYear">Current Year ({currentYearStr})</option>
+            <option value="All">All Months History</option>
+            {allAvailableMonths.map((m: any) => (
+              <option key={m} value={m}>{monthLabel(m)}</option>
+            ))}
+          </select>
+        </div>
       </Card>
 
-      {/* METRIC CARD GRIDS */}
+      {/* TOP LINE METRICS PANEL */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
         <StatCard
-          label="Total Monthly Income Inflows"
+          label="Total Net Inflow Pool"
           value={fmt(totalIncome, data.settings.currency)}
           accent={C.green}
           icon="🏦"
-          sub={`Combined household earnings for period`}
+          sub={`Accumulated earnings for selection`}
         />
         <StatCard
           label={`${names.a}'s Allocation`}
           value={fmt(incomeA, data.settings.currency)}
           accent={C.purple}
           icon="👨‍💻"
-          sub={`Share: ${totalIncome > 0 ? ((incomeA / totalIncome) * 100).toFixed(0) : 0}% of net household pool`}
+          sub={`Share: ${totalIncome > 0 ? ((incomeA / totalIncome) * 100).toFixed(0) : 0}% of net pool`}
         />
         <StatCard
           label={`${names.b}'s Allocation`}
           value={fmt(incomeB, data.settings.currency)}
           accent={C.blue}
           icon="👩‍💻"
-          sub={`Share: ${totalIncome > 0 ? ((incomeB / totalIncome) * 100).toFixed(0) : 0}% of net household pool`}
+          sub={`Share: ${totalIncome > 0 ? ((incomeB / totalIncome) * 100).toFixed(0) : 0}% of net pool`}
         />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-        {/* SOURCE DISTRIBUTION COMPONENT */}
+      {/* ⚡ Requirement 3: Conditional Monthly Trend Chart Rendering Card */}
+      {showTrendWidget && trendData.length > 0 && (
         <Card>
-          <SectionTitle>Income Stream Breakdown</SectionTitle>
+          <SectionTitle>Monthly Inflow Velocity Trend Timeline</SectionTitle>
+          <div style={{ overflowX: 'auto', paddingBottom: 6, marginTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 140, gap: 12, minWidth: trendData.length * 55 }}>
+              {trendData.map((m) => {
+                const barHeightPct = (m.total / maxTrendValue) * 100;
+                return (
+                  <div key={m.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
+                      {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
+                    </div>
+                    <div style={{ height: 85, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                      <div style={{
+                        width: '100%',
+                        height: `${Math.max(6, barHeightPct)}%`,
+                        background: `linear-gradient(to top, ${C.surface}, ${C.green})`,
+                        border: `1px solid ${C.border}`,
+                        borderRadius: '4px 4px 0 0',
+                        transition: 'height 0.3s ease'
+                      }} />
+                    </div>
+                    <div style={{ fontSize: 11, color: C.text2, fontWeight: 600, whiteSpace: 'nowrap' }}>{m.label}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* DATA CATEGORIES AND HISTORICAL AUDIT LIST TABLES */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        
+        {/* Source Distribution Card */}
+        <Card>
+          <SectionTitle>Income Streams Breakdown</SectionTitle>
           {sortedCategories.length === 0 ? (
-            <p style={{ color: C.muted, fontSize: 13, marginTop: 10 }}>No income lines recorded for this calendar segment.</p>
+            <p style={{ color: C.muted, fontSize: 13, marginTop: 10 }}>No recorded income lines found matching criteria.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
               {sortedCategories.map(([category, amount]) => (
@@ -745,35 +835,38 @@ function IncomeTracker({ data }: any) {
           )}
         </Card>
 
-        {/* LEDGER TRANSACTION AUDIT INDEX */}
+        {/* Audit Log Card */}
         <Card style={{ display: 'flex', flexDirection: 'column' }}>
-          <SectionTitle>Inflow Transaction Logs</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12, maxHeight: 260, overflowY: 'auto', paddingRight: 4 }}>
+          <SectionTitle>Inflow Audit Ledgers</SectionTitle>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12, maxHeight: 280, overflowY: 'auto', paddingRight: 4 }}>
             {periodInflows.length === 0 ? (
-              <p style={{ color: C.muted, fontSize: 13 }}>No transaction entries line matching parameters.</p>
+              <p style={{ color: C.muted, fontSize: 13 }}>No transaction records match current parameters.</p>
             ) : (
-              periodInflows.map((e: any) => (
-                <div
-                  key={e.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    background: `${C.bg}80`,
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    border: `1px solid ${C.border}`,
-                  }}
-                >
-                  <div>
-                    <div style={{ color: C.textW, fontSize: 13, fontWeight: 600 }}>{e.note || 'Generic Salary Line'}</div>
-                    <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>
-                      {e.date} • {e.account === 'Joint' ? 'Joint Pool' : `${e.account} Personal`}
+              periodInflows.map((e: any) => {
+                const earnerLabel = e.account === 'Joint' ? 'Joint Account' : `${e.account} Personal`;
+                return (
+                  <div
+                    key={e.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: `${C.bg}80`,
+                      padding: '10px 12px',
+                      borderRadius: 8,
+                      border: `1px solid ${C.border}`,
+                    }}
+                  >
+                    <div>
+                      <div style={{ color: C.textW, fontSize: 13, fontWeight: 600 }}>{e.note || 'Uncategorized Salary Deposit'}</div>
+                      <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>
+                        {e.date} • {earnerLabel} • <span style={{ color: C.text2 }}>{e.category}</span>
+                      </div>
                     </div>
+                    <span style={{ color: C.green, fontWeight: 700, fontSize: 13 }}>+{fmt(e.amount, data.settings.currency)}</span>
                   </div>
-                  <span style={{ color: C.green, fontWeight: 700, fontSize: 13 }}>+{fmt(e.amount, data.settings.currency)}</span>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </Card>
