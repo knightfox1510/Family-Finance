@@ -1635,11 +1635,11 @@ function Contributions({ data, onUpdate }: any) {
   };
 
   // Generate a list of the last 12 months for the dropdown
-  const monthOptions = Array.from({ length: 12 }).map((_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    return monthKey(d.toISOString().slice(0, 10));
-  });
+  const monthOptions = Array.from({ length: 18 }).map((_, i) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - i);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+});
 
   const existing = data.contributions.find(
     (c: any) => c.month === selectedMonth
