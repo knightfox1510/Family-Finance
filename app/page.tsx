@@ -3909,23 +3909,31 @@ deleteExpense: async (id: string) => {
       alert("Successfully joined partner's household!");
     },
 importData: async ({ expenses, contributions }: any) => {
-      const sanitizedExpenses = expenses.map((e: any) => {
-        const isValidUUID = e.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.id);
-        return {
-          ...e,
-          id: isValidUUID ? e.id : uid()
-        };
-      });
+      // 1. Sanitize expenses and filter out any accidental empty rows
+      const sanitizedExpenses = (expenses || [])
+        .filter((e: any) => e && e.date && e.amount) // ⚡ Safety check: drops blank transaction rows
+        .map((e: any) => {
+          const isValidUUID = e.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.id);
+          return {
+            ...e,
+            id: isValidUUID ? e.id : uid()
+          };
+        });
 
       const existingIds = new Set(data.expenses.map((e: any) => e.id));
       const newExp = sanitizedExpenses.filter((e: any) => !existingIds.has(e.id));
       
-      // ⚡ 1. Extract and sanitize imported contributions using valid matching UUID targets
-      const sanitizedImportedContribs = (contributions || []).map((c: any) => {
-        const existing = data.contributions.find((x: any) => x.month === c.month);
+      // ⚡ FIXED: Clean validation filter to skip empty trailing ghost rows from the Excel sheet
+      const validImportedContribs = (contributions || []).filter(
+        (c: any) => c && c.month && String(c.month).trim()
+      );
+
+      const sanitizedImportedContribs = validImportedContribs.map((c: any) => {
+        const cleanMonth = String(c.month).trim();
+        const existing = data.contributions.find((x: any) => x.month === cleanMonth);
         return {
-          id: existing ? existing.id : uid(), // Keeps true existing database UUID row or creates a clean crypto-compliant one
-          month: c.month,
+          id: existing ? existing.id : uid(), // Reuses your valid database UUID row or falls back to standard crypto UUID
+          month: cleanMonth,
           partnerA: c.partnerA,
           partnerB: c.partnerB
         };
@@ -3987,7 +3995,7 @@ importData: async ({ expenses, contributions }: any) => {
       } else if (newExp.length > 0) {
         alert(`Successfully synced ${newExp.length} transaction rows to your cloud profile!`);
       } else {
-        alert('No new unique transaction records found to import.');
+        alert('No new unique records found to import.');
       }
     },
 };
