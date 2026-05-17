@@ -3070,8 +3070,9 @@ function AIInsights({ data }: any) {
       if (!apiKey)
         throw new Error('Missing Gemini API Key in .env.local file.');
 
+      // 🚀 UPGRADED: URL path routed seamlessly to the current gemini-2.0-flash standard
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
