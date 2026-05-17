@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 
 import { supabase } from '../lib/supabaseClient';
@@ -992,19 +992,17 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   }, [session, duplicateData, names.a, names.b]);
 
   // ⚡ DYNAMIC PATTERN RECOGNITION ENGINE BLOCK
-  const dynamicPresets = React.useMemo(() => {
+  const dynamicPresets = useMemo(() => {
     if (!data || !data.expenses || data.expenses.length === 0) return [];
 
     const frequencies: Record<string, { count: number; cat: string; acc: string; addedBy: string; note: string; shared: boolean }> = {};
 
     data.expenses.forEach((e: any) => {
-      // Analyze transaction types that contain descriptive notes
       if (e.type !== 'expense' || !e.note) return;
       
       const cleanNote = e.note.trim();
       if (!cleanNote) return;
 
-      // Create a strict configuration signature match key
       const signature = `${cleanNote}▩${e.category}▩${e.account}▩${!!e.toSettle}▩${e.addedBy}`;
 
       if (!frequencies[signature]) {
@@ -1020,7 +1018,6 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
       frequencies[signature].count += 1;
     });
 
-    // Sort entries by historical count descending and pick the top 10 frequencies
     return Object.values(frequencies)
       .sort((a, b) => b.count - a.count)
       .slice(0, 10)
@@ -1047,42 +1044,6 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
     setFlash(true);
     setTimeout(() => setFlash(false), 2000);
   };
-
-  const dynamicPresets = React.useMemo(() => {
-    if (!data || !data.expenses || data.expenses.length === 0) return [];
-    const frequencies: Record<string, { count: number; cat: string; acc: string; addedBy: string; note: string; shared: boolean }> = {};
-
-    data.expenses.forEach((e: any) => {
-      if (e.type !== 'expense' || !e.note) return;
-      const cleanNote = e.note.trim();
-      if (!cleanNote) return;
-
-      const signature = `${cleanNote}▩${e.category}▩${e.account}▩${!!e.toSettle}▩${e.addedBy}`;
-      if (!frequencies[signature]) {
-        frequencies[signature] = {
-          count: 0,
-          cat: e.category,
-          acc: e.account,
-          addedBy: e.addedBy || 'Partner A',
-          note: cleanNote,
-          shared: !!e.toSettle
-        };
-      }
-      frequencies[signature].count += 1;
-    });
-
-    return Object.values(frequencies)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10)
-      .map((p) => ({
-        label: p.note.length > 22 ? `${p.note.slice(0, 20)}...` : p.note,
-        cat: p.cat,
-        acc: p.acc,
-        addedBy: p.addedBy,
-        note: p.note,
-        shared: p.shared
-      }));
-  }, [data.expenses]);
 
   const cats = form.type === 'income' ? data.settings.incomeCategories : data.settings.expenseCategories;
 
@@ -1115,56 +1076,6 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
           ))}
         </div>
 
-        {form.type === 'expense' && dynamicPresets.length > 0 && (
-          <div style={{ marginBottom: 20, background: `${C.bg}60`, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
-            <span style={{ color: C.amber, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              ⚡ Smart Quick Add (Top Historical Patterns)
-            </span>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {dynamicPresets.map((preset: any) => (
-                <button
-                  key={`${preset.note}-${preset.cat}`}
-                  type="button"
-                  onClick={() => {
-                    set('category', preset.cat);
-                    set('account', preset.acc);
-                    set('addedBy', preset.addedBy);
-                    set('note', preset.note);
-                    set('toSettle', preset.shared);
-                    set('type', 'expense');
-                    
-                    const amtInput = document.querySelector('input[type="number"]') as HTMLInputElement;
-                    if (amtInput) amtInput.focus();
-                  }}
-                  style={{
-                    background: C.bg,
-                    border: `1px solid ${C.border}`,
-                    color: C.text1,
-                    padding: '5px 10px',
-                    borderRadius: 16,
-                    fontSize: 11,
-                    cursor: 'pointer',
-                    fontWeight: 500,
-                    transition: 'all 0.15s ease-in-out',
-                  }}
-                  onMouseOver={(ev) => {
-                    ev.currentTarget.style.borderColor = C.amber;
-                    ev.currentTarget.style.background = `${C.amber}08`;
-                  }}
-                  onMouseOut={(ev) => {
-                    ev.currentTarget.style.borderColor = C.border;
-                    ev.currentTarget.style.background = C.bg;
-                  }}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-
         {/* ⚡ SMART DYNAMIC PATTERN QUICK ADD PANEL COMPONENT */}
         {form.type === 'expense' && dynamicPresets.length > 0 && (
           <div style={{ marginBottom: 20, background: `${C.bg}60`, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
@@ -1184,7 +1095,6 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
                     set('toSettle', preset.shared);
                     set('type', 'expense');
                     
-                    // Instantly drop cursor focus directly into numeric input box
                     const amtInput = document.querySelector('input[type="number"]') as HTMLInputElement;
                     if (amtInput) amtInput.focus();
                   }}
