@@ -3901,9 +3901,16 @@ deleteExpense: async (id: string) => {
       }
     },
     updateContrib: async (month: string, pA: number, pB: number) => {
+      // 1. Locate if this month already exists in local browser memory cache
       const existing = data.contributions.find((c: any) => c.month === month);
-      const dbId = existing ? existing.id : uid(); // ⚡ FIXED: Reuses valid DB UUID or generates a standard crypto UUID string
+      
+      // 2. Validate UUID integrity: check if the existing ID is a standard 36-character UUID string
+      const isCleanUUID = existing && existing.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(existing.id);
+      
+      // 3. Auto-Heal: Re-use valid UUID or automatically generate a clean crypto UUID string to purge "2024-12"
+      const dbId = isCleanUUID ? existing.id : uid();
 
+      // 4. Update local responsive layout view state with the safe UUID format
       setData((prev: any) => ({
         ...prev,
         contributions: [
@@ -3912,12 +3919,13 @@ deleteExpense: async (id: string) => {
         ],
       }));
       
+      // 5. Fire upsert payload straight to your Supabase contributions table
       const { error } = await supabase.from('contributions').upsert({
-        id: dbId, // ⚡ FIXED: Passes an RFC-compliant UUID type validation string
+        id: dbId, // Passes strict PostgreSQL UUID type checks seamlessly
         household_id: data.householdId,
         month: month,
-        partner_a_amount: pA, // ⚡ FIXED: Aligns column targets
-        partner_b_amount: pB, // ⚡ FIXED: Aligns column targets
+        partner_a_amount: pA, // Matches your column schema header
+        partner_b_amount: pB, // Matches your column schema header
       }, { onConflict: 'id' });
 
       if (error) {
