@@ -906,7 +906,7 @@ function Dashboard({ data, onAddExpense }: any) {
   
   const currentJointBalance = allTimePool - allTimeJointSpent;
 
-  // ⚡ NEW: Isolated Period Joint Spend Engine (Bound strictly to active calendar scope)
+  // Isolated Period Joint Spend Engine
   const periodJointSpent = data.expenses
     .filter((e: any) => {
       if (rangeMode === 'month') {
@@ -917,6 +917,24 @@ function Dashboard({ data, onAddExpense }: any) {
       return e.account === 'Joint' && e.type !== 'income';
     })
     .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+
+  // ⚡ NEW: Active Scope Joint Account Contribution Extraction Engine
+  let contribA = 0;
+  let contribB = 0;
+
+  if (rangeMode === 'month') {
+    const periodContrib = data.contributions.find((c: any) => c.month === selectedMonth);
+    if (periodContrib) {
+      contribA = periodContrib.partnerA || 0;
+      contribB = periodContrib.partnerB || 0;
+    }
+  } else {
+    const startM = customDates.start.slice(0, 7);
+    const endM = customDates.end.slice(0, 7);
+    const overlappingContribs = data.contributions.filter((c: any) => c.month >= startM && c.month <= endM);
+    contribA = overlappingContribs.reduce((sum: number, c: any) => sum + (c.partnerA || 0), 0);
+    contribB = overlappingContribs.reduce((sum: number, c: any) => sum + (c.partnerB || 0), 0);
+  }
 
   const allTimeInvested = data.expenses
     .filter((e: any) => (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') && e.type !== 'income')
@@ -1092,7 +1110,6 @@ function Dashboard({ data, onAddExpense }: any) {
 
       {/* Core Capital Metrics Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
-        {/* ⚡ Requirement Satisfied: Adjusted title and added rolling period spent subtext */}
         <StatCard
           label="Joint Balance & Period Spend"
           value={fmt(currentJointBalance, data.settings.currency)}
@@ -1133,23 +1150,42 @@ function Dashboard({ data, onAddExpense }: any) {
           </div>
         </Card>
 
-        {/* Out of Pocket Splits Card */}
+        {/* ⚡ UPGRADED: Unified Partner Activity & Allocation Card Widget */}
         <Card style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
-            <SectionTitle>Out of Pocket Breakdown</SectionTitle>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', background: C.bg, padding: '12px 14px', borderRadius: 10 }}>
-                <span style={{ color: C.purple, fontWeight: 600 }}>{names.a} Spent:</span>
-                <span style={{ fontWeight: 700 }}>{fmt(personalSpentA, data.settings.currency)}</span>
+            <SectionTitle>Partner Activity Breakdown</SectionTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+              
+              {/* Partner A Ledger Outlay Rows */}
+              <div style={{ background: C.bg, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
+                <div style={{ color: C.purple, fontWeight: 700, fontSize: 13, marginBottom: 8, borderBottom: `1px solid ${C.border}44`, paddingBottom: 4 }}>{names.a}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
+                  <span style={{ color: C.text2 }}>Out of Pocket Spent:</span>
+                  <span style={{ fontWeight: 600, color: C.textW }}>{fmt(personalSpentA, data.settings.currency)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ color: C.text2 }}>Joint Pool Contributed:</span>
+                  <span style={{ fontWeight: 600, color: C.green }}>{fmt(contribA, data.settings.currency)}</span>
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', background: C.bg, padding: '12px 14px', borderRadius: 10 }}>
-                <span style={{ color: C.blue, fontWeight: 600 }}>{names.b} Spent:</span>
-                <span style={{ fontWeight: 700 }}>{fmt(personalSpentB, data.settings.currency)}</span>
+
+              {/* Partner B Ledger Outlay Rows */}
+              <div style={{ background: C.bg, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
+                <div style={{ color: C.blue, fontWeight: 700, fontSize: 13, marginBottom: 8, borderBottom: `1px solid ${C.border}44`, paddingBottom: 4 }}>{names.b}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
+                  <span style={{ color: C.text2 }}>Out of Pocket Spent:</span>
+                  <span style={{ fontWeight: 600, color: C.textW }}>{fmt(personalSpentB, data.settings.currency)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span style={{ color: C.text2 }}>Joint Pool Contributed:</span>
+                  <span style={{ fontWeight: 600, color: C.green }}>{fmt(contribB, data.settings.currency)}</span>
+                </div>
               </div>
+
             </div>
           </div>
-          <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '0 4px' }}>
-            Showing individual balances excluding direct Joint Account hits.
+          <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '12px 4px 0' }}>
+            Reflects personal out-of-pocket spending compared to joint seed transfers.
           </div>
         </Card>
       </div>
@@ -3926,7 +3962,7 @@ deleteExpense: async (id: string) => {
         month: month,
         partner_a_amount: pA, // Matches your column schema header
         partner_b_amount: pB, // Matches your column schema header
-      }, { onConflict: 'id' });
+      }, { onConflict: 'household_id,month' });
 
       if (error) {
         alert('Cloud contribution sync failed: ' + error.message);
@@ -4130,7 +4166,7 @@ importData: async ({ expenses, contributions }: any) => {
           partner_b_amount: c.partnerB || 0
         }));
 
-        const { error: cbError } = await supabase.from('contributions').upsert(contribRowsToUpsert, { onConflict: 'id' });
+        const { error: cbError } = await supabase.from('contributions').upsert(contribRowsToUpsert, { onConflict: 'household_id,month' }); // ⚡ FIX: Directs bulk updates to overwrite by matching month keys
         if (cbError) {
           alert('Local state updated, but cloud contribution synchronization bounced: ' + cbError.message);
         } else {
