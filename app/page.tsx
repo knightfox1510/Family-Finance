@@ -906,6 +906,18 @@ function Dashboard({ data, onAddExpense }: any) {
   
   const currentJointBalance = allTimePool - allTimeJointSpent;
 
+  // ⚡ NEW: Isolated Period Joint Spend Engine (Bound strictly to active calendar scope)
+  const periodJointSpent = data.expenses
+    .filter((e: any) => {
+      if (rangeMode === 'month') {
+        if (monthKey(e.date) !== selectedMonth) return false;
+      } else {
+        if (e.date < customDates.start || e.date > customDates.end) return false;
+      }
+      return e.account === 'Joint' && e.type !== 'income';
+    })
+    .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+
   const allTimeInvested = data.expenses
     .filter((e: any) => (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') && e.type !== 'income')
     .reduce((s: number, e: any) => s + (e.amount || 0), 0);
@@ -974,10 +986,8 @@ function Dashboard({ data, onAddExpense }: any) {
   const totalPeriodRawExpenses = filteredExp.reduce((s: number, e: any) => s + e.amount, 0);
   const trueLifestyleExpenses = totalPeriodRawExpenses - periodInvested;
 
-  // Keyword Parsing Engine Mapping
   const allocation = {
     'Mutual Funds / SIP': 0,
-    'NJ E-wealth': 0,
     'Smallcase': 0,
     'Stocks / US Equity': 0,
     'Gold / Precious Metals': 0,
@@ -996,7 +1006,7 @@ function Dashboard({ data, onAddExpense }: any) {
       } else if (noteTxt.includes('smallcase')) {
         allocation['Smallcase'] += e.amount;
       } else if (noteTxt.includes('nj')) {
-        allocation['NJ E-wealth'] += e.amount;
+        allocation['Mutual Funds / SIP'] += e.amount;
       } else if (noteTxt.includes('gold') || noteTxt.includes('sgb') || noteTxt.includes('bluestone') || noteTxt.includes('png') || noteTxt.includes('waman')) {
         allocation['Gold / Precious Metals'] += e.amount;
       } else if (noteTxt.includes('stock') || noteTxt.includes('equity') || noteTxt.includes('share') || noteTxt.includes('zerodha') || noteTxt.includes('indmoney') || noteTxt.includes('ind money')) {
@@ -1028,7 +1038,6 @@ function Dashboard({ data, onAddExpense }: any) {
     catMap[e.category] = (catMap[e.category] || 0) + e.amount;
   });
   
-  // ⚡ FIXED: Removed the .slice(0, 6) limit restriction to populate ALL transactional fields
   const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
   const maxCat = topCats[0]?.[1] || 1;
 
@@ -1083,12 +1092,13 @@ function Dashboard({ data, onAddExpense }: any) {
 
       {/* Core Capital Metrics Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
+        {/* ⚡ Requirement Satisfied: Adjusted title and added rolling period spent subtext */}
         <StatCard
-          label="Joint Account Balance"
+          label="Joint Balance & Period Spend"
           value={fmt(currentJointBalance, data.settings.currency)}
           accent={currentJointBalance < 5000 ? C.red : C.green}
           icon="💰"
-          sub={`Running shared cash pool balance`}
+          sub={`Spent this period: ${fmt(periodJointSpent, data.settings.currency)}`}
         />
         <StatCard
           label="Lifestyle Spending"
@@ -1247,6 +1257,8 @@ function Dashboard({ data, onAddExpense }: any) {
     </div>
   );
 }
+
+
 // ─── ADD EXPENSE ──────────────────────────────────────────────────────────────
 function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   const names = {
