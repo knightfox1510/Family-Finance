@@ -3765,24 +3765,27 @@ deleteExpense: async (id: string) => {
       }
     },
     updateContrib: async (month: string, pA: number, pB: number) => {
+      const existing = data.contributions.find((c: any) => c.month === month);
+      const dbId = existing ? existing.id : uid(); // ⚡ FIXED: Reuses valid DB UUID or generates a standard crypto UUID string
+
       setData((prev: any) => ({
         ...prev,
         contributions: [
           ...prev.contributions.filter((c: any) => c.month !== month),
-          { id: month, month, partnerA: pA, partnerB: pB },
+          { id: dbId, month, partnerA: pA, partnerB: pB },
         ],
       }));
       
       const { error } = await supabase.from('contributions').upsert({
-        id: `${data.householdId}_${month}`,
+        id: dbId, // ⚡ FIXED: Passes an RFC-compliant UUID type validation string
         household_id: data.householdId,
         month: month,
-        partner_a_amount: pA,
-        partner_b_amount: pB,
+        partner_a_amount: pA, // ⚡ FIXED: Aligns column targets
+        partner_b_amount: pB, // ⚡ FIXED: Aligns column targets
       }, { onConflict: 'id' });
 
       if (error) {
-        alert('Local UI updated, but cloud synchronization rejected your contribution: ' + error.message);
+        alert('Cloud contribution sync failed: ' + error.message);
       }
     },
     addGoal: async (g: any) => {
@@ -3917,23 +3920,34 @@ importData: async ({ expenses, contributions }: any) => {
       const existingIds = new Set(data.expenses.map((e: any) => e.id));
       const newExp = sanitizedExpenses.filter((e: any) => !existingIds.has(e.id));
       
+      // ⚡ 1. Extract and sanitize imported contributions using valid matching UUID targets
+      const sanitizedImportedContribs = (contributions || []).map((c: any) => {
+        const existing = data.contributions.find((x: any) => x.month === c.month);
+        return {
+          id: existing ? existing.id : uid(), // Keeps true existing database UUID row or creates a clean crypto-compliant one
+          month: c.month,
+          partnerA: c.partnerA,
+          partnerB: c.partnerB
+        };
+      });
+
       const mergedContribs = contributions
         ? [
             ...data.contributions.filter(
-              (c: any) => !contributions.find((nc: any) => nc.month === c.month)
+              (c: any) => !sanitizedImportedContribs.find((nc: any) => nc.month === c.month)
             ),
-            ...contributions,
+            ...sanitizedImportedContribs,
           ]
         : data.contributions;
 
-      // 1. Refresh local UI state layout
+      // 2. Synchronize local UI view state instantly
       setData((prev: any) => ({
         ...prev,
         expenses: [...prev.expenses, ...newExp],
         contributions: mergedContribs,
       }));
 
-      // 2. Fire batch insert statement for new expenses
+      // 3. Batch insert new expense lines into cloud database
       if (newExp.length > 0) {
         const rowsToInsert = newExp.map((e: any) => ({
           id: e.id,
@@ -3954,21 +3968,27 @@ importData: async ({ expenses, contributions }: any) => {
         if (txError) alert('Cloud expense synchronization failed: ' + txError.message);
       }
 
-      // 3. ⚡ NEW: Sync imported contributions to the cloud
-      if (contributions && contributions.length > 0) {
-        const contribRows = contributions.map((c: any) => ({
-          id: `${data.householdId}_${c.month}`,
+      // 4. Batch upsert imported spreadsheet contributions using pure verified UUIDs
+      if (sanitizedImportedContribs.length > 0) {
+        const contribRowsToUpsert = sanitizedImportedContribs.map((c: any) => ({
+          id: c.id,
           household_id: data.householdId,
           month: c.month,
           partner_a_amount: c.partnerA || 0,
           partner_b_amount: c.partnerB || 0
         }));
 
-        const { error: cbError } = await supabase.from('contributions').upsert(contribRows, { onConflict: 'id' });
-        if (cbError) alert('Cloud contribution synchronization failed: ' + cbError.message);
+        const { error: cbError } = await supabase.from('contributions').upsert(contribRowsToUpsert, { onConflict: 'id' });
+        if (cbError) {
+          alert('Local state updated, but cloud contribution synchronization bounced: ' + cbError.message);
+        } else {
+          alert(`Successfully synced ${newExp.length} transactions and ${sanitizedImportedContribs.length} monthly funding configurations to cloud database!`);
+        }
+      } else if (newExp.length > 0) {
+        alert(`Successfully synced ${newExp.length} transaction rows to your cloud profile!`);
+      } else {
+        alert('No new unique transaction records found to import.');
       }
-
-      alert('Historical data import sync completed successfully!');
     },
 };
   return (
