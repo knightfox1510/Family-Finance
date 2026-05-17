@@ -991,6 +991,49 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
     }
   }, [session, duplicateData, names.a, names.b]);
 
+  // ⚡ DYNAMIC PATTERN RECOGNITION ENGINE BLOCK
+  const dynamicPresets = React.useMemo(() => {
+    if (!data || !data.expenses || data.expenses.length === 0) return [];
+
+    const frequencies: Record<string, { count: number; cat: string; acc: string; addedBy: string; note: string; shared: boolean }> = {};
+
+    data.expenses.forEach((e: any) => {
+      // Analyze transaction types that contain descriptive notes
+      if (e.type !== 'expense' || !e.note) return;
+      
+      const cleanNote = e.note.trim();
+      if (!cleanNote) return;
+
+      // Create a strict configuration signature match key
+      const signature = `${cleanNote}▩${e.category}▩${e.account}▩${!!e.toSettle}▩${e.addedBy}`;
+
+      if (!frequencies[signature]) {
+        frequencies[signature] = {
+          count: 0,
+          cat: e.category,
+          acc: e.account,
+          addedBy: e.addedBy || 'Partner A',
+          note: cleanNote,
+          shared: !!e.toSettle
+        };
+      }
+      frequencies[signature].count += 1;
+    });
+
+    // Sort entries by historical count descending and pick the top 10 frequencies
+    return Object.values(frequencies)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
+      .map((p) => ({
+        label: p.note.length > 22 ? `${p.note.slice(0, 20)}...` : p.note,
+        cat: p.cat,
+        acc: p.acc,
+        addedBy: p.addedBy,
+        note: p.note,
+        shared: p.shared
+      }));
+  }, [data.expenses]);
+
   const submit = () => {
     if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) return;
     onAdd({
@@ -1019,6 +1062,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
           )}
         </div>
 
+        {/* Tab Switches (Expense vs Income) */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
           {['expense', 'income'].map((t) => (
             <Btn
@@ -1035,6 +1079,57 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
           ))}
         </div>
 
+        {/* ⚡ SMART DYNAMIC PATTERN QUICK ADD PANEL COMPONENT */}
+        {form.type === 'expense' && dynamicPresets.length > 0 && (
+          <div style={{ marginBottom: 20, background: `${C.bg}60`, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
+            <span style={{ color: C.amber, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              ⚡ Smart Quick Add (Top Historical Patterns)
+            </span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {dynamicPresets.map((preset: any) => (
+                <button
+                  key={`${preset.note}-${preset.cat}`}
+                  type="button"
+                  onClick={() => {
+                    set('category', preset.cat);
+                    set('account', preset.acc);
+                    set('addedBy', preset.addedBy);
+                    set('note', preset.note);
+                    set('toSettle', preset.shared);
+                    set('type', 'expense');
+                    
+                    // Instantly drop cursor focus directly into numeric input box
+                    const amtInput = document.querySelector('input[type="number"]') as HTMLInputElement;
+                    if (amtInput) amtInput.focus();
+                  }}
+                  style={{
+                    background: C.bg,
+                    border: `1px solid ${C.border}`,
+                    color: C.text1,
+                    padding: '5px 10px',
+                    borderRadius: 16,
+                    fontSize: 11,
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                    transition: 'all 0.15s ease-in-out',
+                  }}
+                  onMouseOver={(ev) => {
+                    ev.currentTarget.style.borderColor = C.amber;
+                    ev.currentTarget.style.background = `${C.amber}08`;
+                  }}
+                  onMouseOut={(ev) => {
+                    ev.currentTarget.style.borderColor = C.border;
+                    ev.currentTarget.style.background = C.bg;
+                  }}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Input Form Fields Layout */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
@@ -1077,42 +1172,43 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
             <Inp placeholder="What was this for?" value={form.note} onChange={(e: any) => set('note', e.target.value)} />
           </div>
 
+          {/* Settle Parameter Checkbox */}
           {form.type === 'expense' && form.account !== 'Joint' && (
-  <div style={{ background: C.bg, borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-    <div>
-      <div style={{ color: C.text1, fontSize: 13, fontWeight: 600 }}>To be settled by Joint Account?</div>
-      <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Reimburse personal expense from joint pool</div>
-    </div>
-    
-    {/* Ultra-clean custom inline toggle switch */}
-    <div 
-      onClick={() => set('toSettle', !form.toSettle)}
-      style={{
-        width: 44,
-        height: 24,
-        borderRadius: 12,
-        background: form.toSettle ? C.amber : `${C.border}aa`,
-        position: 'relative',
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        flexShrink: 0,
-        border: `1px solid ${form.toSettle ? C.amber : C.border}`
-      }}
-    >
-      <div style={{
-        width: 18,
-        height: 18,
-        borderRadius: '50%',
-        background: form.toSettle ? C.surface : C.text2,
-        position: 'absolute',
-        top: 2,
-        left: form.toSettle ? 22 : 2,
-        transition: 'all 0.2s ease'
-      }} />
-    </div>
-  </div>
-)}
+            <div style={{ background: C.bg, borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div>
+                <div style={{ color: C.text1, fontSize: 13, fontWeight: 600 }}>To be settled by Joint Account?</div>
+                <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Reimburse personal expense from joint pool</div>
+              </div>
+              
+              <div 
+                onClick={() => set('toSettle', !form.toSettle)}
+                style={{
+                  width: 44,
+                  height: 24,
+                  borderRadius: 12,
+                  background: form.toSettle ? C.amber : `${C.border}aa`,
+                  position: 'relative',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  flexShrink: 0,
+                  border: `1px solid ${form.toSettle ? C.amber : C.border}`
+                }}
+              >
+                <div style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  background: form.toSettle ? C.surface : C.text2,
+                  position: 'absolute',
+                  top: 2,
+                  left: form.toSettle ? 22 : 2,
+                  transition: 'all 0.2s ease'
+                }} />
+              </div>
+            </div>
+          )}
 
+          {/* Form Trigger Buttons */}
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             <Btn variant={flash ? 'success' : 'primary'} onClick={submit} style={{ flex: 1, padding: 13, fontSize: 15 }}>
               {flash ? '✓ Added Successfully!' : (duplicateData ? '✓ Confirm Duplicate' : `Add ${form.type === 'income' ? 'Income' : 'Expense'}`)}
@@ -3380,6 +3476,7 @@ export default function App() {
       setData(nd);
       const { error } = await supabase.from('transactions').insert([
         {
+          id: e.id, // ⚡ CRITICAL FIX: Explicitly binds local UI key to database table entry row
           household_id: data.householdId,
           date: e.date,
           amount: e.amount,
@@ -3392,6 +3489,9 @@ export default function App() {
           settled: e.settled,
         },
       ]);
+      if (error) alert('Failed to save to cloud: ' + error.message);
+      else notify('New Transaction Added', `Added ₹${e.amount} for ${e.category}`, data.settings);
+    },
       if (error) alert('Failed to save to cloud: ' + error.message);
       else
         notify(
@@ -3515,13 +3615,18 @@ deleteExpense: async (id: string) => {
           { id: month, month, partnerA: pA, partnerB: pB },
         ],
       }));
-      await supabase.from('contributions').upsert({
+      
+      const { error } = await supabase.from('contributions').upsert({
         id: `${data.householdId}_${month}`,
         household_id: data.householdId,
         month: month,
         partner_a: pA,
         partner_b: pB,
-      });
+      }, { onConflict: 'id' });
+
+      if (error) {
+        alert('Local UI updated, but cloud synchronization rejected your contribution: ' + error.message);
+      }
     },
     addGoal: async (g: any) => {
       const newGoal = {
@@ -3644,12 +3749,11 @@ deleteExpense: async (id: string) => {
       alert("Successfully joined partner's household!");
     },
 importData: async ({ expenses, contributions }: any) => {
-      // 1. Sanitize IDs: If Excel didn't provide an ID, or provided a non-UUID placeholder, assign a proper UUID instantly
       const sanitizedExpenses = expenses.map((e: any) => {
         const isValidUUID = e.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.id);
         return {
           ...e,
-          id: isValidUUID ? e.id : uid() // Flawlessly falls back to generating a fresh client UUID
+          id: isValidUUID ? e.id : uid()
         };
       });
 
@@ -3665,17 +3769,17 @@ importData: async ({ expenses, contributions }: any) => {
           ]
         : data.contributions;
 
-      // 2. Refresh local UI state layout with the brand new clean dataset
+      // 1. Refresh local UI state layout
       setData((prev: any) => ({
         ...prev,
         expenses: [...prev.expenses, ...newExp],
         contributions: mergedContribs,
       }));
 
-      // 3. Fire a high-speed batch insert statement straight to the Supabase cloud tables
+      // 2. Fire batch insert statement for new expenses
       if (newExp.length > 0) {
         const rowsToInsert = newExp.map((e: any) => ({
-          id: e.id, // Explicitly binds the client UI key to the database primary key
+          id: e.id,
           household_id: data.householdId,
           date: e.date,
           amount: e.amount,
@@ -3686,20 +3790,29 @@ importData: async ({ expenses, contributions }: any) => {
           note: e.note,
           to_settle: e.toSettle,
           settled: e.settled,
-          settled_with: e.settledFor // ⚡ Aligns imported settlement history with your database schema
+          settled_with: e.settledFor
         }));
 
-        const { error } = await supabase.from('transactions').insert(rowsToInsert);
-        if (error) {
-          alert('Local layout updated, but cloud synchronization bounced: ' + error.message);
-        } else {
-          alert(`Successfully synced ${newExp.length} rows to your cloud profile!`);
-        }
-      } else {
-        alert('No new unique transaction records found to import.');
+        const { error: txError } = await supabase.from('transactions').insert(rowsToInsert);
+        if (txError) alert('Cloud expense synchronization failed: ' + txError.message);
       }
+
+      // 3. ⚡ NEW: Sync imported contributions to the cloud
+      if (contributions && contributions.length > 0) {
+        const contribRows = contributions.map((c: any) => ({
+          id: `${data.householdId}_${c.month}`,
+          household_id: data.householdId,
+          month: c.month,
+          partner_a: c.partnerA || 0,
+          partner_b: c.partnerB || 0
+        }));
+
+        const { error: cbError } = await supabase.from('contributions').upsert(contribRows, { onConflict: 'id' });
+        if (cbError) alert('Cloud contribution synchronization failed: ' + cbError.message);
+      }
+
+      alert('Historical data import sync completed successfully!');
     },
-  };
 
   return (
     <div
