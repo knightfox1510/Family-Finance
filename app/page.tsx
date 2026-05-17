@@ -448,6 +448,7 @@ function StatCard({ label, value, sub, accent = C.amber, icon }: any) {
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
   { id: 'add', label: 'Add Expense', icon: '➕' },
+  { id: 'income', label: 'Income', icon: '💰' },
   { id: 'expenses', label: 'Expenses', icon: '📋' },
   { id: 'settle', label: 'Settlements', icon: '🔄' },
   { id: 'contributions', label: 'Contributions', icon: '🏦' },
@@ -579,6 +580,152 @@ function parseImport(file: any, callback: any) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+function IncomeTracker({ data }: any) {
+  const names = {
+    a: data.settings.partnerAName,
+    b: data.settings.partnerBName,
+  };
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  );
+
+  const allAvailableMonths = data.expenses
+    .map((e: any) => monthKey(e.date))
+    .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
+    .sort()
+    .reverse();
+
+  // Filter down strictly to incoming cash channels for the active month scope
+  const periodInflows = data.expenses.filter(
+    (e: any) => e.type === 'income' && monthKey(e.date) === selectedMonth
+  );
+
+  // Split calculations
+  const totalIncome = periodInflows.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+  const incomeA = periodInflows
+    .filter((e: any) => e.addedBy === 'Partner A' || e.account === names.a)
+    .reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+  const incomeB = periodInflows
+    .filter((e: any) => e.addedBy === 'Partner B' || e.account === names.b)
+    .reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+
+  // Grouping by categories (Salary, Bonus, returns etc)
+  const categoryMap = {} as Record<string, number>;
+  periodInflows.forEach((e: any) => {
+    categoryMap[e.category] = (categoryMap[e.category] || 0) + e.amount;
+  });
+  const sortedCategories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
+  const maxCategoryValue = sortedCategories[0]?.[1] || 1;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      
+      {/* PERIOD SELECTION HEADER */}
+      <Card style={{ padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <SectionTitle style={{ margin: 0 }}>💰 Income & Inflow Dashboard</SectionTitle>
+        <select
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          style={{
+            background: C.bg,
+            border: `1px solid ${C.border}`,
+            color: C.text1,
+            padding: '6px 12px',
+            borderRadius: 8,
+            fontSize: 13,
+            cursor: 'pointer',
+          }}
+        >
+          {allAvailableMonths.map((m: any) => (
+            <option key={m} value={m}>{monthLabel(m)}</option>
+          ))}
+        </select>
+      </Card>
+
+      {/* METRIC CARD GRIDS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+        <StatCard
+          label="Total Monthly Income Inflows"
+          value={fmt(totalIncome, data.settings.currency)}
+          accent={C.green}
+          icon="🏦"
+          sub={`Combined household earnings for period`}
+        />
+        <StatCard
+          label={`${names.a}'s Allocation`}
+          value={fmt(incomeA, data.settings.currency)}
+          accent={C.purple}
+          icon="👨‍💻"
+          sub={`Share: ${totalIncome > 0 ? ((incomeA / totalIncome) * 100).toFixed(0) : 0}% of net household pool`}
+        />
+        <StatCard
+          label={`${names.b}'s Allocation`}
+          value={fmt(incomeB, data.settings.currency)}
+          accent={C.blue}
+          icon="👩‍💻"
+          sub={`Share: ${totalIncome > 0 ? ((incomeB / totalIncome) * 100).toFixed(0) : 0}% of net household pool`}
+        />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+        {/* SOURCE DISTRIBUTION COMPONENT */}
+        <Card>
+          <SectionTitle>Income Stream Breakdown</SectionTitle>
+          {sortedCategories.length === 0 ? (
+            <p style={{ color: C.muted, fontSize: 13, marginTop: 10 }}>No income lines recorded for this calendar segment.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
+              {sortedCategories.map(([category, amount]) => (
+                <div key={category}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}>
+                    <span style={{ color: C.text1 }}>{category}</span>
+                    <span style={{ fontWeight: 700, color: C.textW }}>{fmt(amount, data.settings.currency)}</span>
+                  </div>
+                  <ProgressBar pct={(amount / maxCategoryValue) * 100} color={C.green} height={6} />
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* LEDGER TRANSACTION AUDIT INDEX */}
+        <Card style={{ display: 'flex', flexDirection: 'column' }}>
+          <SectionTitle>Inflow Transaction Logs</SectionTitle>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12, maxHeight: 260, overflowY: 'auto', paddingRight: 4 }}>
+            {periodInflows.length === 0 ? (
+              <p style={{ color: C.muted, fontSize: 13 }}>No transaction entries line matching parameters.</p>
+            ) : (
+              periodInflows.map((e: any) => (
+                <div
+                  key={e.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: `${C.bg}80`,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: `1px solid ${C.border}`,
+                  }}
+                >
+                  <div>
+                    <div style={{ color: C.textW, fontSize: 13, fontWeight: 600 }}>{e.note || 'Generic Salary Line'}</div>
+                    <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>
+                      {e.date} • {e.account === 'Joint' ? 'Joint Pool' : `${e.account} Personal`}
+                    </div>
+                  </div>
+                  <span style={{ color: C.green, fontWeight: 700, fontSize: 13 }}>+{fmt(e.amount, data.settings.currency)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
 }
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
@@ -1226,7 +1373,7 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
   };
   const mk = monthKey(today());
   const [filter, setFilter] = useState({
-    month: mk,
+    month: 'All',
     account: 'All',
     category: 'All',
     type: 'All',
@@ -4035,6 +4182,8 @@ importData: async ({ expenses, contributions }: any) => {
       }}
     />
   )}
+
+          {view === 'income' && <IncomeTracker data={data} />}
 
   {view === 'expenses' && (
     <ExpenseList
