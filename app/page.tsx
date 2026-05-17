@@ -198,8 +198,8 @@ async function loadData(userId: string) {
       contributions: (cb.data || []).map((r: any) => ({
         id: r.month,
         month: r.month,
-        partnerA: r.partner_a,
-        partnerB: r.partner_b,
+        partnerA: r.partner_a_amount,
+        partnerB: r.partner_b_amount,
       })),
       settings: st.data?.settings_data
         ? { ...DEFAULT_SETTINGS, ...st.data.settings_data }
@@ -3777,8 +3777,8 @@ deleteExpense: async (id: string) => {
         id: `${data.householdId}_${month}`,
         household_id: data.householdId,
         month: month,
-        partner_a: pA,
-        partner_b: pB,
+        partner_a_amount: pA,
+        partner_b_amount: pB,
       }, { onConflict: 'id' });
 
       if (error) {
@@ -3960,8 +3960,8 @@ importData: async ({ expenses, contributions }: any) => {
           id: `${data.householdId}_${c.month}`,
           household_id: data.householdId,
           month: c.month,
-          partner_a: c.partnerA || 0,
-          partner_b: c.partnerB || 0
+          partner_a_amount: c.partnerA || 0,
+          partner_b_amount: c.partnerB || 0
         }));
 
         const { error: cbError } = await supabase.from('contributions').upsert(contribRows, { onConflict: 'id' });
