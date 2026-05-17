@@ -612,35 +612,50 @@ function Dashboard({ data, onAddExpense }: any) {
   
   const currentJointBalance = allTimePool - allTimeJointSpent;
 
-  // Cumulative Asset Base (Investment + Insurance)
   const allTimeInvested = data.expenses
     .filter((e: any) => (e.category === 'Investment' || e.category === 'Insurance') && e.type !== 'income')
     .reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
-  // 2. RUN RATE CALCULATION ENGINE (Lifestyle Only)
+  // 2. TWIN RUN RATE ROLLING ENGINES (Last 6 Calendar Months Matrix)
   const last6Months = Array.from({ length: 6 }).map((_, i) => {
     const target = new Date();
     target.setMonth(target.getMonth() - i);
     return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`;
   }).reverse();
 
-  const monthlyTrendData = last6Months.map((mKey) => {
+  // Engine A: Lifestyle Monthly Calculation Loop
+  const lifestyleTrendData = last6Months.map((mKey) => {
     const totalSpentInMonth = data.expenses
       .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && e.category !== 'Investment' && e.category !== 'Insurance')
       .reduce((s: number, e: any) => s + (e.amount || 0), 0);
     return { monthLabel: monthLabel(mKey), total: totalSpentInMonth };
   });
-  
-  const maxTrendValue = monthlyTrendData.reduce((max, m) => m.total > max ? m.total : max, 1);
+  const maxLifestyleTrend = lifestyleTrendData.reduce((max, m) => m.total > max ? m.total : max, 1);
 
-  // 3. APPLY ACTIVE FILTER SCOPE
+  // Engine B: Investment + Insurance Monthly Calculation Loop
+  const investmentTrendData = last6Months.map((mKey) => {
+    const totalInvestedInMonth = data.expenses
+      .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && (e.category === 'Investment' || e.category === 'Insurance'))
+      .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    return { monthLabel: monthLabel(mKey), total: totalInvestedInMonth };
+  });
+  const maxInvestmentTrend = investmentTrendData.reduce((max, m) => m.total > max ? m.total : max, 1);
+
+  // 3. APPLY ACTIVE COMBINED ACCOUNT FILTER CRITERIA
   const filteredExp = data.expenses.filter((e: any) => {
     if (rangeMode === 'month') {
       if (monthKey(e.date) !== selectedMonth) return false;
     } else {
       if (e.date < customDates.start || e.date > customDates.end) return false;
     }
-    if (accountFilter !== 'All' && e.account !== accountFilter) return false;
+    
+    // ⚡ Combined Individual Filter logic check
+    if (accountFilter === 'PersonalOnly') {
+      if (e.account === 'Joint') return false;
+    } else if (accountFilter !== 'All' && e.account !== accountFilter) {
+      return false;
+    }
+    
     if (e.type === 'income') return false;
     return true;
   });
@@ -651,11 +666,14 @@ function Dashboard({ data, onAddExpense }: any) {
     } else {
       if (e.date < customDates.start || e.date > customDates.end) return false;
     }
-    if (accountFilter !== 'All' && e.account !== accountFilter) return false;
+    if (accountFilter === 'PersonalOnly') {
+      if (e.account === 'Joint') return false;
+    } else if (accountFilter !== 'All' && e.account !== accountFilter) {
+      return false;
+    }
     return e.type === 'income';
   }).reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
-  // Intercept and pool both categories
   const periodInvested = filteredExp
     .filter((e: any) => e.category === 'Investment' || e.category === 'Insurance')
     .reduce((s: number, e: any) => s + e.amount, 0);
@@ -663,48 +681,49 @@ function Dashboard({ data, onAddExpense }: any) {
   const totalPeriodRawExpenses = filteredExp.reduce((s: number, e: any) => s + e.amount, 0);
   const trueLifestyleExpenses = totalPeriodRawExpenses - periodInvested;
 
-  // 🔎 EXPANDED KEYWORD PARSING ENGINE
+  // Keyword Parsing Engine Mapping
   const allocation = {
     'Mutual Funds / SIP': 0,
-    'NJ E-wealth / NJ': 0,
-    'Stocks / Equity': 0,
+    'NJ E-wealth': 0,
+    'Smallcase': 0,
+    'Stocks / US Equity': 0,
+    'Gold / Precious Metals': 0,
     'PPF': 0,
     'NPS': 0,
-    'Gold': 0,
     'Crypto': 0,
     'Insurance Policies': 0,
     'Other Assets': 0
   };
 
   filteredExp.forEach((e: any) => {
-    if (e.category === 'Investment') {
+    if (e.category === 'Investment' || e.category === 'Insurance') {
       const noteTxt = (e.note || '').toLowerCase();
-      
-      if (noteTxt.includes('ppf')) {
+      if (e.category === 'Insurance' || noteTxt.includes('lic') || noteTxt.includes('insurance')) {
+        allocation['Insurance Policies'] += e.amount;
+      } else if (noteTxt.includes('smallcase')) {
+        allocation['Smallcase'] += e.amount;
+      } else if (noteTxt.includes('nj')) {
+        allocation['NJ E-wealth'] += e.amount;
+      } else if (noteTxt.includes('gold') || noteTxt.includes('sgb') || noteTxt.includes('bluestone') || noteTxt.includes('png') || noteTxt.includes('waman')) {
+        allocation['Gold / Precious Metals'] += e.amount;
+      } else if (noteTxt.includes('stock') || noteTxt.includes('equity') || noteTxt.includes('share') || noteTxt.includes('zerodha') || noteTxt.includes('indmoney') || noteTxt.includes('ind money')) {
+        allocation['Stocks / US Equity'] += e.amount;
+      } else if (noteTxt.includes('ppf')) {
         allocation['PPF'] += e.amount;
       } else if (noteTxt.includes('nps')) {
         allocation['NPS'] += e.amount;
-      } else if (noteTxt.includes('gold') || noteTxt.includes('sgb')) {
-        allocation['Gold'] += e.amount;
       } else if (noteTxt.includes('crypto') || noteTxt.includes('bitcoin') || noteTxt.includes('btc')) {
         allocation['Crypto'] += e.amount;
-      } else if (noteTxt.includes('nj')) {
-        allocation['NJ E-wealth / NJ'] += e.amount;
       } else if (noteTxt.includes('mutual') || noteTxt.includes('mf') || noteTxt.includes('sip')) {
         allocation['Mutual Funds / SIP'] += e.amount;
-      } else if (noteTxt.includes('stock') || noteTxt.includes('equity') || noteTxt.includes('share')) {
-        allocation['Stocks / Equity'] += e.amount;
       } else {
         allocation['Other Assets'] += e.amount;
       }
-    } else if (e.category === 'Insurance') {
-      allocation['Insurance Policies'] += e.amount; // Directly assigned, safety bypassed text parsing
     }
   });
 
   const maxAllocationValue = Object.values(allocation).reduce((max: number, val: number) => val > max ? val : max, 1);
 
-  const jointSpentPeriod = filteredExp.filter((e: any) => e.account === 'Joint').reduce((s: number, e: any) => s + e.amount, 0);
   const personalSpentA = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner A' || e.account === names.a)).reduce((s: number, e: any) => s + e.amount, 0);
   const personalSpentB = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner B' || e.account === names.b)).reduce((s: number, e: any) => s + e.amount, 0);
 
@@ -717,9 +736,6 @@ function Dashboard({ data, onAddExpense }: any) {
   });
   const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 6);
   const maxCat = topCats[0]?.[1] || 1;
-
-  const currentDay = new Date().getDate();
-  const dueLoans = data.loans.filter((l: any) => l.paymentDay === currentDay);
 
   const labelStyle = { color: C.muted, fontSize: 12, fontWeight: 600, marginRight: 4 };
   const toggleBtnStyle = (active: boolean) => ({
@@ -758,10 +774,11 @@ function Dashboard({ data, onAddExpense }: any) {
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={labelStyle}>Account:</span>
+            <span style={labelStyle}>Account Filter:</span>
             <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
-              <option value="All">All Accounts</option>
+              <option value="All">All Accounts Combined</option>
               <option value="Joint">Joint Account Only</option>
+              <option value="PersonalOnly">Gaurav & Karishma (Individual Out of Pocket)</option>
               <option value={names.a}>{names.a} Only</option>
               <option value={names.b}>{names.b} Only</option>
             </select>
@@ -779,25 +796,25 @@ function Dashboard({ data, onAddExpense }: any) {
           sub={`Running shared cash pool balance`}
         />
         <StatCard
-          label="Lifestyle Spending (Scope)"
+          label="Lifestyle Spending"
           value={fmt(trueLifestyleExpenses, data.settings.currency)}
           accent={C.amber}
           icon="🛒"
-          sub={`Core operational cost burn rate`}
+          sub={`Core operational survival costs`}
         />
         <StatCard
-          label="Allocated Capital (Scope)"
+          label="Allocated Capital Portfolio"
           value={fmt(periodInvested, data.settings.currency)}
           accent={C.teal}
           icon="📈"
-          sub={`Total Net Worth Pool: ${fmt(allTimeInvested, data.settings.currency)}`}
+          sub={`Total Cumulative Base: ${fmt(allTimeInvested, data.settings.currency)}`}
         />
       </div>
 
       {/* PORTFOLIO BREAKDOWN ASSET ALLOCATION */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
         <Card>
-          <SectionTitle>Asset Allocation Breakdown (Scope)</SectionTitle>
+          <SectionTitle>Asset Allocation Breakdown</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 10 }}>
             {Object.entries(allocation).map(([assetClass, amount]) => (
               <div key={assetClass}>
@@ -811,45 +828,79 @@ function Dashboard({ data, onAddExpense }: any) {
           </div>
         </Card>
 
-        {/* Out of Pocket Splits */}
+        {/* Out of Pocket Splits Card */}
         <Card style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
-            <SectionTitle>Out of Pocket Splits (Filtered)</SectionTitle>
+            <SectionTitle>Out of Pocket Breakdown</SectionTitle>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', background: C.bg, padding: '12px 14px', borderRadius: 10 }}>
-                <span style={{ color: C.purple, fontWeight: 600 }}>{names.a}:</span>
+                <span style={{ color: C.purple, fontWeight: 600 }}>{names.a} Spent:</span>
                 <span style={{ fontWeight: 700 }}>{fmt(personalSpentA, data.settings.currency)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', background: C.bg, padding: '12px 14px', borderRadius: 10 }}>
-                <span style={{ color: C.blue, fontWeight: 600 }}>{names.b}:</span>
+                <span style={{ color: C.blue, fontWeight: 600 }}>{names.b} Spent:</span>
                 <span style={{ fontWeight: 700 }}>{fmt(personalSpentB, data.settings.currency)}</span>
               </div>
             </div>
           </div>
+          <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '0 4px' }}>
+            Showing individual balances excluding direct Joint Account hits.
+          </div>
         </Card>
       </div>
 
-      {/* Run Rate Spark Chart */}
+      {/* LIFESTYLE RUN RATE CHART WIDGET */}
       <Card>
-        <SectionTitle>Household Run Rate — 6 Months Trend (Lifestyle Only)</SectionTitle>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 140, paddingTop: 20, paddingBottom: 10, gap: 12 }}>
-          {monthlyTrendData.map((m) => {
-            const barHeightPct = Math.max(8, (m.total / maxTrendValue) * 100);
+        <SectionTitle>Household Trend — Monthly Lifestyle Expenses</SectionTitle>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12 }}>
+          {lifestyleTrendData.map((m) => {
+            const barHeightPct = (m.total / maxLifestyleTrend) * 100;
             return (
-              <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
                   {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
                 </div>
-                <div style={{
-                  width: '100%',
-                  height: `${barHeightPct}%`,
-                  background: `linear-gradient(to top, ${C.surface}, ${C.amber})`,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: '6px 6px 0 0',
-                  minHeight: 6,
-                  transition: 'height 0.4s ease'
-                }} />
-                <div style={{ fontSize: 12, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
+                {/* Fixed-height track container for perfect scaling alignment */}
+                <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                  <div style={{
+                    width: '100%',
+                    height: `${Math.max(6, barHeightPct)}%`,
+                    background: `linear-gradient(to top, ${C.surface}, ${C.amber})`,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: '4px 4px 0 0',
+                    transition: 'height 0.3s ease'
+                  }} />
+                </div>
+                <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* 🚀 NEW INVESTMENT RUN RATE CHART WIDGET */}
+      <Card>
+        <SectionTitle>Wealth Growth Trend — Monthly Investments & Policies</SectionTitle>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12 }}>
+          {investmentTrendData.map((m) => {
+            const barHeightPct = (m.total / maxInvestmentTrend) * 100;
+            return (
+              <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
+                  {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
+                </div>
+                {/* Fixed-height track container for perfect scaling alignment */}
+                <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                  <div style={{
+                    width: '100%',
+                    height: `${Math.max(6, barHeightPct)}%`,
+                    background: `linear-gradient(to top, ${C.surface}, ${C.teal})`,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: '4px 4px 0 0',
+                    transition: 'height 0.3s ease'
+                  }} />
+                </div>
+                <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
               </div>
             );
           })}
@@ -858,10 +909,10 @@ function Dashboard({ data, onAddExpense }: any) {
 
       {/* Household Savings Velocity */}
       <Card style={{ maxWidth: '100%' }}>
-        <SectionTitle>True Capital Retention Velocity</SectionTitle>
+        <SectionTitle>Household Wealth Retention Velocity</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginTop: 10, marginBottom: 14 }}>
           <div>
-            <span style={{ color: C.text2, fontSize: 13 }}>Income in scope:</span>
+            <span style={{ color: C.text2, fontSize: 13 }}>Income for Period:</span>
             <div style={{ color: C.green, fontWeight: 700, fontSize: 18, marginTop: 2 }}>{fmt(periodIncome, data.settings.currency)}</div>
           </div>
           <div>
@@ -880,7 +931,7 @@ function Dashboard({ data, onAddExpense }: any) {
 
       {/* Target Budgets & Expense Distribution Cards */}
       <Card>
-        <SectionTitle>Lifestyle Category Distribution Breakdown</SectionTitle>
+        <SectionTitle>Lifestyle Category Allocation Breakdown</SectionTitle>
         {topCats.length === 0 && (
           <p style={{ color: C.muted, fontSize: 13 }}>No lifestyle expenses found matching current criteria.</p>
         )}
@@ -903,7 +954,6 @@ function Dashboard({ data, onAddExpense }: any) {
     </div>
   );
 }
-
 // ─── ADD EXPENSE ──────────────────────────────────────────────────────────────
 function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   const names = {
