@@ -132,14 +132,36 @@ async function loadData(userId: string) {
     if (!profile) throw new Error('Profile not found');
     const hId = profile.household_id;
 
-    // Fetch EVERYTHING in parallel!
-    const [tx, gl, ln, cb, st] = await Promise.all([
-      supabase
+    // ⚡ Bulletproof Pagination Engine to bypass the 1,000 server row cap
+    let allTransactions: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: txChunk, error: txError } = await supabase
         .from('transactions')
         .select('*')
         .eq('household_id', hId)
         .order('date', { ascending: false })
-      .range(0, 9999),
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (txError) throw txError;
+
+      if (!txChunk || txChunk.length === 0) {
+        hasMore = false;
+      } else {
+        allTransactions = [...allTransactions, ...txChunk];
+        if (txChunk.length < pageSize) {
+          hasMore = false; // We grabbed the last remnant block
+        } else {
+          page++; // Advance loop step to request the next 1,000 rows
+        }
+      }
+    }
+
+    // Fetch remaining data configurations in parallel
+    const [gl, ln, cb, st] = await Promise.all([
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
@@ -152,7 +174,7 @@ async function loadData(userId: string) {
 
     const formattedData = {
       householdId: hId,
-      expenses: (tx.data || []).map((r: any) => ({
+      expenses: allTransactions.map((r: any) => ({
         id: r.id,
         date: r.date,
         amount: r.amount,
