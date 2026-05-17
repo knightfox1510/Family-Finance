@@ -550,13 +550,46 @@ function parseImport(file: any, callback: any) {
         return sh ? XLSX.utils.sheet_to_json(sh) : [];
       };
 
+      // ⚡ UPGRADED RESILIENT DATE PARSER ENGINE
       const normalizeDate = (val: any) => {
         if (!val) return today();
+        
+        // 1. Handle numeric Excel date serial integers (e.g., 45658)
         if (!isNaN(val) && Number(val) > 30000) {
           const d = new Date((Number(val) - 25569) * 86400 * 1000);
           return d.toISOString().slice(0, 10);
         }
-        return String(val).trim();
+        
+        // 2. Handle text strings containing regional variations (e.g., "25/1/2025" or "25-01-2025")
+        const str = String(val).trim();
+        const parts = str.split(/[-/]/); // Splits cleanly across slashes or dashes
+
+        if (parts.length === 3) {
+          // Case A: Format is already YYYY-MM-DD or YYYY/MM/DD
+          if (parts[0].length === 4) {
+            const y = parts[0];
+            const m = parts[1].padStart(2, '0');
+            const d = parts[2].padStart(2, '0');
+            return `${y}-${m}-${d}`;
+          } 
+          // Case B: Format is regional like DD/MM/YYYY or D/M/YYYY
+          else if (parts[2].length === 4) {
+            const d = parts[0].padStart(2, '0');
+            const m = parts[1].padStart(2, '0');
+            const y = parts[2];
+            return `${y}-${m}-${d}`;
+          }
+        }
+        
+        // 3. Absolute native Javascript parser fallback for unconventional string patterns
+        try {
+          const parsed = new Date(str);
+          if (!isNaN(parsed.getTime())) {
+            return parsed.toISOString().slice(0, 10);
+          }
+        } catch (err) {}
+
+        return str; // Return fallback text if completely unparseable
       };
       
       const expenses = getSheet('Expenses').map((r: any) => {
@@ -565,13 +598,11 @@ function parseImport(file: any, callback: any) {
           row[k.toLowerCase().replace(/\s+/g, '')] = r[k];
         });
 
-        // Normalize the transaction type to lowercase and clear extra spaces
         const rawType = row.type ? String(row.type).toLowerCase().trim() : 'expense';
 
         return {
           id: row.id || null,
-          date: normalizeDate(row.date),
-          // Force strict compliance with the Supabase transactions_type_check constraint
+          date: normalizeDate(row.date), // Runs the upgraded format normalizer
           type: rawType === 'income' ? 'income' : 'expense',
           category: row.category || 'Other',
           amount: Number(row.amount) || 0,
@@ -590,8 +621,8 @@ function parseImport(file: any, callback: any) {
           row[k.toLowerCase().replace(/\s+/g, '')] = r[k];
         });
         return {
-          id: row.month,
-          month: row.month,
+          id: row.month || null,
+          month: row.month ? String(row.month).trim() : null,
           partnerA: Number(row.partnera) || 0,
           partnerB: Number(row.partnerb) || 0,
         };
