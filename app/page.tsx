@@ -613,7 +613,7 @@ function Dashboard({ data, onAddExpense }: any) {
   const currentJointBalance = allTimePool - allTimeJointSpent;
 
   const allTimeInvested = data.expenses
-    .filter((e: any) => (e.category === 'Investment' || e.category === 'Insurance') && e.type !== 'income')
+    .filter((e: any) => (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') && e.type !== 'income')
     .reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
   // 2. TWIN RUN RATE ROLLING ENGINES (Last 6 Calendar Months Matrix)
@@ -626,7 +626,7 @@ function Dashboard({ data, onAddExpense }: any) {
   // Engine A: Lifestyle Monthly Calculation Loop
   const lifestyleTrendData = last6Months.map((mKey) => {
     const totalSpentInMonth = data.expenses
-      .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && e.category !== 'Investment' && e.category !== 'Insurance')
+      .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && e.category !== 'Investment' && e.category !== 'Investments' && e.category !== 'Insurance')
       .reduce((s: number, e: any) => s + (e.amount || 0), 0);
     return { monthLabel: monthLabel(mKey), total: totalSpentInMonth };
   });
@@ -635,7 +635,7 @@ function Dashboard({ data, onAddExpense }: any) {
   // Engine B: Investment + Insurance Monthly Calculation Loop
   const investmentTrendData = last6Months.map((mKey) => {
     const totalInvestedInMonth = data.expenses
-      .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && (e.category === 'Investment' || e.category === 'Insurance'))
+      .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance'))
       .reduce((s: number, e: any) => s + (e.amount || 0), 0);
     return { monthLabel: monthLabel(mKey), total: totalInvestedInMonth };
   });
@@ -649,7 +649,6 @@ function Dashboard({ data, onAddExpense }: any) {
       if (e.date < customDates.start || e.date > customDates.end) return false;
     }
     
-    // ⚡ Combined Individual Filter logic check
     if (accountFilter === 'PersonalOnly') {
       if (e.account === 'Joint') return false;
     } else if (accountFilter !== 'All' && e.account !== accountFilter) {
@@ -675,7 +674,7 @@ function Dashboard({ data, onAddExpense }: any) {
   }).reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
   const periodInvested = filteredExp
-    .filter((e: any) => e.category === 'Investment' || e.category === 'Insurance')
+    .filter((e: any) => e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance')
     .reduce((s: number, e: any) => s + e.amount, 0);
 
   const totalPeriodRawExpenses = filteredExp.reduce((s: number, e: any) => s + e.amount, 0);
@@ -696,7 +695,7 @@ function Dashboard({ data, onAddExpense }: any) {
   };
 
   filteredExp.forEach((e: any) => {
-    if (e.category === 'Investment' || e.category === 'Insurance') {
+    if (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') {
       const noteTxt = (e.note || '').toLowerCase();
       if (e.category === 'Insurance' || noteTxt.includes('lic') || noteTxt.includes('insurance')) {
         allocation['Insurance Policies'] += e.amount;
@@ -731,10 +730,12 @@ function Dashboard({ data, onAddExpense }: any) {
   const savingsRate = periodIncome > 0 ? Math.max(0, (savingsDelta / periodIncome) * 100) : 0;
 
   const catMap = {} as Record<string, number>;
-  filteredExp.filter((e: any) => e.category !== 'Investment' && e.category !== 'Insurance').forEach((e: any) => {
+  filteredExp.filter((e: any) => e.category !== 'Investment' && e.category !== 'Investments' && e.category !== 'Insurance').forEach((e: any) => {
     catMap[e.category] = (catMap[e.category] || 0) + e.amount;
   });
-  const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  
+  // ⚡ FIXED: Removed the .slice(0, 6) limit restriction to populate ALL transactional fields
+  const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
   const maxCat = topCats[0]?.[1] || 1;
 
   const labelStyle = { color: C.muted, fontSize: 12, fontWeight: 600, marginRight: 4 };
@@ -860,7 +861,6 @@ function Dashboard({ data, onAddExpense }: any) {
                 <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
                   {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
                 </div>
-                {/* Fixed-height track container for perfect scaling alignment */}
                 <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
                   <div style={{
                     width: '100%',
@@ -878,7 +878,7 @@ function Dashboard({ data, onAddExpense }: any) {
         </div>
       </Card>
 
-      {/* 🚀 NEW INVESTMENT RUN RATE CHART WIDGET */}
+      {/* INVESTMENT RUN RATE CHART WIDGET */}
       <Card>
         <SectionTitle>Wealth Growth Trend — Monthly Investments & Policies</SectionTitle>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12 }}>
@@ -889,7 +889,6 @@ function Dashboard({ data, onAddExpense }: any) {
                 <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
                   {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
                 </div>
-                {/* Fixed-height track container for perfect scaling alignment */}
                 <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
                   <div style={{
                     width: '100%',
