@@ -898,13 +898,30 @@ function Dashboard({ data, onAddExpense }: any) {
     .sort()
     .reverse();
 
-  // 1. ALL-TIME CAPITAL METRICS
-  const allTimePool = data.contributions.reduce((sum: number, c: any) => sum + (c.partnerA || 0) + (c.partnerB || 0), 0);
+  // 1. ALL-TIME CAPITAL METRICS & POOL SANITIZATION
+  
+  // ⚡ Auto-purge invisible legacy duplicates from database memory
+  const uniqueContributions = Array.from(
+    new Map(data.contributions.map((c: any) => [c.month, c])).values()
+  );
+
+  // ⚡ Enforce strict Number() casting to prevent string-concatenation explosions
+  const allTimePool = uniqueContributions.reduce(
+    (sum: number, c: any) => sum + Number(c.partnerA || 0) + Number(c.partnerB || 0), 
+    0
+  );
+
+  // ⚡ Capture Joint Account incomes (refunds, interest, cashbacks)
+  const allTimeJointIncome = data.expenses
+    .filter((e: any) => e.account === 'Joint' && e.type === 'income')
+    .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+
   const allTimeJointSpent = data.expenses
     .filter((e: any) => e.account === 'Joint' && e.type !== 'income')
-    .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
   
-  const currentJointBalance = allTimePool - allTimeJointSpent;
+  // The True Liquid Formula
+  const currentJointBalance = allTimePool + allTimeJointIncome - allTimeJointSpent;
 
   // Isolated Period Joint Spend Engine
   const periodJointSpent = data.expenses
@@ -916,29 +933,29 @@ function Dashboard({ data, onAddExpense }: any) {
       }
       return e.account === 'Joint' && e.type !== 'income';
     })
-    .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
-  // ⚡ NEW: Active Scope Joint Account Contribution Extraction Engine
+  // Active Scope Joint Account Contribution Extraction Engine
   let contribA = 0;
   let contribB = 0;
 
   if (rangeMode === 'month') {
-    const periodContrib = data.contributions.find((c: any) => c.month === selectedMonth);
+    const periodContrib = uniqueContributions.find((c: any) => c.month === selectedMonth);
     if (periodContrib) {
-      contribA = periodContrib.partnerA || 0;
-      contribB = periodContrib.partnerB || 0;
+      contribA = Number(periodContrib.partnerA || 0);
+      contribB = Number(periodContrib.partnerB || 0);
     }
   } else {
     const startM = customDates.start.slice(0, 7);
     const endM = customDates.end.slice(0, 7);
-    const overlappingContribs = data.contributions.filter((c: any) => c.month >= startM && c.month <= endM);
-    contribA = overlappingContribs.reduce((sum: number, c: any) => sum + (c.partnerA || 0), 0);
-    contribB = overlappingContribs.reduce((sum: number, c: any) => sum + (c.partnerB || 0), 0);
+    const overlappingContribs = uniqueContributions.filter((c: any) => c.month >= startM && c.month <= endM);
+    contribA = overlappingContribs.reduce((sum: number, c: any) => sum + Number(c.partnerA || 0), 0);
+    contribB = overlappingContribs.reduce((sum: number, c: any) => sum + Number(c.partnerB || 0), 0);
   }
 
   const allTimeInvested = data.expenses
     .filter((e: any) => (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') && e.type !== 'income')
-    .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
   // 2. TWIN RUN RATE ROLLING ENGINES (Last 6 Calendar Months Matrix)
   const last6Months = Array.from({ length: 6 }).map((_, i) => {
@@ -951,7 +968,7 @@ function Dashboard({ data, onAddExpense }: any) {
   const lifestyleTrendData = last6Months.map((mKey) => {
     const totalSpentInMonth = data.expenses
       .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && e.category !== 'Investment' && e.category !== 'Investments' && e.category !== 'Insurance')
-      .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
     return { monthLabel: monthLabel(mKey), total: totalSpentInMonth };
   });
   const maxLifestyleTrend = lifestyleTrendData.reduce((max, m) => m.total > max ? m.total : max, 1);
@@ -960,7 +977,7 @@ function Dashboard({ data, onAddExpense }: any) {
   const investmentTrendData = last6Months.map((mKey) => {
     const totalInvestedInMonth = data.expenses
       .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance'))
-      .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
     return { monthLabel: monthLabel(mKey), total: totalInvestedInMonth };
   });
   const maxInvestmentTrend = investmentTrendData.reduce((max, m) => m.total > max ? m.total : max, 1);
@@ -995,13 +1012,13 @@ function Dashboard({ data, onAddExpense }: any) {
       return false;
     }
     return e.type === 'income';
-  }).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+  }).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
   const periodInvested = filteredExp
     .filter((e: any) => e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance')
-    .reduce((s: number, e: any) => s + e.amount, 0);
+    .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
-  const totalPeriodRawExpenses = filteredExp.reduce((s: number, e: any) => s + e.amount, 0);
+  const totalPeriodRawExpenses = filteredExp.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
   const trueLifestyleExpenses = totalPeriodRawExpenses - periodInvested;
 
   const allocation = {
@@ -1020,40 +1037,40 @@ function Dashboard({ data, onAddExpense }: any) {
     if (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') {
       const noteTxt = (e.note || '').toLowerCase();
       if (e.category === 'Insurance' || noteTxt.includes('lic') || noteTxt.includes('insurance')) {
-        allocation['Insurance Policies'] += e.amount;
+        allocation['Insurance Policies'] += Number(e.amount || 0);
       } else if (noteTxt.includes('smallcase')) {
-        allocation['Smallcase'] += e.amount;
+        allocation['Smallcase'] += Number(e.amount || 0);
       } else if (noteTxt.includes('nj')) {
-        allocation['Mutual Funds / SIP'] += e.amount;
+        allocation['Mutual Funds / SIP'] += Number(e.amount || 0);
       } else if (noteTxt.includes('gold') || noteTxt.includes('sgb') || noteTxt.includes('bluestone') || noteTxt.includes('png') || noteTxt.includes('waman')) {
-        allocation['Gold / Precious Metals'] += e.amount;
+        allocation['Gold / Precious Metals'] += Number(e.amount || 0);
       } else if (noteTxt.includes('stock') || noteTxt.includes('equity') || noteTxt.includes('share') || noteTxt.includes('zerodha') || noteTxt.includes('indmoney') || noteTxt.includes('ind money')) {
-        allocation['Stocks / US Equity'] += e.amount;
+        allocation['Stocks / US Equity'] += Number(e.amount || 0);
       } else if (noteTxt.includes('ppf')) {
-        allocation['PPF'] += e.amount;
+        allocation['PPF'] += Number(e.amount || 0);
       } else if (noteTxt.includes('nps')) {
-        allocation['NPS'] += e.amount;
+        allocation['NPS'] += Number(e.amount || 0);
       } else if (noteTxt.includes('crypto') || noteTxt.includes('bitcoin') || noteTxt.includes('btc')) {
-        allocation['Crypto'] += e.amount;
+        allocation['Crypto'] += Number(e.amount || 0);
       } else if (noteTxt.includes('mutual') || noteTxt.includes('mf') || noteTxt.includes('sip')) {
-        allocation['Mutual Funds / SIP'] += e.amount;
+        allocation['Mutual Funds / SIP'] += Number(e.amount || 0);
       } else {
-        allocation['Other Assets'] += e.amount;
+        allocation['Other Assets'] += Number(e.amount || 0);
       }
     }
   });
 
   const maxAllocationValue = Object.values(allocation).reduce((max: number, val: number) => val > max ? val : max, 1);
 
-  const personalSpentA = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner A' || e.account === names.a)).reduce((s: number, e: any) => s + e.amount, 0);
-  const personalSpentB = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner B' || e.account === names.b)).reduce((s: number, e: any) => s + e.amount, 0);
+  const personalSpentA = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner A' || e.account === names.a)).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+  const personalSpentB = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner B' || e.account === names.b)).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
   const savingsDelta = periodIncome - trueLifestyleExpenses;
   const savingsRate = periodIncome > 0 ? Math.max(0, (savingsDelta / periodIncome) * 100) : 0;
 
   const catMap = {} as Record<string, number>;
   filteredExp.filter((e: any) => e.category !== 'Investment' && e.category !== 'Investments' && e.category !== 'Insurance').forEach((e: any) => {
-    catMap[e.category] = (catMap[e.category] || 0) + e.amount;
+    catMap[e.category] = (catMap[e.category] || 0) + Number(e.amount || 0);
   });
   
   const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
@@ -1150,7 +1167,7 @@ function Dashboard({ data, onAddExpense }: any) {
           </div>
         </Card>
 
-        {/* ⚡ UPGRADED: Unified Partner Activity & Allocation Card Widget */}
+        {/* Partner Activity & Allocation Card Widget */}
         <Card style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
             <SectionTitle>Partner Activity Breakdown</SectionTitle>
@@ -1293,7 +1310,6 @@ function Dashboard({ data, onAddExpense }: any) {
     </div>
   );
 }
-
 
 // ─── ADD EXPENSE ──────────────────────────────────────────────────────────────
 function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
