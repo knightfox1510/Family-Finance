@@ -171,7 +171,7 @@ async function loadData(userId: string) {
         .from('household_settings')
         .select('settings_data')
         .eq('household_id', hId)
-        .order('created_at', { ascending: true }); // ⚡ FIX: Removed .single() to prevent app-crashes on duplicates. We sort by oldest first!
+        .order('created_at', { ascending: true }) // ⚡ FIX: Removed .single() to prevent app-crashes on duplicates. We sort by oldest first!
     ]);
 
     // ⚡ Safe extraction: Grab the first/original setting row if multiple exist
