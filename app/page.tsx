@@ -168,7 +168,7 @@ async function loadData(userId: string) {
       supabase.from('household_settings').select('settings_data').eq('household_id', hId).single(),
     ]);
 
-    // ⚡ THE REVERSE TRANSLATOR
+    // ⚡ THE REVERSE TRANSLATOR (Database Key -> UI Name)
     const settings = st.data?.settings_data ? { ...DEFAULT_SETTINGS, ...st.data.settings_data } : DEFAULT_SETTINGS;
     
     const toUI = (val: string) => {
@@ -179,19 +179,18 @@ async function loadData(userId: string) {
 
     const formattedData = {
       householdId: hId,
-      // ⚡ Apply the translation securely to every row as it loads
       expenses: allTransactions.map((r: any) => ({
         id: r.id,
         date: r.date,
         amount: r.amount,
         category: r.category,
         type: r.type,
-        account: toUI(r.account_used), // Translated!
-        addedBy: toUI(r.added_by),     // Translated!
+        account: toUI(r.account_used), // ⚡ Translated for the Expenses Tab!
+        addedBy: toUI(r.added_by),     // ⚡ Translated!
         note: r.note,
         toSettle: r.to_settle === true || r.to_settle === 'true' || r.to_settle === 'Yes',
         settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
-        settledFor: toUI(r.settled_with), // Translated!
+        settledFor: toUI(r.settled_with), // ⚡ Translated!
       })),
       goals: (gl.data || []).map((r: any) => ({
         id: r.id,
@@ -3931,46 +3930,52 @@ export default function App() {
 
   const actions = {
     addExpense: async (e: any) => {
-      // ⚡ FIX: Uses safe functional update to preserve paginated arrays!
-      setData((prev: any) => ({ 
-        ...prev, 
-        expenses: [e, ...prev.expenses] // Puts the newest expense at the top of the list
-      }));
-      
-      // ⚡ The Translation Engine
+      // 1. The Translation Engine (UI Name -> Database Key)
       const toSystemKey = (val: string) => {
         if (val === data.settings.partnerAName) return 'Partner A';
         if (val === data.settings.partnerBName) return 'Partner B';
         return val; 
       };
 
-      const { error } = await supabase.from('transactions').insert([
-        {
-          id: e.id,
-          household_id: data.householdId,
-          date: e.date,
-          amount: e.amount,
-          category: e.category,
-          type: e.type,
-          account_used: toSystemKey(e.account),
-          added_by: toSystemKey(e.addedBy),
-          note: e.note,
-          to_settle: e.toSettle,
-          settled: e.settled,
-          settled_with: toSystemKey(e.settledFor),
-        },
-      ]);
+      const newTx = {
+        id: e.id,
+        household_id: data.householdId,
+        date: e.date,
+        amount: e.amount,
+        category: e.category,
+        type: e.type,
+        account_used: toSystemKey(e.account),
+        added_by: toSystemKey(e.addedBy),
+        note: e.note,
+        to_settle: e.toSettle,
+        settled: e.settled,
+        settled_with: toSystemKey(e.settledFor),
+      };
+
+      // 2. ⚡ SAFE MEMORY UPDATE: Prevents the charts from wiping out!
+      setData((prev: any) => ({
+        ...prev,
+        expenses: [{
+          ...e,
+          account: e.account, // Keep UI names for the instant local screen update
+          addedBy: e.addedBy,
+          settledFor: e.settledFor
+        }, ...prev.expenses]
+      }));
+
+      // 3. Save to Cloud
+      const { error } = await supabase.from('transactions').insert([newTx]);
       if (error) alert('Failed to save to cloud: ' + error.message);
       else notify('New Transaction Added', `Added ₹${e.amount} for ${e.category}`, data.settings);
     },
     
     updateExpense: async (id: string, updated: any) => {
+      // ⚡ SAFE MEMORY UPDATE
       setData((prev: any) => ({
         ...prev,
         expenses: prev.expenses.map((e: any) => (e.id === id ? updated : e)),
       }));
 
-      // ⚡ The Translation Engine
       const toSystemKey = (val: string) => {
         if (val === data.settings.partnerAName) return 'Partner A';
         if (val === data.settings.partnerBName) return 'Partner B';
