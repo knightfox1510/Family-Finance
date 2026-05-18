@@ -144,7 +144,6 @@ async function loadData(userId: string) {
         .select('*')
         .eq('household_id', hId)
         .order('date', { ascending: false })
-        // ⚡ THE FIX: UUIDs are completely unique. This stops the database from scrambling your Excel imports!
         .order('id', { ascending: true }) 
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -171,7 +170,7 @@ async function loadData(userId: string) {
         .from('household_settings')
         .select('settings_data')
         .eq('household_id', hId)
-        .order('created_at', { ascending: true }) // ⚡ FIX: Removed .single() to prevent app-crashes on duplicates. We sort by oldest first!
+        .order('created_at', { ascending: true }) 
     ]);
 
     // ⚡ Safe extraction: Grab the first/original setting row if multiple exist
@@ -180,9 +179,13 @@ async function loadData(userId: string) {
       ? { ...DEFAULT_SETTINGS, ...cloudSettingsRow.settings_data } 
       : DEFAULT_SETTINGS;
     
+    // ⚡ FIX: Resolve names defensively using all key variants before mapping transactions
+    const resolvedNameA = settings.partnerA || settings.partnerAName || settings.partner_a_name || 'Partner A';
+    const resolvedNameB = settings.partnerB || settings.partnerBName || settings.partner_b_name || 'Partner B';
+
     const toUI = (val: string) => {
-      if (val === 'Partner A') return settings.partnerAName;
-      if (val === 'Partner B') return settings.partnerBName;
+      if (val === 'Partner A') return resolvedNameA;
+      if (val === 'Partner B') return resolvedNameB;
       return val;
     };
 
@@ -216,7 +219,7 @@ async function loadData(userId: string) {
         const shortfallA = Math.max(0, pATarget - pACurrent);
         const shortfallB = Math.max(0, pBTarget - pBCurrent);
 
-        // Timeline calculation clock (May 2026)
+        // Timeline calculation clock
         const today = new Date();
         const targetDate = r.target_date ? new Date(r.target_date) : null;
         
