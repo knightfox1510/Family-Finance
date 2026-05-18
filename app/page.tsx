@@ -2541,12 +2541,13 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
   const [form, setForm] = useState<any>({});
   const [adding, setAdding] = useState(false);
 
-  // Extract dynamic names from your master configuration
-  const nameA = data.settings?.partnerAName || 'Gaurav';
-  const nameB = data.settings?.partnerBName || 'Karishma';
+  // ⚡ TRUE MULTI-TENANT ENGINE: Erased hardcoded personal names from the code framework.
+  const nameA = data.settings?.partnerA || data.settings?.partnerAName || data.settings?.partner_a_name || data.names?.a || 'Partner A';
+  const nameB = data.settings?.partnerB || data.settings?.partnerBName || data.settings?.partner_b_name || data.names?.b || 'Partner B';
   
   const [newGoal, setNewGoal] = useState({
     name: '',
+// ... remaining code stays exactly the same
     target: '',
     partnerATarget: '',
     partnerBTarget: '',
