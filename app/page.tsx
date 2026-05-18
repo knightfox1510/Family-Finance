@@ -167,11 +167,18 @@ async function loadData(userId: string) {
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
-      supabase.from('household_settings').select('settings_data').eq('household_id', hId).single(),
+      supabase
+        .from('household_settings')
+        .select('settings_data')
+        .eq('household_id', hId)
+        .order('created_at', { ascending: true }); // ⚡ FIX: Removed .single() to prevent app-crashes on duplicates. We sort by oldest first!
     ]);
 
-    // ⚡ THE REVERSE TRANSLATOR
-    const settings = st.data?.settings_data ? { ...DEFAULT_SETTINGS, ...st.data.settings_data } : DEFAULT_SETTINGS;
+    // ⚡ Safe extraction: Grab the first/original setting row if multiple exist
+    const cloudSettingsRow = st.data && st.data.length > 0 ? st.data[0] : null;
+    const settings = cloudSettingsRow?.settings_data 
+      ? { ...DEFAULT_SETTINGS, ...cloudSettingsRow.settings_data } 
+      : DEFAULT_SETTINGS;
     
     const toUI = (val: string) => {
       if (val === 'Partner A') return settings.partnerAName;
@@ -1131,7 +1138,8 @@ function Dashboard({ data, onAddExpense }: any) {
       {/* FILTER CONTROL PANEL */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <Card style={{ padding: '12px 18px', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Left Controls wrapper with responsive wrap */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ background: C.bg, padding: 3, borderRadius: 8, display: 'inline-flex', border: `1px solid ${C.border}` }}>
               <button onClick={() => setRangeMode('month')} style={toggleBtnStyle(rangeMode === 'month' as any)}>Single Month</button>
               <button onClick={() => setRangeMode('custom')} style={toggleBtnStyle(rangeMode === 'custom' as any)}>Custom Range</button>
@@ -1141,16 +1149,32 @@ function Dashboard({ data, onAddExpense }: any) {
                 {allAvailableMonths.map((m: any) => <option key={m} value={m}>{monthLabel(m)}</option>)}
               </select>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <Inp type="date" value={customDates.start} onChange={(e: any) => setCustomDates({ ...customDates, start: e.target.value })} style={{ width: 130, padding: '4px 8px' }} />
                 <span style={{ color: C.muted, fontSize: 12 }}>to</span>
                 <Inp type="date" value={customDates.end} onChange={(e: any) => setCustomDates({ ...customDates, end: e.target.value })} style={{ width: 130, padding: '4px 8px' }} />
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          
+          {/* Right Controls (Account Filter) with responsive max-width protection */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%', maxWidth: 'max-content' }}>
             <span style={labelStyle}>Account Filter:</span>
-            <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
+            <select 
+              value={accountFilter} 
+              onChange={(e) => setAccountFilter(e.target.value)} 
+              style={{ 
+                background: C.bg, 
+                border: `1px solid ${C.border}`, 
+                color: C.text1, 
+                padding: '6px 12px', 
+                borderRadius: 8, 
+                fontSize: 13, 
+                cursor: 'pointer',
+                maxWidth: '100%', // ⚡ THE FIX: Keeps select box locked to viewport bounds on narrow viewports
+                minWidth: 0
+              }}
+            >
               <option value="All">All Accounts Combined</option>
               <option value="Joint">Joint Account Only</option>
               <option value="PersonalOnly">Gaurav & Karishma (Individual Out of Pocket)</option>
@@ -1255,56 +1279,62 @@ function Dashboard({ data, onAddExpense }: any) {
       {/* LIFESTYLE RUN RATE CHART WIDGET */}
       <Card>
         <SectionTitle>Household Trend — Monthly Lifestyle Expenses</SectionTitle>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12 }}>
-          {lifestyleTrendData.map((m) => {
-            const barHeightPct = (m.total / maxLifestyleTrend) * 100;
-            return (
-              <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
-                  {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
+        {/* ⚡ THE FIX: Scroll viewport containment box */}
+        <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch', marginTop: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12, minWidth: 500 }}>
+            {lifestyleTrendData.map((m) => {
+              const barHeightPct = (m.total / maxLifestyleTrend) * 100;
+              return (
+                <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 65 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
+                    {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
+                  </div>
+                  <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                    <div style={{
+                      width: '100%',
+                      height: `${Math.max(6, barHeightPct)}%`,
+                      background: `linear-gradient(to top, ${C.surface}, ${C.amber})`,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: '4px 4px 0 0',
+                      transition: 'height 0.3s ease'
+                    }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
                 </div>
-                <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                  <div style={{
-                    width: '100%',
-                    height: `${Math.max(6, barHeightPct)}%`,
-                    background: `linear-gradient(to top, ${C.surface}, ${C.amber})`,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: '4px 4px 0 0',
-                    transition: 'height 0.3s ease'
-                  }} />
-                </div>
-                <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </Card>
 
       {/* INVESTMENT RUN RATE CHART WIDGET */}
       <Card>
         <SectionTitle>Wealth Growth Trend — Monthly Investments & Policies</SectionTitle>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12 }}>
-          {investmentTrendData.map((m) => {
-            const barHeightPct = (m.total / maxInvestmentTrend) * 100;
-            return (
-              <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
-                  {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
+        {/* ⚡ THE FIX: Scroll viewport containment box */}
+        <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch', marginTop: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12, minWidth: 500 }}>
+            {investmentTrendData.map((m) => {
+              const barHeightPct = (m.total / maxInvestmentTrend) * 100;
+              return (
+                <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 65 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
+                    {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
+                  </div>
+                  <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                    <div style={{
+                      width: '100%',
+                      height: `${Math.max(6, barHeightPct)}%`,
+                      background: `linear-gradient(to top, ${C.surface}, ${C.teal})`,
+                      border: `1px solid ${C.border}`,
+                      borderRadius: '4px 4px 0 0',
+                      transition: 'height 0.3s ease'
+                    }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
                 </div>
-                <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                  <div style={{
-                    width: '100%',
-                    height: `${Math.max(6, barHeightPct)}%`,
-                    background: `linear-gradient(to top, ${C.surface}, ${C.teal})`,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: '4px 4px 0 0',
-                    transition: 'height 0.3s ease'
-                  }} />
-                </div>
-                <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </Card>
 
