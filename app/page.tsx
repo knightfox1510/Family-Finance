@@ -168,22 +168,24 @@ async function loadData(userId: string) {
       supabase.from('contributions').select('*').eq('household_id', hId),
       supabase
         .from('household_settings')
-        .select('*') // ⚡ FIX 1: Swapped 'settings_data' to '*' so flat columns are never dropped!
+        .select('*')
         .eq('household_id', hId)
-        .order('created_at', { ascending: true }) 
+        .order('created_at', { ascending: false }) // 🔥 FIX 1: Sort descending to get the LATEST save first!
     ]);
 
     const cloudSettingsRow = st.data && st.data.length > 0 ? st.data[0] : null;
     
-    // ⚡ FIX 2: Unpack data defensively whether it's stored inside a JSONB block or flat columns
     const unpackedSettings = cloudSettingsRow?.settings_data || cloudSettingsRow || {};
     
+    // 🔥 FIX 2: Explicitly preserve expense and income sub-arrays inside the settings layer
     const settings = {
       ...DEFAULT_SETTINGS,
       ...unpackedSettings,
       partnerAName: unpackedSettings.partnerAName || unpackedSettings.partner_a_name || unpackedSettings.partnerA || 'Partner A',
       partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
-      categories: unpackedSettings.categories || unpackedSettings.expenseCategories || DEFAULT_SETTINGS.expenseCategories || []
+      expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
+      incomeCategories: unpackedSettings.incomeCategories || DEFAULT_SETTINGS.incomeCategories,
+      categories: unpackedSettings.expenseCategories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories || []
     };
     
     const toUI = (val: string) => {
@@ -3984,7 +3986,7 @@ export default function App() {
         setLoading(false);
       });
     }
-  }, [session, view]);
+  }, [session]);
 
   const persist = useCallback((nd: any) => {
     setData(nd);
