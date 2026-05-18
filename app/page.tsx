@@ -2791,7 +2791,7 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
   function renderEditCard(id: string) {
     return (
       <Card key={id} style={{ border: `1px solid ${C.teal}44`, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <Label style={{ fontWeight: 700, color: C.teal }}>Modify Split Metrics</Label>
+        <Label><span style={{ fontWeight: 700, color: C.teal }}>Modify Split Metrics</span></Label>
         <div>
           <Label>Goal Title</Label>
           <Inp value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} />
