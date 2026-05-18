@@ -183,7 +183,7 @@ async function loadData(userId: string) {
       ...unpackedSettings,
       partnerAName: unpackedSettings.partnerAName || unpackedSettings.partner_a_name || unpackedSettings.partnerA || 'Partner A',
       partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
-      categories: unpackedSettings.categories || DEFAULT_SETTINGS.categories || []
+      categories: unpackedSettings.categories || unpackedSettings.expenseCategories || DEFAULT_SETTINGS.expenseCategories || []
     };
     
     const toUI = (val: string) => {
