@@ -170,22 +170,23 @@ async function loadData(userId: string) {
         .from('household_settings')
         .select('*')
         .eq('household_id', hId)
-        .order('created_at', { ascending: false }) // 🔥 FIX 1: Sort descending to get the LATEST save first!
+        .order('created_at', { ascending: false }) // 🔥 FIX 1: Sort DESCENDING to read your latest customization row first!
     ]);
 
     const cloudSettingsRow = st.data && st.data.length > 0 ? st.data[0] : null;
     
+    // Unpack inner JSON payload block if available
     const unpackedSettings = cloudSettingsRow?.settings_data || cloudSettingsRow || {};
     
-    // 🔥 FIX 2: Explicitly preserve expense and income sub-arrays inside the settings layer
+    // 🔥 FIX 2: Explicitly rebuild settings so that both sub-arrays and names match the UI definitions
     const settings = {
       ...DEFAULT_SETTINGS,
       ...unpackedSettings,
       partnerAName: unpackedSettings.partnerAName || unpackedSettings.partner_a_name || unpackedSettings.partnerA || 'Partner A',
       partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
-      expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
-      incomeCategories: unpackedSettings.incomeCategories || DEFAULT_SETTINGS.incomeCategories,
-      categories: unpackedSettings.expenseCategories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories || []
+      expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.expense_categories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
+      incomeCategories: unpackedSettings.incomeCategories || unpackedSettings.income_categories || DEFAULT_SETTINGS.incomeCategories,
+      budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {}
     };
     
     const toUI = (val: string) => {
@@ -196,9 +197,7 @@ async function loadData(userId: string) {
 
     const formattedData = {
       householdId: hId,
-      
-      // ⚡ FIX 3: Expose critical fields at the root level for total UI component safety
-      categories: settings.categories,
+      categories: settings.expenseCategories, // Linked to the active categories matrix
       partnerAName: settings.partnerAName,
       partnerBName: settings.partnerBName,
 
