@@ -166,8 +166,8 @@ async function loadData(userId: string) {
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
       supabase
-        .from('household_settings')
-        .select('settings_data')
+        .from('settings') // ⚡ FIX 3: Reverted to the original 'settings' table name
+        .select('*')
         .eq('household_id', hId)
         .single(),
     ]);
@@ -187,16 +187,23 @@ async function loadData(userId: string) {
         settled: r.settled,
         settledFor: r.settled_with,
       })),
-      goals: gl.data || [],
+      goals: (gl.data || []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        target: r.target_amount, // ⚡ FIX 2: Restored safe snake_case-to-camelCase mapping
+        current: r.current_amount,
+        targetDate: r.target_date,
+      })),
       loans: (ln.data || []).map((r: any) => ({
         ...r,
+        id: r.id,
         interestRate: r.interest_rate,
         startDate: r.start_date,
         tenureMonths: r.tenure_months,
         paymentDay: r.payment_day || 1,
       })),
       contributions: (cb.data || []).map((r: any) => ({
-        id: r.month,
+        id: r.id, // ⚡ FIX 1: Restored true DB UUID to prevent PostgreSQL 'invalid syntax' crash
         month: r.month,
         partnerA: r.partner_a_amount,
         partnerB: r.partner_b_amount,
