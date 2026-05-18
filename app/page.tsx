@@ -132,7 +132,7 @@ async function loadData(userId: string) {
     if (!profile) throw new Error('Profile not found');
     const hId = profile.household_id;
 
-    // ⚡ Bulletproof & Stable Pagination Engine
+    // ⚡ Pagination Engine
     let allTransactions: any[] = [];
     let page = 0;
     const pageSize = 1000;
@@ -168,29 +168,38 @@ async function loadData(userId: string) {
       supabase.from('contributions').select('*').eq('household_id', hId),
       supabase
         .from('household_settings')
-        .select('settings_data')
+        .select('*') // ⚡ FIX 1: Swapped 'settings_data' to '*' so flat columns are never dropped!
         .eq('household_id', hId)
         .order('created_at', { ascending: true }) 
     ]);
 
-    // ⚡ Safe extraction: Grab the first/original setting row if multiple exist
     const cloudSettingsRow = st.data && st.data.length > 0 ? st.data[0] : null;
-    const settings = cloudSettingsRow?.settings_data 
-      ? { ...DEFAULT_SETTINGS, ...cloudSettingsRow.settings_data } 
-      : DEFAULT_SETTINGS;
     
-    // ⚡ FIX: Resolve names defensively using all key variants before mapping transactions
-    const resolvedNameA = settings.partnerA || settings.partnerAName || settings.partner_a_name || 'Partner A';
-    const resolvedNameB = settings.partnerB || settings.partnerBName || settings.partner_b_name || 'Partner B';
-
+    // ⚡ FIX 2: Unpack data defensively whether it's stored inside a JSONB block or flat columns
+    const unpackedSettings = cloudSettingsRow?.settings_data || cloudSettingsRow || {};
+    
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      ...unpackedSettings,
+      partnerAName: unpackedSettings.partnerAName || unpackedSettings.partner_a_name || unpackedSettings.partnerA || 'Partner A',
+      partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
+      categories: unpackedSettings.categories || DEFAULT_SETTINGS.categories || []
+    };
+    
     const toUI = (val: string) => {
-      if (val === 'Partner A') return resolvedNameA;
-      if (val === 'Partner B') return resolvedNameB;
+      if (val === 'Partner A') return settings.partnerAName;
+      if (val === 'Partner B') return settings.partnerBName;
       return val;
     };
 
     const formattedData = {
       householdId: hId,
+      
+      // ⚡ FIX 3: Expose critical fields at the root level for total UI component safety
+      categories: settings.categories,
+      partnerAName: settings.partnerAName,
+      partnerBName: settings.partnerBName,
+
       expenses: allTransactions.map((r: any) => ({
         id: r.id,
         date: r.date,
@@ -211,15 +220,11 @@ async function loadData(userId: string) {
         const pACurrent = Number(r.partner_a_current || 0);
         const pBCurrent = Number(r.partner_b_current || 0);
         
-        // Compute combined aggregates
         const totalCurrent = pACurrent + pBCurrent;
         const totalShortfall = Math.max(0, targetAmt - totalCurrent);
-        
-        // Compute localized individual targets
         const shortfallA = Math.max(0, pATarget - pACurrent);
         const shortfallB = Math.max(0, pBTarget - pBCurrent);
 
-        // Timeline calculation clock
         const today = new Date();
         const targetDate = r.target_date ? new Date(r.target_date) : null;
         
@@ -229,11 +234,9 @@ async function loadData(userId: string) {
           if (monthsRemaining <= 0) monthsRemaining = 1;
         }
 
-        // Compute individual required velocities based on split targets
         const velocityA = monthsRemaining > 0 ? Math.round(shortfallA / monthsRemaining) : 0;
         const velocityB = monthsRemaining > 0 ? Math.round(shortfallB / monthsRemaining) : 0;
         
-        // Evaluate dynamic pacing state
         let paceStatus = 'On Track';
         const completionPct = targetAmt > 0 ? (totalCurrent / targetAmt) * 100 : 0;
         if (totalCurrent >= targetAmt) paceStatus = 'Completed';
