@@ -201,13 +201,42 @@ async function loadData(userId: string) {
         settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
         settledFor: toUI(r.settled_with), 
       })),
-      goals: (gl.data || []).map((r: any) => ({
-        id: r.id,
-        name: r.name,
-        target: r.target_amount,
-        current: r.current_amount,
-        targetDate: r.target_date,
-      })),
+      goals: (gl.data || []).map((r: any) => {
+        const targetAmt = Number(r.target_amount || 0);
+        const currentAmt = Number(r.current_amount || 0);
+        const shortfall = Math.max(0, targetAmt - currentAmt);
+
+        // ⚡ ADVANCED TRACKING TIME ENGINE (Calculated from current date in 2026)
+        const today = new Date();
+        const targetDate = r.target_date ? new Date(r.target_date) : null;
+        
+        let monthsRemaining = 0;
+        if (targetDate && targetDate > today) {
+          monthsRemaining = (targetDate.getFullYear() - today.getFullYear()) * 12 + (targetDate.getMonth() - today.getMonth());
+          if (monthsRemaining <= 0) monthsRemaining = 1; // Prevent division by zero if target is this month
+        }
+
+        const requiredMonthlyRate = monthsRemaining > 0 ? Math.round(shortfall / monthsRemaining) : 0;
+        
+        // Dynamic Pace Status Evaluation
+        let paceStatus = 'On Track';
+        const completionPct = targetAmt > 0 ? (currentAmt / targetAmt) * 100 : 0;
+        if (completionPct < 50 && monthsRemaining <= 3) paceStatus = 'Critical';
+        else if (completionPct < 25 && monthsRemaining <= 6) paceStatus = 'Needs Attention';
+
+        return {
+          id: r.id,
+          name: r.name,
+          target: targetAmt,
+          current: currentAmt,
+          targetDate: r.target_date,
+          // ⚡ New Advanced Tracking Properties handed straight to the frontend
+          shortfall: shortfall,
+          monthsRemaining: monthsRemaining,
+          requiredMonthlyVelocity: requiredMonthlyRate,
+          paceStatus: paceStatus
+        };
+      }),
       loans: (ln.data || []).map((r: any) => ({
         ...r,
         id: r.id,
@@ -2630,174 +2659,52 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
         }}
       >
         {data.goals.map((g: any) => {
-          const pct = Math.min(100, (g.current / g.target) * 100);
-          return (
-            <Card key={g.id}>
-              {editing === g.id ? (
-                <div
-                  style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
-                >
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: 8,
-                    }}
-                  >
-                    <div>
-                      <Label>Name</Label>
-                      <Inp
-                        value={form.name}
-                        onChange={(e: any) =>
-                          setForm((f: any) => ({ ...f, name: e.target.value }))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>Icon</Label>
-                      <Inp
-                        value={form.icon}
-                        onChange={(e: any) =>
-                          setForm((f: any) => ({ ...f, icon: e.target.value }))
-                        }
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Target</Label>
-                    <Inp
-                      type="number"
-                      value={form.target}
-                      onChange={(e: any) =>
-                        setForm((f: any) => ({ ...f, target: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label>Current</Label>
-                    <Inp
-                      type="number"
-                      value={form.current}
-                      onChange={(e: any) =>
-                        setForm((f: any) => ({ ...f, current: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <Btn
-                      variant="primary"
-                      style={{ flex: 1 }}
-                      onClick={() => {
-                        onUpdate(g.id, form);
-                        setEditing(null);
-                      }}
-                    >
-                      Save
-                    </Btn>
-                    <Btn
-                      variant="ghost"
-                      style={{ flex: 1 }}
-                      onClick={() => setEditing(null)}
-                    >
-                      Cancel
-                    </Btn>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      marginBottom: 14,
-                    }}
-                  >
-                    <span style={{ fontSize: 28 }}>{g.icon}</span>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <Btn
-                        variant="ghost"
-                        style={{ fontSize: 11, padding: '4px 9px' }}
-                        onClick={() => {
-                          setEditing(g.id);
-                          setForm({
-                            name: g.name,
-                            icon: g.icon,
-                            target: g.target,
-                            current: g.current,
-                          });
-                        }}
-                      >
-                        Edit
-                      </Btn>
-                      <Btn
-                        variant="danger"
-                        style={{ fontSize: 11, padding: '4px 9px' }}
-                        onClick={() => onDelete(g.id)}
-                      >
-                        ✕
-                      </Btn>
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      color: C.textW,
-                      fontWeight: 700,
-                      fontSize: 16,
-                      marginBottom: 10,
-                    }}
-                  >
-                    {g.name}
-                  </div>
-                  <ProgressBar pct={pct} color={g.color} height={10} />
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginTop: 8,
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          color: g.color,
-                          fontWeight: 800,
-                          fontSize: 18,
-                        }}
-                      >
-                        {fmt(g.current, data.settings.currency)}
-                      </div>
-                      <div style={{ color: C.muted, fontSize: 11 }}>saved</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ color: C.textW, fontWeight: 600 }}>
-                        {fmt(g.target, data.settings.currency)}
-                      </div>
-                      <div style={{ color: C.muted, fontSize: 11 }}>goal</div>
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      marginTop: 10,
-                      padding: '8px 12px',
-                      background: C.bg,
-                      borderRadius: 8,
-                    }}
-                  >
-                    <span style={{ color: C.muted, fontSize: 12 }}>
-                      {pct.toFixed(1)}% ·{' '}
-                    </span>
-                    <span
-                      style={{ color: g.color, fontSize: 12, fontWeight: 700 }}
-                    >
-                      {fmt(g.target - g.current, data.settings.currency)} to go
-                    </span>
-                  </div>
-                </>
-              )}
-            </Card>
-          );
-        })}
+  const pct = g.target > 0 ? (g.current / g.target) * 100 : 0;
+  
+  // Dynamic status color selection
+  const statusColor = g.paceStatus === 'Critical' ? C.red : g.paceStatus === 'Needs Attention' ? C.amber : C.teal;
+
+  return (
+    <Card key={g.id} style={{ marginBottom: 12, position: 'relative' }}>
+      {/* Pace Status Badge */}
+      <span style={{
+        position: 'absolute', top: 12, right: 12, fontSize: 10, fontWeight: 700,
+        padding: '3px 8px', borderRadius: 20, background: `${statusColor}22`, color: statusColor,
+        border: `1px solid ${statusColor}44`
+      }}>
+        {g.paceStatus}
+      </span>
+
+      <div style={{ fontWeight: 700, color: C.textW, fontSize: 15, marginBottom: 4 }}>{g.name}</div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Target Date: {g.targetDate || 'No deadline'}</div>
+
+      {/* Progress Metrics */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+        <span style={{ color: C.text1 }}>{fmt(g.current, data.settings.currency)} saved</span>
+        <span style={{ color: C.muted }}>of {fmt(g.target, data.settings.currency)}</span>
+      </div>
+      
+      <ProgressBar pct={pct} color={statusColor} height={8} />
+
+      {/* ⚡ ADVANCED TRACKING FOOTER WRAPPER */}
+      {g.shortfall > 0 && g.monthsRemaining > 0 && (
+        <div style={{ 
+          marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}44`,
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11
+        }}>
+          <div>
+            <span style={{ color: C.muted, display: 'block' }}>Time Remaining</span>
+            <span style={{ fontWeight: 600, color: C.text1 }}>{g.monthsRemaining} Months left</span>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <span style={{ color: C.muted, display: 'block' }}>Required Savings</span>
+            <span style={{ fontWeight: 700, color: C.textW }}>{fmt(g.requiredMonthlyVelocity, data.settings.currency)} / mo</span>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+})}
       </div>
     </div>
   );
@@ -4164,99 +4071,73 @@ export default function App() {
       }
     },
     addGoal: async (g: any) => {
-      const newGoal = {
-        ...g,
-        id: uid(),
-        target: Number(g.target),
-        current: Number(g.current),
-      };
-      setData((prev: any) => ({ ...prev, goals: [...prev.goals, newGoal] }));
-      await supabase.from('goals').insert({
-        id: newGoal.id,
-        household_id: data.householdId,
-        name: newGoal.name,
-        target: newGoal.target,
-        current: newGoal.current,
-        icon: newGoal.icon,
-        color: newGoal.color,
-      });
-    },
-    updateGoal: async (id: string, f: any) => {
+      // 1. ⚡ SAFE MEMORY UPDATE: Prevent state from wiping out
       setData((prev: any) => ({
         ...prev,
-        goals: prev.goals.map((g: any) =>
-          g.id === id
-            ? {
-                ...g,
-                ...f,
-                target: Number(f.target),
-                current: Number(f.current),
-              }
-            : g
-        ),
+        goals: [...prev.goals, g]
       }));
-      await supabase
-        .from('goals')
-        .update({
-          name: f.name,
-          target: Number(f.target),
-          current: Number(f.current),
-          icon: f.icon,
-          color: f.color,
-        })
-        .eq('id', id);
+
+      // 2. ⚡ TRANSLATION ENGINE: Map camelCase back to database snake_case
+      const { error } = await supabase.from('goals').insert([
+        {
+          id: g.id,
+          household_id: data.householdId,
+          name: g.name,
+          target_amount: Number(g.target || 0),       // Translated!
+          current_amount: Number(g.current || 0),     // Translated!
+          target_date: g.targetDate,                  // Translated!
+        },
+      ]);
+      if (error) alert('Failed to save goal to cloud: ' + error.message);
     },
+
     deleteGoal: async (id: string) => {
       setData((prev: any) => ({
         ...prev,
         goals: prev.goals.filter((g: any) => g.id !== id),
       }));
-      await supabase.from('goals').delete().eq('id', id);
+      const { error } = await supabase.from('goals').delete().eq('id', id);
+      if (error) alert('Failed to delete goal: ' + error.message);
     },
+
     addLoan: async (l: any) => {
-      setData((prev: any) => ({ ...prev, loans: [...prev.loans, l] }));
-      await supabase.from('loans').insert({
-        id: l.id,
-        household_id: data.householdId,
-        name: l.name,
-        lender: l.lender,
-        principal: l.principal,
-        outstanding: l.outstanding,
-        emi: l.emi,
-        interest_rate: l.interestRate,
-        start_date: l.startDate,
-        tenure_months: l.tenureMonths,
-        payment_day: l.paymentDay,
-        icon: l.icon,
-      });
-    },
-    updateLoan: async (id: string, f: any) => {
+      // 1. ⚡ SAFE MEMORY UPDATE
       setData((prev: any) => ({
         ...prev,
-        loans: prev.loans.map((l: any) => (l.id === id ? { ...l, ...f } : l)),
+        loans: [...prev.loans, {
+          ...l,
+          interestRate: l.interestRate,
+          startDate: l.startDate,
+          tenureMonths: l.tenureMonths,
+          paymentDay: l.paymentDay || 1
+        }]
       }));
-      await supabase
-        .from('loans')
-        .update({
-          name: f.name,
-          lender: f.lender,
-          principal: f.principal,
-          outstanding: f.outstanding,
-          emi: f.emi,
-          interest_rate: f.interestRate,
-          start_date: f.startDate,
-          tenure_months: f.tenureMonths,
-          payment_day: f.paymentDay,
-          icon: f.icon,
-        })
-        .eq('id', id);
+
+      // 2. ⚡ TRANSLATION ENGINE: Map camelCase loan/EMI items back to database snake_case
+      const { error } = await supabase.from('loans').insert([
+        {
+          id: l.id,
+          household_id: data.householdId,
+          name: l.name,
+          principal: Number(l.principal || 0),
+          interest_rate: Number(l.interestRate || 0), // Translated!
+          emi: Number(l.emi || 0),
+          outstanding: Number(l.outstanding || 0),
+          start_date: l.startDate,                    // Translated!
+          tenure_months: Number(l.tenureMonths || 0),  // Translated!
+          payment_day: Number(l.paymentDay || 1),     // Translated!
+        },
+      ]);
+      if (error) alert('Failed to save loan to cloud: ' + error.message);
     },
+
     deleteLoan: async (id: string) => {
       setData((prev: any) => ({
         ...prev,
         loans: prev.loans.filter((l: any) => l.id !== id),
       }));
-      await supabase.from('loans').delete().eq('id', id);
+      const { error } = await supabase.from('loans').delete().eq('id', id);
+      if (error) alert('Failed to delete loan: ' + error.message);
     },
     saveSettings: async (s: any) => {
       setData((prev: any) => ({ ...prev, settings: s }));
