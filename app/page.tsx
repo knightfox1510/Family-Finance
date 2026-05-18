@@ -4091,6 +4091,27 @@ export default function App() {
       if (error) alert('Failed to save goal to cloud: ' + error.message);
     },
 
+    updateGoal: async (id: string, updated: any) => {
+      // 1. ⚡ SAFE MEMORY UPDATE: Instantly update the screen seamlessly
+      setData((prev: any) => ({
+        ...prev,
+        goals: prev.goals.map((g: any) => (g.id === id ? updated : g)),
+      }));
+
+      // 2. ⚡ TRANSLATION ENGINE: Map frontend camelCase names back to database snake_case columns
+      const { error } = await supabase
+        .from('goals')
+        .update({
+          name: updated.name,
+          target_amount: Number(updated.target || 0),       // Translated!
+          current_amount: Number(updated.current || 0),     // Translated!
+          target_date: updated.targetDate,                  // Translated!
+        })
+        .eq('id', id);
+
+      if (error) alert('Failed to update goal in cloud: ' + error.message);
+    },
+
     deleteGoal: async (id: string) => {
       setData((prev: any) => ({
         ...prev,
