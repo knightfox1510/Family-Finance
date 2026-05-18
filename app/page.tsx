@@ -2737,7 +2737,7 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
                   {/* TWIN CASH-FLOW VELOCITY CALCULATIONS */}
                   {g.shortfall > 0 && g.monthsRemaining > 0 && (
                     <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.border}22` }}>
-                      <span style={{ color: C.muted, display: 'block', fontSize: 10, uppercase: 'true', letterSpacing: '0.02em', marginBottom: 6 }}>⚠️ Required Monthly Savings Impact ({g.monthsRemaining} mos left):</span>
+                      <span style={{ color: C.muted, display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: 6 }}>⚠️ Required Monthly Savings Impact ({g.monthsRemaining} mos left):</span>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
                         <span style={{ color: C.text1 }}><strong style={{ color: C.teal }}>{nameA}:</strong> {fmt(g.velocityA, data.settings.currency)} / mo</span>
                         <span style={{ color: C.text1 }}><strong style={{ color: '#ec4899' }}>{nameB}:</strong> {fmt(g.velocityB, data.settings.currency)} / mo</span>
