@@ -3402,15 +3402,19 @@ function AIInsights({ data }: any) {
         throw new Error('Missing Gemini API Key in .env.local file.');
 
       // 🚀 UPGRADED: URL path routed seamlessly to the current gemini-2.0-flash standard
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompts[mode] }] }],
-          }),
-        }
+      const res = await fetch('/api/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompts[mode] }),
+      });
+
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Rate limit encountered');
+
+      setReport(d.text);
+    } catch (e: any) {
+      setError('Could not generate insights: ' + e.message);
+    }
       );
 
       const d = await res.json();
