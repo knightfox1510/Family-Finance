@@ -165,32 +165,38 @@ async function loadData(userId: string) {
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
-      supabase
-        .from('household_settings') // ⚡ FIX: Reverted to your actual database table name!
-        .select('settings_data')
-        .eq('household_id', hId)
-        .single(),
+      supabase.from('household_settings').select('settings_data').eq('household_id', hId).single(),
     ]);
+
+    // ⚡ THE REVERSE TRANSLATOR
+    const settings = st.data?.settings_data ? { ...DEFAULT_SETTINGS, ...st.data.settings_data } : DEFAULT_SETTINGS;
+    
+    const toUI = (val: string) => {
+      if (val === 'Partner A') return settings.partnerAName;
+      if (val === 'Partner B') return settings.partnerBName;
+      return val;
+    };
 
     const formattedData = {
       householdId: hId,
+      // ⚡ Apply the translation securely to every row as it loads
       expenses: allTransactions.map((r: any) => ({
         id: r.id,
         date: r.date,
         amount: r.amount,
         category: r.category,
         type: r.type,
-        account: r.account_used,
-        addedBy: r.added_by,
+        account: toUI(r.account_used), // Translated!
+        addedBy: toUI(r.added_by),     // Translated!
         note: r.note,
-        toSettle: r.to_settle,
-        settled: r.settled,
-        settledFor: r.settled_with,
+        toSettle: r.to_settle === true || r.to_settle === 'true' || r.to_settle === 'Yes',
+        settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
+        settledFor: toUI(r.settled_with), // Translated!
       })),
       goals: (gl.data || []).map((r: any) => ({
         id: r.id,
         name: r.name,
-        target: r.target_amount, // ⚡ FIX 2: Restored safe snake_case-to-camelCase mapping
+        target: r.target_amount,
         current: r.current_amount,
         targetDate: r.target_date,
       })),
@@ -203,14 +209,12 @@ async function loadData(userId: string) {
         paymentDay: r.payment_day || 1,
       })),
       contributions: (cb.data || []).map((r: any) => ({
-        id: r.id, // ⚡ FIX 1: Restored true DB UUID to prevent PostgreSQL 'invalid syntax' crash
+        id: r.id,
         month: r.month,
         partnerA: r.partner_a_amount,
         partnerB: r.partner_b_amount,
       })),
-      settings: st.data?.settings_data
-        ? { ...DEFAULT_SETTINGS, ...st.data.settings_data }
-        : DEFAULT_SETTINGS,
+      settings: settings,
     };
     return formattedData;
   } catch (err) {
@@ -1091,6 +1095,28 @@ function Dashboard({ data, onAddExpense }: any) {
     transition: 'all 0.2s'
   });
 
+  // ⚡ Generate the Month-by-Month Joint Audit Table
+  const monthlyAuditMap: Record<string, { in: number; out: number }> = {};
+
+  uniqueContributions.forEach((c: any) => {
+    if (!monthlyAuditMap[c.month]) monthlyAuditMap[c.month] = { in: 0, out: 0 };
+    monthlyAuditMap[c.month].in += Number(c.partnerA || 0) + Number(c.partnerB || 0);
+  });
+
+  data.expenses.filter((e: any) => e.account === 'Joint').forEach((e: any) => {
+    const mk = monthKey(e.date);
+    if (!monthlyAuditMap[mk]) monthlyAuditMap[mk] = { in: 0, out: 0 };
+    if (e.type === 'income') {
+      monthlyAuditMap[mk].in += Number(e.amount || 0);
+    } else {
+      monthlyAuditMap[mk].out += Number(e.amount || 0);
+    }
+  });
+
+  const monthlyAuditList = Object.entries(monthlyAuditMap)
+    .map(([month, vals]) => ({ month, ...vals, net: vals.in - vals.out }))
+    .sort((a, b) => b.month.localeCompare(a.month)); // Sorts newest months to the top
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       
@@ -1350,6 +1376,21 @@ function Dashboard({ data, onAddExpense }: any) {
               <span style={{ fontWeight: 800, fontSize: 20, color: currentJointBalance < 0 ? C.red : C.teal }}>
                 {fmt(currentJointBalance, data.settings.currency)}
               </span>
+            </div>
+
+            {/* ⚡ THE NEW MONTH-BY-MONTH TABLE */}
+            <SectionTitle>Month-by-Month Breakdown</SectionTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, marginBottom: 24 }}>
+              {monthlyAuditList.map(m => (
+                <div key={m.month} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '8px 12px', background: C.bg, borderRadius: 6, border: `1px solid ${C.border}` }}>
+                  <span style={{ fontWeight: 700, color: C.text1 }}>{monthLabel(m.month)}</span>
+                  <div style={{ textAlign: 'right', display: 'flex', gap: 12 }}>
+                    <div style={{ color: C.green }}>In: {fmt(m.in, data.settings.currency)}</div>
+                    <div style={{ color: C.red }}>Out: {fmt(m.out, data.settings.currency)}</div>
+                    <div style={{ color: m.net >= 0 ? C.teal : C.amber, fontWeight: 800, minWidth: 80 }}>Net: {fmt(m.net, data.settings.currency)}</div>
+                  </div>
+                </div>
+              ))}
             </div>
 
             <SectionTitle>Recent Joint Outflows</SectionTitle>
