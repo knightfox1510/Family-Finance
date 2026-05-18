@@ -132,7 +132,7 @@ async function loadData(userId: string) {
     if (!profile) throw new Error('Profile not found');
     const hId = profile.household_id;
 
-    // ⚡ Bulletproof Pagination Engine to bypass the 1,000 server row cap
+    // ⚡ Bulletproof & Stable Pagination Engine
     let allTransactions: any[] = [];
     let page = 0;
     const pageSize = 1000;
@@ -144,6 +144,8 @@ async function loadData(userId: string) {
         .select('*')
         .eq('household_id', hId)
         .order('date', { ascending: false })
+        // ⚡ THE FIX: UUIDs are completely unique. This stops the database from scrambling your Excel imports!
+        .order('id', { ascending: true }) 
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
       if (txError) throw txError;
@@ -153,14 +155,14 @@ async function loadData(userId: string) {
       } else {
         allTransactions = [...allTransactions, ...txChunk];
         if (txChunk.length < pageSize) {
-          hasMore = false; // We grabbed the last remnant block
+          hasMore = false;
         } else {
-          page++; // Advance loop step to request the next 1,000 rows
+          page++;
         }
       }
     }
 
-// Fetch remaining data configurations in parallel
+    // Fetch remaining data configurations in parallel
     const [gl, ln, cb, st] = await Promise.all([
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
@@ -168,7 +170,7 @@ async function loadData(userId: string) {
       supabase.from('household_settings').select('settings_data').eq('household_id', hId).single(),
     ]);
 
-    // ⚡ THE REVERSE TRANSLATOR (Database Key -> UI Name)
+    // ⚡ THE REVERSE TRANSLATOR
     const settings = st.data?.settings_data ? { ...DEFAULT_SETTINGS, ...st.data.settings_data } : DEFAULT_SETTINGS;
     
     const toUI = (val: string) => {
@@ -185,12 +187,12 @@ async function loadData(userId: string) {
         amount: r.amount,
         category: r.category,
         type: r.type,
-        account: toUI(r.account_used), // ⚡ Translated for the Expenses Tab!
-        addedBy: toUI(r.added_by),     // ⚡ Translated!
+        account: toUI(r.account_used), 
+        addedBy: toUI(r.added_by),     
         note: r.note,
         toSettle: r.to_settle === true || r.to_settle === 'true' || r.to_settle === 'Yes',
         settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
-        settledFor: toUI(r.settled_with), // ⚡ Translated!
+        settledFor: toUI(r.settled_with), 
       })),
       goals: (gl.data || []).map((r: any) => ({
         id: r.id,
