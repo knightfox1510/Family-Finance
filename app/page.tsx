@@ -1558,26 +1558,26 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   const [flash, setFlash] = useState(false);
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
+  // ⚡ SESSION PROFILE RADAR: Determine logged-in context immediately
+  const email = session?.user?.email?.toLowerCase() || '';
+  const loggedInAccount = email.includes('karishma') || email.includes(names.b.toLowerCase()) ? names.b : names.a;
+  const loggedInAddedBy = email.includes('karishma') || email.includes(names.b.toLowerCase()) ? 'Partner B' : 'Partner A';
+
   // Smart Identity Detection: Automatically sets logged-in identity for fresh entries
   useEffect(() => {
-    if (!duplicateData && session?.user?.email) {
-      const email = session.user.email.toLowerCase();
-      const pAName = names.a.toLowerCase();
-      const pBName = names.b.toLowerCase();
-
-      if (email.includes('gaurav') || email.includes(pAName)) {
-        setForm((f: any) => ({ ...f, account: names.a, addedBy: 'Partner A' }));
-      } else if (email.includes('karishma') || email.includes(pBName)) {
-        setForm((f: any) => ({ ...f, account: names.b, addedBy: 'Partner B' }));
-      }
+    if (!duplicateData) {
+      setForm((f: any) => ({ ...f, account: loggedInAccount, addedBy: loggedInAddedBy }));
     }
-  }, [session, duplicateData, names.a, names.b]);
+  }, [duplicateData, loggedInAccount, loggedInAddedBy]);
 
-  // ⚡ DYNAMIC PATTERN RECOGNITION ENGINE BLOCK
-  const dynamicPresets = useMemo(() => {
-    if (!data || !data.expenses || data.expenses.length === 0) return [];
+  // ⚡ TWIN BALANCED PATTERN RECOGNITION ENGINE (STRICTLY DEDUPED)
+  const { jointPresets, personalPresets } = useMemo(() => {
+    if (!data || !data.expenses || data.expenses.length === 0) {
+      return { jointPresets: [], personalPresets: [] };
+    }
 
-    const frequencies: Record<string, { count: number; cat: string; acc: string; addedBy: string; note: string; shared: boolean }> = {};
+    const jointFreq: Record<string, any> = {};
+    const personalFreq: Record<string, any> = {};
 
     data.expenses.forEach((e: any) => {
       if (e.type !== 'expense' || !e.note) return;
@@ -1585,32 +1585,46 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
       const cleanNote = e.note.trim();
       if (!cleanNote) return;
 
-      const signature = `${cleanNote}▩${e.category}▩${e.account}▩${!!e.toSettle}▩${e.addedBy}`;
+      // ⚡ STRICT COMPOSITE DEDUPLICATION KEY
+      const dedupeKey = `${cleanNote}▩${e.category}`;
 
-      if (!frequencies[signature]) {
-        frequencies[signature] = {
-          count: 0,
-          cat: e.category,
-          acc: e.account,
-          addedBy: e.addedBy || 'Partner A',
-          note: cleanNote,
-          shared: !!e.toSettle
-        };
+      if (e.account === 'Joint') {
+        if (!jointFreq[dedupeKey]) {
+          jointFreq[dedupeKey] = {
+            count: 0,
+            cat: e.category,
+            note: cleanNote,
+            shared: false
+          };
+        }
+        jointFreq[dedupeKey].count += 1;
+      } else {
+        if (!personalFreq[dedupeKey]) {
+          personalFreq[dedupeKey] = {
+            count: 0,
+            cat: e.category,
+            note: cleanNote,
+            shared: !!e.toSettle
+          };
+        }
+        personalFreq[dedupeKey].count += 1;
       }
-      frequencies[signature].count += 1;
     });
 
-    return Object.values(frequencies)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10)
-      .map((p) => ({
-        label: p.note.length > 22 ? `${p.note.slice(0, 20)}...` : p.note,
-        cat: p.cat,
-        acc: p.acc,
-        addedBy: p.addedBy,
-        note: p.note,
-        shared: p.shared
-      }));
+    const formatTrays = (freqMap: Record<string, any>) => {
+      return Object.values(freqMap)
+        .sort((a: any, b: any) => b.count - a.count)
+        .slice(0, 5) // Optimal scannability grid boundary for mobile viewports
+        .map((p: any) => ({
+          label: p.note.length > 18 ? `${p.note.slice(0, 16)}...` : p.note,
+          ...p
+        }));
+    };
+
+    return {
+      jointPresets: formatTrays(jointFreq),
+      personalPresets: formatTrays(personalFreq)
+    };
   }, [data.expenses]);
 
   const submit = () => {
@@ -1628,6 +1642,11 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   };
 
   const cats = form.type === 'income' ? data.settings.incomeCategories : data.settings.expenseCategories;
+  
+  // ⚡ SCANNABLE MOBILE UPGRADE: Sorted completely alphabetically
+  const sortedCategories = useMemo(() => {
+    return [...cats].sort((a, b) => a.localeCompare(b));
+  }, [cats]);
 
   return (
     <div style={{ maxWidth: 560 }}>
@@ -1658,52 +1677,69 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
           ))}
         </div>
 
-        {/* ⚡ SMART DYNAMIC PATTERN QUICK ADD PANEL COMPONENT */}
-        {form.type === 'expense' && dynamicPresets.length > 0 && (
-          <div style={{ marginBottom: 20, background: `${C.bg}60`, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
-            <span style={{ color: C.amber, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              ⚡ Smart Quick Add (Top Historical Patterns)
-            </span>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {dynamicPresets.map((preset: any) => (
-                <button
-                  key={`${preset.note}-${preset.cat}`}
-                  type="button"
-                  onClick={() => {
-                    set('category', preset.cat);
-                    set('account', preset.acc);
-                    set('addedBy', preset.addedBy);
-                    set('note', preset.note);
-                    set('toSettle', preset.shared);
-                    set('type', 'expense');
-                    
-                    const amtInput = document.querySelector('input[type="number"]') as HTMLInputElement;
-                    if (amtInput) amtInput.focus();
-                  }}
-                  style={{
-                    background: C.bg,
-                    border: `1px solid ${C.border}`,
-                    color: C.text1,
-                    padding: '5px 10px',
-                    borderRadius: 16,
-                    fontSize: 11,
-                    cursor: 'pointer',
-                    fontWeight: 500,
-                    transition: 'all 0.15s ease-in-out',
-                  }}
-                  onMouseOver={(ev) => {
-                    ev.currentTarget.style.borderColor = C.amber;
-                    ev.currentTarget.style.background = `${C.amber}08`;
-                  }}
-                  onMouseOut={(ev) => {
-                    ev.currentTarget.style.borderColor = C.border;
-                    ev.currentTarget.style.background = C.bg;
-                  }}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
+        {/* ⚡ SCOPED COLLABORATIVE WIZARDS */}
+        {form.type === 'expense' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+            
+            {/* TRAY 1: JOINT POOL WIZARD */}
+            {jointPresets.length > 0 && (
+              <div style={{ background: `${C.bg}60`, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
+                <span style={{ color: C.green, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  👥 Joint Account Quick Add
+                </span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {jointPresets.map((preset: any) => (
+                    <button
+                      key={`joint-${preset.note}-${preset.cat}`}
+                      type="button"
+                      onClick={() => {
+                        set('category', preset.cat);
+                        set('account', 'Joint'); // ⚡ Locked rule constraint
+                        set('addedBy', loggedInAddedBy);
+                        set('note', preset.note);
+                        set('toSettle', false);
+                        set('type', 'expense');
+                        const amtInput = document.querySelector('input[type="number"]') as HTMLInputElement;
+                        if (amtInput) amtInput.focus();
+                      }}
+                      style={presetBtnStyle()}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TRAY 2: LIVE PERSONAL SESSION WIZARD */}
+            {personalPresets.length > 0 && (
+              <div style={{ background: `${C.bg}60`, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
+                <span style={{ color: C.blue, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  👤 Personal Out-of-Pocket ({loggedInAccount})
+                </span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {personalPresets.map((preset: any) => (
+                    <button
+                      key={`personal-${preset.note}-${preset.cat}`}
+                      type="button"
+                      onClick={() => {
+                        set('category', preset.cat);
+                        set('account', loggedInAccount); // ⚡ Bound to live logged-in user profile
+                        set('addedBy', loggedInAddedBy);
+                        set('note', preset.note);
+                        set('toSettle', preset.shared);
+                        set('type', 'expense');
+                        const amtInput = document.querySelector('input[type="number"]') as HTMLInputElement;
+                        if (amtInput) amtInput.focus();
+                      }}
+                      style={presetBtnStyle()}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1722,7 +1758,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
           <div>
             <Label>Category</Label>
             <Sel value={form.category} onChange={(e: any) => set('category', e.target.value)}>
-              {cats.map((c: string) => (
+              {sortedCategories.map((c: string) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </Sel>
@@ -1799,8 +1835,22 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
       </Card>
     </div>
   );
-}
 
+  // Core visual preset styling blueprint
+  function presetBtnStyle() {
+    return {
+      background: C.bg,
+      border: `1px solid ${C.border}`,
+      color: C.text1,
+      padding: '5px 10px',
+      borderRadius: 16,
+      fontSize: 11,
+      cursor: 'pointer',
+      fontWeight: 500,
+      transition: 'all 0.15s ease-in-out',
+    };
+  }
+}
 // ─── EXPENSE LIST ─────────────────────────────────────────────────────────────
 function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete, onDuplicate }: any) {
   const names = {
