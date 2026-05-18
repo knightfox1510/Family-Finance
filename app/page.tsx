@@ -166,19 +166,39 @@ async function loadData(userId: string) {
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
-      supabase
-        .from('household_settings')
-        .select('*')
-        .eq('household_id', hId)
-        .order('created_at', { ascending: false }) // 🔥 FIX 1: Sort DESCENDING to read your latest customization row first!
+      supabase.from('household_settings').select('*').eq('household_id', hId) // Removed database sorting to prevent column crashes
     ]);
 
-    const cloudSettingsRow = st.data && st.data.length > 0 ? st.data[0] : null;
+    // ⚡ SAFE IN-MEMORY SORTING: Isolates the newest update row even if created_at column doesn't exist
+    let cloudSettingsRow = null;
+    if (st.data && st.data.length > 0) {
+      const sortedSettings = [...st.data].sort((a: any, b: any) => {
+        if (a.created_at && b.created_at) {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        return 0;
+      });
+      cloudSettingsRow = sortedSettings[0] || st.data[st.data.length - 1];
+    }
     
-    // Unpack inner JSON payload block if available
-    const unpackedSettings = cloudSettingsRow?.settings_data || cloudSettingsRow || {};
+    // ⚡ DEFENSIVE JSON UNPACKER: Smoothly parses raw strings or reads standard objects
+    let unpackedSettings: any = {};
+    if (cloudSettingsRow) {
+      if (cloudSettingsRow.settings_data) {
+        if (typeof cloudSettingsRow.settings_data === 'string') {
+          try {
+            unpackedSettings = JSON.parse(cloudSettingsRow.settings_data);
+          } catch (e) {
+            unpackedSettings = {};
+          }
+        } else {
+          unpackedSettings = cloudSettingsRow.settings_data;
+        }
+      } else {
+        unpackedSettings = cloudSettingsRow;
+      }
+    }
     
-    // 🔥 FIX 2: Explicitly rebuild settings so that both sub-arrays and names match the UI definitions
     const settings = {
       ...DEFAULT_SETTINGS,
       ...unpackedSettings,
@@ -197,7 +217,7 @@ async function loadData(userId: string) {
 
     const formattedData = {
       householdId: hId,
-      categories: settings.expenseCategories, // Linked to the active categories matrix
+      categories: settings.expenseCategories, 
       partnerAName: settings.partnerAName,
       partnerBName: settings.partnerBName,
 
@@ -4355,7 +4375,8 @@ export default function App() {
       const { error } = await supabase.from('household_settings').upsert({
         household_id: data.householdId,
         settings_data: s,
-      });
+      }, { onConflict: 'household_id' }); // Explicitly resolves unique validation conflicts on the household identity key
+      
       if (error) {
         alert('Supabase rejected settings change: ' + error.message);
       }
