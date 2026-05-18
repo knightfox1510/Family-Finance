@@ -3332,6 +3332,7 @@ function AIInsights({ data }: any) {
     setLoading(true);
     setReport(null);
     setError(null);
+    
     const names = {
       a: data.settings.partnerAName,
       b: data.settings.partnerBName,
@@ -3397,11 +3398,6 @@ function AIInsights({ data }: any) {
     };
 
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      if (!apiKey)
-        throw new Error('Missing Gemini API Key in .env.local file.');
-
-      // 🚀 UPGRADED: URL path routed seamlessly to the current gemini-2.0-flash standard
       const res = await fetch('/api/insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3409,21 +3405,9 @@ function AIInsights({ data }: any) {
       });
 
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error || 'Rate limit encountered');
+      if (!res.ok) throw new Error(d.error || 'Failed to generate insights');
 
       setReport(d.text);
-    } catch (e: any) {
-      setError('Could not generate insights: ' + e.message);
-    }
-      );
-
-      const d = await res.json();
-      if (d.error) throw new Error(d.error.message);
-
-      const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error('No response from Gemini API');
-
-      setReport(text);
     } catch (e: any) {
       setError('Could not generate insights: ' + e.message);
     }
