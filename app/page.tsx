@@ -900,10 +900,10 @@ function Dashboard({ data, onAddExpense }: any) {
 
   // 1. ALL-TIME CAPITAL METRICS & POOL SANITIZATION
   
-  // ⚡ Auto-purge invisible legacy duplicates from database memory
-  const uniqueContributions = Array.from(
+  // ⚡ TS FIX: Explicitly cast as an any[] array to satisfy strict Vercel compilers
+  const uniqueContributions: any[] = Array.from(
     new Map(data.contributions.map((c: any) => [c.month, c])).values()
-  );
+  ) as any[];
 
   // ⚡ Enforce strict Number() casting to prevent string-concatenation explosions
   const allTimePool = uniqueContributions.reduce(
@@ -940,7 +940,8 @@ function Dashboard({ data, onAddExpense }: any) {
   let contribB = 0;
 
   if (rangeMode === 'month') {
-    const periodContrib = uniqueContributions.find((c: any) => c.month === selectedMonth);
+    // ⚡ TS FIX: Explicitly cast periodContrib as 'any'
+    const periodContrib: any = uniqueContributions.find((c: any) => c.month === selectedMonth);
     if (periodContrib) {
       contribA = Number(periodContrib.partnerA || 0);
       contribB = Number(periodContrib.partnerB || 0);
