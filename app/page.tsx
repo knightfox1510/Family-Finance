@@ -1570,7 +1570,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
     }
   }, [duplicateData, loggedInAccount, loggedInAddedBy]);
 
-  // TWIN BALANCED PATTERN RECOGNITION ENGINE (STRICTLY DEDUPED)
+  // ⚡ FORENSICALLY ROUTED PATTERN RECOGNITION ENGINE
   const { jointPresets, personalPresets } = useMemo(() => {
     if (!data || !data.expenses || data.expenses.length === 0) {
       return { jointPresets: [], personalPresets: [] };
@@ -1585,58 +1585,78 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
       const cleanNote = e.note.trim();
       if (!cleanNote) return;
 
-      // ⚡ REFINEMENT: Skip wealth accumulation, SIPs, and insurance lines from quick logs
+      // Skip wealth accumulation, SIPs, and insurance lines from quick logs
       const catLower = e.category.toLowerCase();
       if (catLower.includes('investment') || catLower.includes('insurance') || catLower === 'lic') {
         return;
       }
 
-      // STRICT COMPOSITE DEDUPLICATION KEY
-      const dedupeKey = `${cleanNote}▩${e.category}`;
+      // Case-insensitive note grouping to eliminate casing duplicates
+      const dedupeKey = `${cleanNote.toLowerCase()}▩${e.category}`;
 
-      if (e.account === 'Joint') {
+      // ⚡ DETECT SETTLED ARCHAEOLOGY
+      // A transaction was originally yours if it is currently marked as yours, OR if it's settled but was settled FOR you.
+      const isPureJoint = e.account === 'Joint' && !e.settled;
+      const isOriginallyMine = e.account === loggedInAccount || 
+                               e.addedBy === loggedInAccount || 
+                               (e.settled && e.settledFor === loggedInAccount);
+
+      if (isPureJoint) {
         if (!jointFreq[dedupeKey]) {
           jointFreq[dedupeKey] = {
             count: 0,
             cat: e.category,
-            note: cleanNote,
+            note: cleanNote, 
             shared: false
           };
         }
         jointFreq[dedupeKey].count += 1;
-      } else {
+      } 
+      else if (isOriginallyMine) {
         if (!personalFreq[dedupeKey]) {
           personalFreq[dedupeKey] = {
             count: 0,
             cat: e.category,
             note: cleanNote,
-            shared: !!e.toSettle
+            // Smart flag inheritance: If it was marked to settle or has already been settled historically, default it to true
+            shared: e.toSettle || e.settled || false
           };
         }
         personalFreq[dedupeKey].count += 1;
       }
     });
 
-    const formatTrays = (freqMap: Record<string, any>) => {
-      return Object.values(freqMap)
-        .sort((a: any, b: any) => b.count - a.count)
-        .slice(0, 5) // Optimal scannability grid boundary for mobile viewports
-        .map((p: any) => ({
-          label: p.note.length > 18 ? `${p.note.slice(0, 16)}...` : p.note,
-          ...p
-        }));
+    // Filters out duplicate categories and expands the view viewport layout to 10 slots max
+    const processTray = (freqMap: Record<string, any>) => {
+      const sortedRaw = Object.values(freqMap).sort((a: any, b: any) => b.count - a.count);
+      
+      const uniqueCategories = new Set<string>();
+      const finalPresets: any[] = [];
+
+      for (const preset of sortedRaw) {
+        if (finalPresets.length >= 10) break; 
+        
+        if (!uniqueCategories.has(preset.cat)) {
+          uniqueCategories.add(preset.cat);
+          finalPresets.push({
+            ...preset,
+            label: preset.note.length > 18 ? `${preset.note.slice(0, 16)}...` : preset.note
+          });
+        }
+      }
+      return finalPresets;
     };
 
     return {
-      jointPresets: formatTrays(jointFreq),
-      personalPresets: formatTrays(personalFreq)
+      jointPresets: processTray(jointFreq),
+      personalPresets: processTray(personalFreq)
     };
-  }, [data.expenses]);
+  }, [data.expenses, loggedInAccount]);
 
   const submit = () => {
     const numericAmount = Number(form.amount);
 
-    // ⚡ REFINEMENT: Explicitly catch zero, empty, or negative inputs with user-facing warnings
+    // Explicitly catch zero, empty, or negative inputs with user-facing warnings
     if (form.amount === '' || isNaN(numericAmount)) {
       alert('⚠️ Error: Please enter a valid numeric amount before saving.');
       return;
@@ -1720,11 +1740,10 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
                         set('note', preset.note);
                         set('toSettle', false);
                         set('type', 'expense');
-                        // ⚡ REFINEMENT: Removed auto-focus to keep mobile keyboards down
                       }}
                       style={presetBtnStyle()}
                     >
-                      {preset.label}
+                      {preset.label} <span style={{ opacity: 0.5, fontSize: 9 }}>({preset.cat})</span>
                     </button>
                   ))}
                 </div>
@@ -1747,13 +1766,12 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
                         set('account', loggedInAccount); 
                         set('addedBy', loggedInAddedBy);
                         set('note', preset.note);
-                        set('toSettle', preset.shared);
+                        set('toSettle', preset.shared); // Automatically checks if this shortcut needs settlement!
                         set('type', 'expense');
-                        // ⚡ REFINEMENT: Removed auto-focus to keep mobile keyboards down
                       }}
                       style={presetBtnStyle()}
                     >
-                      {preset.label}
+                      {preset.label} <span style={{ opacity: 0.5, fontSize: 9 }}>({preset.cat})</span>
                     </button>
                   ))}
                 </div>
@@ -1771,7 +1789,6 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
             </div>
             <div>
               <Label>Amount (₹)</Label>
-              {/* ⚡ REFINEMENT: Explicitly stripped of any autofocus configs */}
               <Inp type="number" placeholder="0" value={form.amount} onChange={(e: any) => set('amount', e.target.value)} />
             </div>
           </div>
