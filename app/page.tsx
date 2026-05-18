@@ -4152,6 +4152,31 @@ export default function App() {
       if (error) alert('Failed to save loan to cloud: ' + error.message);
     },
 
+    updateLoan: async (id: string, updated: any) => {
+      // 1. ⚡ SAFE MEMORY UPDATE: Instantly reflect the edited EMI/Loan metrics on screen
+      setData((prev: any) => ({
+        ...prev,
+        loans: prev.loans.map((l: any) => (l.id === id ? updated : l)),
+      }));
+
+      // 2. ⚡ TRANSLATION ENGINE: Map camelCase frontend fields back to database snake_case columns
+      const { error } = await supabase
+        .from('loans')
+        .update({
+          name: updated.name,
+          principal: Number(updated.principal || 0),
+          interest_rate: Number(updated.interestRate || 0), // Translated!
+          emi: Number(updated.emi || 0),
+          outstanding: Number(updated.outstanding || 0),
+          start_date: updated.startDate,                    // Translated!
+          tenure_months: Number(updated.tenureMonths || 0),  // Translated!
+          payment_day: Number(updated.paymentDay || 1),     // Translated!
+        })
+        .eq('id', id);
+
+      if (error) alert('Failed to update loan in cloud: ' + error.message);
+    },
+
     deleteLoan: async (id: string) => {
       setData((prev: any) => ({
         ...prev,
