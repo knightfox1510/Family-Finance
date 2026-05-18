@@ -4071,41 +4071,42 @@ export default function App() {
       }
     },
     addGoal: async (g: any) => {
-      // 1. ⚡ SAFE MEMORY UPDATE: Prevent state from wiping out
-      setData((prev: any) => ({
-        ...prev,
-        goals: [...prev.goals, g]
-      }));
+      // 1. Safe Memory Update
+      setData((prev: any) => ({ ...prev, goals: [...prev.goals, g] }));
 
-      // 2. ⚡ TRANSLATION ENGINE: Map camelCase back to database snake_case
+      // 2. Insert into Supabase (Now with target_date supported!)
       const { error } = await supabase.from('goals').insert([
         {
           id: g.id,
           household_id: data.householdId,
           name: g.name,
-          target_amount: Number(g.target || 0),       // Translated!
-          current_amount: Number(g.current || 0),     // Translated!
-          target_date: g.targetDate,                  // Translated!
+          target_amount: Number(g.target || 0),
+          current_amount: Number(g.current || 0),
+          target_date: g.targetDate, // ⚡ Maps to your newly created column!
+          icon: g.icon || '🎯',
+          color: g.color || '#00e5ff'
         },
       ]);
       if (error) alert('Failed to save goal to cloud: ' + error.message);
     },
 
     updateGoal: async (id: string, updated: any) => {
-      // 1. ⚡ SAFE MEMORY UPDATE: Instantly update the screen seamlessly
+      // 1. Safe Memory Update
       setData((prev: any) => ({
         ...prev,
         goals: prev.goals.map((g: any) => (g.id === id ? updated : g)),
       }));
 
-      // 2. ⚡ TRANSLATION ENGINE: Map frontend camelCase names back to database snake_case columns
+      // 2. Update in Supabase
       const { error } = await supabase
         .from('goals')
         .update({
           name: updated.name,
-          target_amount: Number(updated.target || 0),       // Translated!
-          current_amount: Number(updated.current || 0),     // Translated!
-          target_date: updated.targetDate,                  // Translated!
+          target_amount: Number(updated.target || 0),
+          current_amount: Number(updated.current || 0),
+          target_date: updated.targetDate, // ⚡ Maps here too!
+          icon: updated.icon,
+          color: updated.color
         })
         .eq('id', id);
 
