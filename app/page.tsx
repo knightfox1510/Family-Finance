@@ -160,14 +160,14 @@ async function loadData(userId: string) {
       }
     }
 
-    // Fetch remaining data configurations in parallel
+// Fetch remaining data configurations in parallel
     const [gl, ln, cb, st] = await Promise.all([
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
       supabase
-        .from('settings') // ⚡ FIX 3: Reverted to the original 'settings' table name
-        .select('*')
+        .from('household_settings') // ⚡ FIX: Reverted to your actual database table name!
+        .select('settings_data')
         .eq('household_id', hId)
         .single(),
     ]);
@@ -3836,23 +3836,64 @@ export default function App() {
     addExpense: async (e: any) => {
       const nd = { ...data, expenses: [...data.expenses, e] };
       setData(nd);
+      
+      // ⚡ The Translation Engine: Converts UI display names back to permanent System Keys
+      const toSystemKey = (val: string) => {
+        if (val === data.settings.partnerAName) return 'Partner A';
+        if (val === data.settings.partnerBName) return 'Partner B';
+        return val; // Passes through 'Joint' or other standard strings untouched
+      };
+
       const { error } = await supabase.from('transactions').insert([
         {
-          id: e.id, 
+          id: e.id,
           household_id: data.householdId,
           date: e.date,
           amount: e.amount,
           category: e.category,
           type: e.type,
-          account_used: e.account,
-          added_by: e.addedBy,
+          account_used: toSystemKey(e.account), // ⚡ Translated!
+          added_by: toSystemKey(e.addedBy),     // ⚡ Translated!
           note: e.note,
           to_settle: e.toSettle,
           settled: e.settled,
+          settled_with: toSystemKey(e.settledFor), // ⚡ Translated!
         },
       ]);
       if (error) alert('Failed to save to cloud: ' + error.message);
       else notify('New Transaction Added', `Added ₹${e.amount} for ${e.category}`, data.settings);
+    },
+    
+    updateExpense: async (id: string, updated: any) => {
+      setData((prev: any) => ({
+        ...prev,
+        expenses: prev.expenses.map((e: any) => (e.id === id ? updated : e)),
+      }));
+
+      // ⚡ The Translation Engine
+      const toSystemKey = (val: string) => {
+        if (val === data.settings.partnerAName) return 'Partner A';
+        if (val === data.settings.partnerBName) return 'Partner B';
+        return val;
+      };
+
+      const { error } = await supabase
+        .from('transactions')
+        .update({
+          date: updated.date,
+          amount: updated.amount,
+          category: updated.category,
+          type: updated.type,
+          account_used: toSystemKey(updated.account), // ⚡ Translated!
+          added_by: toSystemKey(updated.addedBy),     // ⚡ Translated!
+          note: updated.note,
+          to_settle: updated.toSettle,
+          settled: updated.settled,
+          settled_with: toSystemKey(updated.settledFor), // ⚡ Translated!
+        })
+        .eq('id', id);
+        
+      if (error) alert('Failed to update: ' + error.message);
     },
     updateExpense: async (id: string, updated: any) => {
       setData((prev: any) => ({
