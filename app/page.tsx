@@ -2521,12 +2521,11 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
   const [form, setForm] = useState<any>({});
   const [adding, setAdding] = useState(false);
   
-  // ⚡ UPDATED: Initial state now tracks targetDate securely
   const [newGoal, setNewGoal] = useState({
     name: '',
     target: '',
     current: '',
-    targetDate: '', // ⚡ NEW
+    targetDate: '',
     icon: '🎯',
     color: C.amber,
   });
@@ -2542,6 +2541,19 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
     '#ec4899',
   ];
 
+  const startEditing = (g: any) => {
+    setEditing(g.id);
+    setForm({
+      id: g.id,
+      name: g.name,
+      target: g.target,
+      current: g.current,
+      targetDate: g.targetDate || '',
+      icon: g.icon || '🎯',
+      color: g.color || C.amber,
+    });
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -2549,6 +2561,8 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
           + Add Goal
         </Btn>
       </div>
+
+      {/* NEW GOAL CREATION WIDGET */}
       {adding && (
         <Card style={{ border: `1px solid ${C.amber}44` }}>
           <SectionTitle>New Goal</SectionTitle>
@@ -2598,7 +2612,6 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
               </div>
             </div>
 
-            {/* ⚡ NEW: Desired Achievement Date Picker Row */}
             <div>
               <Label>Desired Achievement Date (Target Deadline)</Label>
               <Inp
@@ -2639,12 +2652,11 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
                 variant="primary"
                 onClick={() => {
                   onAdd(newGoal);
-                  // ⚡ UPDATED: Clean resets targetDate completely for the next entry
                   setNewGoal({
                     name: '',
                     target: '',
                     current: '',
-                    targetDate: '', // ⚡ NEW
+                    targetDate: '',
                     icon: '🎯',
                     color: C.amber,
                   });
@@ -2661,49 +2673,141 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
         </Card>
       )}
       
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(270px,1fr))', gap: 16 }}>
+      {/* GOALS GRID VIEW */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(290px,1fr))', gap: 16 }}>
         {data.goals.map((g: any) => {
+          const isEditing = editing === g.id;
           const pct = g.target > 0 ? (g.current / g.target) * 100 : 0;
           const statusColor = g.paceStatus === 'Critical' ? C.red : g.paceStatus === 'Needs Attention' ? C.amber : C.teal;
 
-          return (
-            <Card key={g.id} style={{ marginBottom: 12, position: 'relative' }}>
-              {/* Pace Status Badge */}
-              <span style={{
-                position: 'absolute', top: 12, right: 12, fontSize: 10, fontWeight: 700,
-                padding: '3px 8px', borderRadius: 20, background: `${statusColor}22`, color: statusColor,
-                border: `1px solid ${statusColor}44`
-              }}>
-                {g.paceStatus}
-              </span>
+          // ⚡ VIEW A: EDIT MODE INTERFACE
+          if (isEditing) {
+            return (
+              <Card key={g.id} style={{ border: `1px solid ${C.teal}44`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <SectionTitle style={{ margin: 0, fontSize: 14 }}>Modify Goal Parameters</SectionTitle>
+                  <span style={{ fontSize: 20 }}>{form.icon}</span>
+                </div>
 
-              <div style={{ fontWeight: 700, color: C.textW, fontSize: 15, marginBottom: 4 }}>{g.name}</div>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Target Date: {g.targetDate || 'No deadline'}</div>
-
-              {/* Progress Metrics */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
-                <span style={{ color: C.text1 }}>{fmt(g.current, data.settings.currency)} saved</span>
-                <span style={{ color: C.muted }}>of {fmt(g.target, data.settings.currency)}</span>
-              </div>
-              
-              <ProgressBar pct={pct} color={statusColor} height={8} />
-
-              {/* ADVANCED TRACKING FOOTER WRAPPER */}
-              {g.shortfall > 0 && g.monthsRemaining > 0 && (
-                <div style={{ 
-                  marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}44`,
-                  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11
-                }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 8 }}>
                   <div>
-                    <span style={{ color: C.muted, display: 'block' }}>Time Remaining</span>
-                    <span style={{ fontWeight: 600, color: C.text1 }}>{g.monthsRemaining} Months left</span>
+                    <Label>Goal Title</Label>
+                    <Inp value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} />
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ color: C.muted, display: 'block' }}>Required Savings</span>
-                    <span style={{ fontWeight: 700, color: C.textW }}>{fmt(g.requiredMonthlyVelocity, data.settings.currency)} / mo</span>
+                  <div>
+                    <Label>Icon</Label>
+                    <Inp value={form.icon} onChange={(e: any) => setForm({ ...form, icon: e.target.value })} />
                   </div>
                 </div>
-              )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div>
+                    <Label>Target (₹)</Label>
+                    <Inp type="number" value={form.target} onChange={(e: any) => setForm({ ...form, target: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Current (₹)</Label>
+                    <Inp type="number" value={form.current} onChange={(e: any) => setForm({ ...form, current: e.target.value })} />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>Target Milestone Date</Label>
+                  <Inp type="date" value={form.targetDate} onChange={(e: any) => setForm({ ...form, targetDate: e.target.value })} style={{ width: '100%' }} />
+                </div>
+
+                <div>
+                  <Label>Aesthetic Theme</Label>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                    {COLORS.map((c) => (
+                      <div
+                        key={c}
+                        onClick={() => setForm({ ...form, color: c })}
+                        style={{
+                          width: 20, height: 20, borderRadius: '50%', background: c, cursor: 'pointer',
+                          border: form.color === c ? `2px solid #fff` : '2px solid transparent',
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 6, justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Btn variant="primary" onClick={() => { onUpdate(g.id, form); setEditing(null); }}>
+                      Update
+                    </Btn>
+                    <Btn variant="ghost" onClick={() => setEditing(null)}>
+                      Cancel
+                    </Btn>
+                  </div>
+                  <Btn variant="ghost" style={{ color: C.red, border: `1px solid ${C.red}33` }} onClick={() => { if(confirm('Delete this goal?')) { onDelete(g.id); setEditing(null); } }}>
+                    🗑️ Delete
+                  </Btn>
+                </div>
+              </Card>
+            );
+          }
+
+          // ⚡ VIEW B: STANDARD METRIC DISPLAY VIEW
+          return (
+            <Card key={g.id} style={{ position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                {/* Pace Status Badge */}
+                <span style={{
+                  position: 'absolute', top: 12, right: 12, fontSize: 10, fontWeight: 700,
+                  padding: '3px 8px', borderRadius: 20, background: `${statusColor}22`, color: statusColor,
+                  border: `1px solid ${statusColor}44`
+                }}>
+                  {g.paceStatus}
+                </span>
+
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                  <span style={{ fontSize: 18 }}>{g.icon || '🎯'}</span>
+                  <div style={{ fontWeight: 700, color: C.textW, fontSize: 15 }}>{g.name}</div>
+                </div>
+                
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
+                  Target Date: {g.targetDate ? new Date(g.targetDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No deadline set'}
+                </div>
+
+                {/* Progress Metrics */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+                  <span style={{ color: C.text1, fontWeight: 600 }}>{fmt(g.current, data.settings.currency)} saved</span>
+                  <span style={{ color: C.muted }}>of {fmt(g.target, data.settings.currency)} ({pct.toFixed(0)}%)</span>
+                </div>
+                
+                <ProgressBar pct={pct} color={g.color || statusColor} height={8} />
+
+                {/* ADVANCED TRACKING FORECAST FOOTER */}
+                {g.shortfall > 0 && g.monthsRemaining > 0 && (
+                  <div style={{ 
+                    marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}33`,
+                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11
+                  }}>
+                    <div>
+                      <span style={{ color: C.muted, display: 'block', marginBottom: 2 }}>Time Window</span>
+                      <span style={{ fontWeight: 600, color: C.text1 }}>{g.monthsRemaining} Months left</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ color: C.muted, display: 'block', marginBottom: 2 }}>Required Run-Rate</span>
+                      <span style={{ fontWeight: 700, color: C.textW }}>{fmt(g.requiredMonthlyVelocity, data.settings.currency)} / mo</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Edit Trigger Action Bar */}
+              <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${C.border}11`, paddingTop: 8 }}>
+                <span 
+                  onClick={() => startEditing(g)}
+                  style={{ fontSize: 11, fontWeight: 600, color: C.muted, cursor: 'pointer', padding: '4px 8px', borderRadius: 4, background: `${C.border}33`, transition: 'color 0.2s' }}
+                  onMouseOver={(e) => e.currentTarget.style.color = C.teal}
+                  onMouseOut={(e) => e.currentTarget.style.color = C.muted}
+                >
+                  ⚙️ Edit Parameters
+                </span>
+              </div>
             </Card>
           );
         })}
