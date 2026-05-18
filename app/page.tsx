@@ -3837,11 +3837,11 @@ export default function App() {
       const nd = { ...data, expenses: [...data.expenses, e] };
       setData(nd);
       
-      // ⚡ The Translation Engine: Converts UI display names back to permanent System Keys
+      // ⚡ The Translation Engine
       const toSystemKey = (val: string) => {
         if (val === data.settings.partnerAName) return 'Partner A';
         if (val === data.settings.partnerBName) return 'Partner B';
-        return val; // Passes through 'Joint' or other standard strings untouched
+        return val; 
       };
 
       const { error } = await supabase.from('transactions').insert([
@@ -3852,12 +3852,12 @@ export default function App() {
           amount: e.amount,
           category: e.category,
           type: e.type,
-          account_used: toSystemKey(e.account), // ⚡ Translated!
-          added_by: toSystemKey(e.addedBy),     // ⚡ Translated!
+          account_used: toSystemKey(e.account),
+          added_by: toSystemKey(e.addedBy),
           note: e.note,
           to_settle: e.toSettle,
           settled: e.settled,
-          settled_with: toSystemKey(e.settledFor), // ⚡ Translated!
+          settled_with: toSystemKey(e.settledFor),
         },
       ]);
       if (error) alert('Failed to save to cloud: ' + error.message);
@@ -3884,45 +3884,24 @@ export default function App() {
           amount: updated.amount,
           category: updated.category,
           type: updated.type,
-          account_used: toSystemKey(updated.account), // ⚡ Translated!
-          added_by: toSystemKey(updated.addedBy),     // ⚡ Translated!
+          account_used: toSystemKey(updated.account),
+          added_by: toSystemKey(updated.addedBy),
           note: updated.note,
           to_settle: updated.toSettle,
           settled: updated.settled,
-          settled_with: toSystemKey(updated.settledFor), // ⚡ Translated!
+          settled_with: toSystemKey(updated.settledFor),
         })
         .eq('id', id);
         
       if (error) alert('Failed to update: ' + error.message);
     },
-    updateExpense: async (id: string, updated: any) => {
-      setData((prev: any) => ({
-        ...prev,
-        expenses: prev.expenses.map((e: any) => (e.id === id ? updated : e)),
-      }));
-      const { error } = await supabase
-        .from('transactions')
-        .update({
-          date: updated.date,
-          amount: updated.amount,
-          category: updated.category,
-          account_used: updated.account,
-          added_by: updated.addedBy,
-          note: updated.note,
-          to_settle: updated.toSettle,
-        })
-        .eq('id', id);
-      if (error) alert('Failed to update: ' + error.message);
-    },
-deleteExpense: async (id: string) => {
+
+    deleteExpense: async (id: string) => {
       setData((prev: any) => ({
         ...prev,
         expenses: prev.expenses.filter((e: any) => e.id !== id),
       }));
-      const { error } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('transactions').delete().eq('id', id);
       if (error) alert('Failed to delete: ' + error.message);
     },
     // ⚡ ADD THIS NEW BATCH DROP COMMAND HERE:
