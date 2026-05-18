@@ -1558,7 +1558,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   const [flash, setFlash] = useState(false);
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
-  // ⚡ SESSION PROFILE RADAR: Determine logged-in context immediately
+  // SESSION PROFILE RADAR: Determine logged-in context immediately
   const email = session?.user?.email?.toLowerCase() || '';
   const loggedInAccount = email.includes('karishma') || email.includes(names.b.toLowerCase()) ? names.b : names.a;
   const loggedInAddedBy = email.includes('karishma') || email.includes(names.b.toLowerCase()) ? 'Partner B' : 'Partner A';
@@ -1570,7 +1570,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
     }
   }, [duplicateData, loggedInAccount, loggedInAddedBy]);
 
-  // ⚡ TWIN BALANCED PATTERN RECOGNITION ENGINE (STRICTLY DEDUPED)
+  // TWIN BALANCED PATTERN RECOGNITION ENGINE (STRICTLY DEDUPED)
   const { jointPresets, personalPresets } = useMemo(() => {
     if (!data || !data.expenses || data.expenses.length === 0) {
       return { jointPresets: [], personalPresets: [] };
@@ -1585,7 +1585,13 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
       const cleanNote = e.note.trim();
       if (!cleanNote) return;
 
-      // ⚡ STRICT COMPOSITE DEDUPLICATION KEY
+      // ⚡ REFINEMENT: Skip wealth accumulation, SIPs, and insurance lines from quick logs
+      const catLower = e.category.toLowerCase();
+      if (catLower.includes('investment') || catLower.includes('insurance') || catLower === 'lic') {
+        return;
+      }
+
+      // STRICT COMPOSITE DEDUPLICATION KEY
       const dedupeKey = `${cleanNote}▩${e.category}`;
 
       if (e.account === 'Joint') {
@@ -1628,10 +1634,25 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   }, [data.expenses]);
 
   const submit = () => {
-    if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) return;
+    const numericAmount = Number(form.amount);
+
+    // ⚡ REFINEMENT: Explicitly catch zero, empty, or negative inputs with user-facing warnings
+    if (form.amount === '' || isNaN(numericAmount)) {
+      alert('⚠️ Error: Please enter a valid numeric amount before saving.');
+      return;
+    }
+    if (numericAmount === 0) {
+      alert('⚠️ Warning: You are attempting to add a transaction with an amount of ₹0. Please input a valid cost.');
+      return;
+    }
+    if (numericAmount < 0) {
+      alert('⚠️ Error: Transaction amounts cannot be negative.');
+      return;
+    }
+
     onAdd({
       ...form,
-      amount: Number(form.amount),
+      amount: numericAmount,
       id: uid(),
       settled: false,
       settledFor: null,
@@ -1643,7 +1664,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
 
   const cats = form.type === 'income' ? data.settings.incomeCategories : data.settings.expenseCategories;
   
-  // ⚡ SCANNABLE MOBILE UPGRADE: Sorted completely alphabetically
+  // SCANNABLE MOBILE UPGRADE: Sorted completely alphabetically
   const sortedCategories = useMemo(() => {
     return [...cats].sort((a, b) => a.localeCompare(b));
   }, [cats]);
@@ -1677,7 +1698,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
           ))}
         </div>
 
-        {/* ⚡ SCOPED COLLABORATIVE WIZARDS */}
+        {/* SCOPED COLLABORATIVE WIZARDS */}
         {form.type === 'expense' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
             
@@ -1694,13 +1715,12 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
                       type="button"
                       onClick={() => {
                         set('category', preset.cat);
-                        set('account', 'Joint'); // ⚡ Locked rule constraint
+                        set('account', 'Joint'); 
                         set('addedBy', loggedInAddedBy);
                         set('note', preset.note);
                         set('toSettle', false);
                         set('type', 'expense');
-                        const amtInput = document.querySelector('input[type="number"]') as HTMLInputElement;
-                        if (amtInput) amtInput.focus();
+                        // ⚡ REFINEMENT: Removed auto-focus to keep mobile keyboards down
                       }}
                       style={presetBtnStyle()}
                     >
@@ -1724,13 +1744,12 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
                       type="button"
                       onClick={() => {
                         set('category', preset.cat);
-                        set('account', loggedInAccount); // ⚡ Bound to live logged-in user profile
+                        set('account', loggedInAccount); 
                         set('addedBy', loggedInAddedBy);
                         set('note', preset.note);
                         set('toSettle', preset.shared);
                         set('type', 'expense');
-                        const amtInput = document.querySelector('input[type="number"]') as HTMLInputElement;
-                        if (amtInput) amtInput.focus();
+                        // ⚡ REFINEMENT: Removed auto-focus to keep mobile keyboards down
                       }}
                       style={presetBtnStyle()}
                     >
@@ -1752,6 +1771,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
             </div>
             <div>
               <Label>Amount (₹)</Label>
+              {/* ⚡ REFINEMENT: Explicitly stripped of any autofocus configs */}
               <Inp type="number" placeholder="0" value={form.amount} onChange={(e: any) => set('amount', e.target.value)} />
             </div>
           </div>
@@ -1836,7 +1856,6 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
     </div>
   );
 
-  // Core visual preset styling blueprint
   function presetBtnStyle() {
     return {
       background: C.bg,
@@ -1851,6 +1870,8 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
     };
   }
 }
+
+
 // ─── EXPENSE LIST ─────────────────────────────────────────────────────────────
 function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete, onDuplicate }: any) {
   const names = {
