@@ -884,6 +884,8 @@ function IncomeTracker({ data }: any) {
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({ data, onAddExpense }: any) {
+  const [showAudit, setShowAudit] = useState(false); // ⚡ The Audit Modal Toggle
+
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
@@ -906,19 +908,15 @@ function Dashboard({ data, onAddExpense }: any) {
     .reverse();
 
   // 1. ALL-TIME CAPITAL METRICS & POOL SANITIZATION
-  
-  // ⚡ TS FIX: Explicitly cast as an any[] array to satisfy strict Vercel compilers
   const uniqueContributions: any[] = Array.from(
     new Map(data.contributions.map((c: any) => [c.month, c])).values()
   ) as any[];
 
-  // ⚡ Enforce strict Number() casting to prevent string-concatenation explosions
   const allTimePool = uniqueContributions.reduce(
     (sum: number, c: any) => sum + Number(c.partnerA || 0) + Number(c.partnerB || 0), 
     0
   );
 
-  // ⚡ Capture Joint Account incomes (refunds, interest, cashbacks)
   const allTimeJointIncome = data.expenses
     .filter((e: any) => e.account === 'Joint' && e.type === 'income')
     .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
@@ -927,7 +925,6 @@ function Dashboard({ data, onAddExpense }: any) {
     .filter((e: any) => e.account === 'Joint' && e.type !== 'income')
     .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
   
-  // The True Liquid Formula
   const currentJointBalance = allTimePool + allTimeJointIncome - allTimeJointSpent;
 
   // Isolated Period Joint Spend Engine
@@ -947,7 +944,6 @@ function Dashboard({ data, onAddExpense }: any) {
   let contribB = 0;
 
   if (rangeMode === 'month') {
-    // ⚡ TS FIX: Explicitly cast periodContrib as 'any'
     const periodContrib: any = uniqueContributions.find((c: any) => c.month === selectedMonth);
     if (periodContrib) {
       contribA = Number(periodContrib.partnerA || 0);
@@ -965,14 +961,13 @@ function Dashboard({ data, onAddExpense }: any) {
     .filter((e: any) => (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') && e.type !== 'income')
     .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
-  // 2. TWIN RUN RATE ROLLING ENGINES (Last 6 Calendar Months Matrix)
+  // 2. TWIN RUN RATE ROLLING ENGINES
   const last6Months = Array.from({ length: 6 }).map((_, i) => {
     const target = new Date();
     target.setMonth(target.getMonth() - i);
     return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}`;
   }).reverse();
 
-  // Engine A: Lifestyle Monthly Calculation Loop
   const lifestyleTrendData = last6Months.map((mKey) => {
     const totalSpentInMonth = data.expenses
       .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && e.category !== 'Investment' && e.category !== 'Investments' && e.category !== 'Insurance')
@@ -981,7 +976,6 @@ function Dashboard({ data, onAddExpense }: any) {
   });
   const maxLifestyleTrend = lifestyleTrendData.reduce((max, m) => m.total > max ? m.total : max, 1);
 
-  // Engine B: Investment + Insurance Monthly Calculation Loop
   const investmentTrendData = last6Months.map((mKey) => {
     const totalInvestedInMonth = data.expenses
       .filter((e: any) => monthKey(e.date) === mKey && e.type !== 'income' && (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance'))
@@ -1029,7 +1023,7 @@ function Dashboard({ data, onAddExpense }: any) {
   const totalPeriodRawExpenses = filteredExp.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
   const trueLifestyleExpenses = totalPeriodRawExpenses - periodInvested;
 
-  const allocation = {
+  const allocation: Record<string, number> = {
     'Mutual Funds / SIP': 0,
     'Smallcase': 0,
     'Stocks / US Equity': 0,
@@ -1135,13 +1129,21 @@ function Dashboard({ data, onAddExpense }: any) {
 
       {/* Core Capital Metrics Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
-        <StatCard
-          label="Joint Balance & Period Spend"
-          value={fmt(currentJointBalance, data.settings.currency)}
-          accent={currentJointBalance < 5000 ? C.red : C.green}
-          icon="💰"
-          sub={`Spent this period: ${fmt(periodJointSpent, data.settings.currency)}`}
-        />
+        {/* ⚡ CLICKABLE JOINT BALANCE CARD */}
+        <div 
+          onClick={() => setShowAudit(true)} 
+          style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <StatCard
+            label="Joint Balance (Click to Audit)"
+            value={fmt(currentJointBalance, data.settings.currency)}
+            accent={currentJointBalance < 5000 ? C.red : C.green}
+            icon="💰"
+            sub={`Spent this period: ${fmt(periodJointSpent, data.settings.currency)}`}
+          />
+        </div>
         <StatCard
           label="Lifestyle Spending"
           value={fmt(trueLifestyleExpenses, data.settings.currency)}
@@ -1180,8 +1182,6 @@ function Dashboard({ data, onAddExpense }: any) {
           <div>
             <SectionTitle>Partner Activity Breakdown</SectionTitle>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-              
-              {/* Partner A Ledger Outlay Rows */}
               <div style={{ background: C.bg, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
                 <div style={{ color: C.purple, fontWeight: 700, fontSize: 13, marginBottom: 8, borderBottom: `1px solid ${C.border}44`, paddingBottom: 4 }}>{names.a}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
@@ -1193,8 +1193,6 @@ function Dashboard({ data, onAddExpense }: any) {
                   <span style={{ fontWeight: 600, color: C.green }}>{fmt(contribA, data.settings.currency)}</span>
                 </div>
               </div>
-
-              {/* Partner B Ledger Outlay Rows */}
               <div style={{ background: C.bg, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
                 <div style={{ color: C.blue, fontWeight: 700, fontSize: 13, marginBottom: 8, borderBottom: `1px solid ${C.border}44`, paddingBottom: 4 }}>{names.b}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
@@ -1206,7 +1204,6 @@ function Dashboard({ data, onAddExpense }: any) {
                   <span style={{ fontWeight: 600, color: C.green }}>{fmt(contribB, data.settings.currency)}</span>
                 </div>
               </div>
-
             </div>
           </div>
           <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '12px 4px 0' }}>
@@ -1315,6 +1312,65 @@ function Dashboard({ data, onAddExpense }: any) {
           );
         })}
       </Card>
+
+      {/* ⚡ THE LEDGER AUDIT MODAL */}
+      {showAudit && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex',
+          justifyContent: 'center', alignItems: 'center', padding: 20
+        }}>
+          <Card style={{ width: '100%', maxWidth: 500, maxHeight: '85vh', overflowY: 'auto', position: 'relative' }}>
+            <button 
+              onClick={() => setShowAudit(false)}
+              style={{ position: 'absolute', top: 15, right: 15, background: C.surface, border: `1px solid ${C.border}`, color: C.text1, borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontWeight: 'bold' }}
+            >✕</button>
+            <SectionTitle>Joint Balance Ledger Audit</SectionTitle>
+            <p style={{ fontSize: 13, color: C.text2, marginBottom: 20 }}>
+              This is the exact math used to calculate your All-Time Liquid Joint Balance.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 8, marginBottom: 8 }}>
+              <span style={{ fontWeight: 600, color: C.green }}>[+] Total Seeded Contributions</span>
+              <span style={{ fontWeight: 700, color: C.textW }}>{fmt(allTimePool, data.settings.currency)}</span>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 8, marginBottom: 8 }}>
+              <span style={{ fontWeight: 600, color: C.green }}>[+] Total Joint Income (Refunds/Interest)</span>
+              <span style={{ fontWeight: 700, color: C.textW }}>{fmt(allTimeJointIncome, data.settings.currency)}</span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 8, marginBottom: 16 }}>
+              <span style={{ fontWeight: 600, color: C.red }}>[-] Total Joint Expenses</span>
+              <span style={{ fontWeight: 700, color: C.textW }}>{fmt(allTimeJointSpent, data.settings.currency)}</span>
+            </div>
+
+            <div style={{ background: C.surface, padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <span style={{ fontWeight: 700, fontSize: 16, color: C.text1 }}>Calculated Balance:</span>
+              <span style={{ fontWeight: 800, fontSize: 20, color: currentJointBalance < 0 ? C.red : C.teal }}>
+                {fmt(currentJointBalance, data.settings.currency)}
+              </span>
+            </div>
+
+            <SectionTitle>Recent Joint Outflows</SectionTitle>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+              {data.expenses
+                .filter((e: any) => e.account === 'Joint' && e.type !== 'income')
+                .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                .slice(0, 15)
+                .map((e: any) => (
+                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '6px 0', borderBottom: `1px solid ${C.border}55` }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ color: C.text1 }}>{e.category}</span>
+                      <span style={{ color: C.muted, fontSize: 11 }}>{e.date} • {e.note || 'No note'}</span>
+                    </div>
+                    <span style={{ color: C.red, fontWeight: 600 }}>{fmt(e.amount, data.settings.currency)}</span>
+                  </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -3834,8 +3890,11 @@ export default function App() {
 
   const actions = {
     addExpense: async (e: any) => {
-      const nd = { ...data, expenses: [...data.expenses, e] };
-      setData(nd);
+      // ⚡ FIX: Uses safe functional update to preserve paginated arrays!
+      setData((prev: any) => ({ 
+        ...prev, 
+        expenses: [e, ...prev.expenses] // Puts the newest expense at the top of the list
+      }));
       
       // ⚡ The Translation Engine
       const toSystemKey = (val: string) => {
