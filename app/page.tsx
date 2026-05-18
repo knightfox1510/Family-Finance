@@ -1069,8 +1069,15 @@ function Dashboard({ data, onAddExpense }: any) {
 
   const maxAllocationValue = Object.values(allocation).reduce((max: number, val: number) => val > max ? val : max, 1);
 
-  const personalSpentA = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner A' || e.account === names.a)).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
-  const personalSpentB = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner B' || e.account === names.b)).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+  // ⚡ Split Out-Of-Pocket into Lifestyle vs. Investments (Partner A)
+  const personalExpA = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner A' || e.account === names.a));
+  const personalInvestedA = personalExpA.filter((e: any) => e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance').reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+  const personalLifestyleA = personalExpA.reduce((s: number, e: any) => s + Number(e.amount || 0), 0) - personalInvestedA;
+
+  // ⚡ Split Out-Of-Pocket into Lifestyle vs. Investments (Partner B)
+  const personalExpB = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner B' || e.account === names.b));
+  const personalInvestedB = personalExpB.filter((e: any) => e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance').reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+  const personalLifestyleB = personalExpB.reduce((s: number, e: any) => s + Number(e.amount || 0), 0) - personalInvestedB;
 
   const savingsDelta = periodIncome - trueLifestyleExpenses;
   const savingsRate = periodIncome > 0 ? Math.max(0, (savingsDelta / periodIncome) * 100) : 0;
@@ -1176,14 +1183,7 @@ function Dashboard({ data, onAddExpense }: any) {
           value={fmt(trueLifestyleExpenses, data.settings.currency)}
           accent={C.amber}
           icon="🛒"
-          sub={`Core operational survival costs`}
-        />
-        <StatCard
-          label="Allocated Capital Portfolio"
-          value={fmt(periodInvested, data.settings.currency)}
-          accent={C.teal}
-          icon="📈"
-          sub={`Total Cumulative Base: ${fmt(allTimeInvested, data.settings.currency)}`}
+          sub={`Amount spent excluding monthly contribution`}
         />
       </div>
 
@@ -1209,28 +1209,41 @@ function Dashboard({ data, onAddExpense }: any) {
           <div>
             <SectionTitle>Partner Activity Breakdown</SectionTitle>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
+              
+              {/* Partner A Ledger */}
               <div style={{ background: C.bg, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
                 <div style={{ color: C.purple, fontWeight: 700, fontSize: 13, marginBottom: 8, borderBottom: `1px solid ${C.border}44`, paddingBottom: 4 }}>{names.a}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
-                  <span style={{ color: C.text2 }}>Out of Pocket Spent:</span>
-                  <span style={{ fontWeight: 600, color: C.textW }}>{fmt(personalSpentA, data.settings.currency)}</span>
+                  <span style={{ color: C.text2 }}>Out of Pocket (Lifestyle):</span>
+                  <span style={{ fontWeight: 600, color: C.textW }}>{fmt(personalLifestyleA, data.settings.currency)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
+                  <span style={{ color: C.text2 }}>Out of Pocket (Invested):</span>
+                  <span style={{ fontWeight: 600, color: C.teal }}>{fmt(personalInvestedA, data.settings.currency)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: C.text2 }}>Joint Pool Contributed:</span>
                   <span style={{ fontWeight: 600, color: C.green }}>{fmt(contribA, data.settings.currency)}</span>
                 </div>
               </div>
+
+              {/* Partner B Ledger */}
               <div style={{ background: C.bg, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
                 <div style={{ color: C.blue, fontWeight: 700, fontSize: 13, marginBottom: 8, borderBottom: `1px solid ${C.border}44`, paddingBottom: 4 }}>{names.b}</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
-                  <span style={{ color: C.text2 }}>Out of Pocket Spent:</span>
-                  <span style={{ fontWeight: 600, color: C.textW }}>{fmt(personalSpentB, data.settings.currency)}</span>
+                  <span style={{ color: C.text2 }}>Out of Pocket (Lifestyle):</span>
+                  <span style={{ fontWeight: 600, color: C.textW }}>{fmt(personalLifestyleB, data.settings.currency)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
+                  <span style={{ color: C.text2 }}>Out of Pocket (Invested):</span>
+                  <span style={{ fontWeight: 600, color: C.teal }}>{fmt(personalInvestedB, data.settings.currency)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span style={{ color: C.text2 }}>Joint Pool Contributed:</span>
                   <span style={{ fontWeight: 600, color: C.green }}>{fmt(contribB, data.settings.currency)}</span>
                 </div>
               </div>
+
             </div>
           </div>
           <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '12px 4px 0' }}>
