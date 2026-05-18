@@ -203,38 +203,58 @@ async function loadData(userId: string) {
       })),
       goals: (gl.data || []).map((r: any) => {
         const targetAmt = Number(r.target_amount || 0);
-        const currentAmt = Number(r.current_amount || 0);
-        const shortfall = Math.max(0, targetAmt - currentAmt);
+        const pATarget = Number(r.partner_a_target || 0);
+        const pBTarget = Number(r.partner_b_target || 0);
+        const pACurrent = Number(r.partner_a_current || 0);
+        const pBCurrent = Number(r.partner_b_current || 0);
+        
+        // Compute combined aggregates
+        const totalCurrent = pACurrent + pBCurrent;
+        const totalShortfall = Math.max(0, targetAmt - totalCurrent);
+        
+        // Compute localized individual targets
+        const shortfallA = Math.max(0, pATarget - pACurrent);
+        const shortfallB = Math.max(0, pBTarget - pBCurrent);
 
-        // ⚡ ADVANCED TRACKING TIME ENGINE (Calculated from current date in 2026)
+        // Timeline calculation clock (May 2026)
         const today = new Date();
         const targetDate = r.target_date ? new Date(r.target_date) : null;
         
         let monthsRemaining = 0;
         if (targetDate && targetDate > today) {
           monthsRemaining = (targetDate.getFullYear() - today.getFullYear()) * 12 + (targetDate.getMonth() - today.getMonth());
-          if (monthsRemaining <= 0) monthsRemaining = 1; // Prevent division by zero if target is this month
+          if (monthsRemaining <= 0) monthsRemaining = 1;
         }
 
-        const requiredMonthlyRate = monthsRemaining > 0 ? Math.round(shortfall / monthsRemaining) : 0;
+        // Compute individual required velocities based on split targets
+        const velocityA = monthsRemaining > 0 ? Math.round(shortfallA / monthsRemaining) : 0;
+        const velocityB = monthsRemaining > 0 ? Math.round(shortfallB / monthsRemaining) : 0;
         
-        // Dynamic Pace Status Evaluation
+        // Evaluate dynamic pacing state
         let paceStatus = 'On Track';
-        const completionPct = targetAmt > 0 ? (currentAmt / targetAmt) * 100 : 0;
-        if (completionPct < 50 && monthsRemaining <= 3) paceStatus = 'Critical';
+        const completionPct = targetAmt > 0 ? (totalCurrent / targetAmt) * 100 : 0;
+        if (totalCurrent >= targetAmt) paceStatus = 'Completed';
+        else if (completionPct < 50 && monthsRemaining <= 3) paceStatus = 'Critical';
         else if (completionPct < 25 && monthsRemaining <= 6) paceStatus = 'Needs Attention';
 
         return {
           id: r.id,
           name: r.name,
           target: targetAmt,
-          current: currentAmt,
+          partnerATarget: pATarget,
+          partnerBTarget: pBTarget,
+          partnerACurrent: pACurrent,
+          partnerBCurrent: pBCurrent,
+          current: totalCurrent,
           targetDate: r.target_date,
-          // ⚡ New Advanced Tracking Properties handed straight to the frontend
-          shortfall: shortfall,
-          monthsRemaining: monthsRemaining,
-          requiredMonthlyVelocity: requiredMonthlyRate,
-          paceStatus: paceStatus
+          strategy: r.strategy || 'Short-Term',
+          shortfall: totalShortfall,
+          monthsRemaining,
+          velocityA,
+          velocityB,
+          paceStatus,
+          icon: r.icon || '🎯',
+          color: r.color || '#00e5ff'
         };
       }),
       loans: (ln.data || []).map((r: any) => ({
@@ -2520,26 +2540,29 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<any>({});
   const [adding, setAdding] = useState(false);
+
+  // Extract dynamic names from your master configuration
+  const nameA = data.settings?.partnerAName || 'Gaurav';
+  const nameB = data.settings?.partnerBName || 'Karishma';
   
   const [newGoal, setNewGoal] = useState({
     name: '',
     target: '',
-    current: '',
+    partnerATarget: '',
+    partnerBTarget: '',
+    partnerACurrent: '',
+    partnerBCurrent: '',
     targetDate: '',
+    strategy: 'Short-Term',
     icon: '🎯',
     color: C.amber,
   });
 
-  const COLORS = [
-    C.amber,
-    C.green,
-    C.blue,
-    C.purple,
-    C.red,
-    C.teal,
-    '#f97316',
-    '#ec4899',
-  ];
+  const COLORS = [C.amber, C.green, C.blue, C.purple, C.red, C.teal, '#f97316', '#ec4899'];
+  const HORIZONS = ['Short-Term', 'Mid-Term', 'Long-Term'];
+
+  const ongoingGoals = data.goals.filter((g: any) => Number(g.current) < Number(g.target));
+  const completedGoals = data.goals.filter((g: any) => Number(g.current) >= Number(g.target));
 
   const startEditing = (g: any) => {
     setEditing(g.id);
@@ -2547,275 +2570,287 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
       id: g.id,
       name: g.name,
       target: g.target,
-      current: g.current,
+      partnerATarget: g.partnerATarget,
+      partnerBTarget: g.partnerBTarget,
+      partnerACurrent: g.partnerACurrent,
+      partnerBCurrent: g.partnerBCurrent,
       targetDate: g.targetDate || '',
+      strategy: g.strategy || 'Short-Term',
       icon: g.icon || '🎯',
       color: g.color || C.amber,
     });
   };
 
+  // Helper to sync total target when typing individual splits
+  const syncNewGoalTotal = (updatedFields: any) => {
+    setNewGoal((prev) => {
+      const next = { ...prev, ...updatedFields };
+      const computedTotal = Number(next.partnerATarget || 0) + Number(next.partnerBTarget || 0);
+      return { ...next, target: computedTotal > 0 ? String(computedTotal) : next.target };
+    });
+  };
+
+  const syncFormTotal = (updatedFields: any) => {
+    setForm((prev: any) => {
+      const next = { ...prev, ...updatedFields };
+      return { ...next, target: Number(next.partnerATarget || 0) + Number(next.partnerBTarget || 0) };
+    });
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Btn variant="primary" onClick={() => setAdding(true)}>
-          + Add Goal
-        </Btn>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ margin: 0, fontSize: 18, color: C.text1, fontWeight: 700 }}>Financial Master Targets</h2>
+        <Btn variant="primary" onClick={() => setAdding(true)}>+ Add New Goal</Btn>
       </div>
 
       {/* NEW GOAL CREATION WIDGET */}
       {adding && (
         <Card style={{ border: `1px solid ${C.amber}44` }}>
-          <SectionTitle>New Goal</SectionTitle>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <SectionTitle>Establish Split-Funding Milestone</SectionTitle>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
               <div>
-                <Label>Name</Label>
-                <Inp
-                  value={newGoal.name}
-                  onChange={(e: any) =>
-                    setNewGoal((g) => ({ ...g, name: e.target.value }))
-                  }
-                  placeholder="e.g. Emergency Fund"
-                />
+                <Label>Goal Title Name</Label>
+                <Inp value={newGoal.name} placeholder="e.g. Next-Gen Motorcycle Fund" onChange={(e: any) => setNewGoal((g) => ({ ...g, name: e.target.value }))} />
               </div>
               <div>
-                <Label>Icon (emoji)</Label>
-                <Inp
-                  value={newGoal.icon}
-                  onChange={(e: any) =>
-                    setNewGoal((g) => ({ ...g, icon: e.target.value }))
-                  }
-                />
+                <Label>Horizon Strategy</Label>
+                <select value={newGoal.strategy} onChange={(e) => setNewGoal((g) => ({ ...g, strategy: e.target.value }))} style={{ width: '100%', background: C.bg, color: C.text1, border: `1px solid ${C.border}`, padding: '8px 10px', borderRadius: 8, fontSize: 13 }}>
+                  {HORIZONS.map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Icon Emoji</Label>
+                <Inp value={newGoal.icon} onChange={(e: any) => setNewGoal((g) => ({ ...g, icon: e.target.value }))} />
               </div>
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {/* Split Allocation Matrix */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, padding: '12px', background: `${C.border}22', borderRadius: 8` }}>
               <div>
-                <Label>Target Amount</Label>
-                <Inp
-                  type="number"
-                  value={newGoal.target}
-                  onChange={(e: any) =>
-                    setNewGoal((g) => ({ ...g, target: e.target.value }))
-                  }
-                />
+                <Label style={{ color: C.textW }}>Total Target Budget</Label>
+                <Inp type="number" placeholder="Auto-computed total" value={newGoal.target} onChange={(e: any) => setNewGoal((g) => ({ ...g, target: e.target.value }))} />
               </div>
               <div>
-                <Label>Current Saved</Label>
-                <Inp
-                  type="number"
-                  value={newGoal.current}
-                  onChange={(e: any) =>
-                    setNewGoal((g) => ({ ...g, current: e.target.value }))
-                  }
-                />
+                <Label style={{ color: C.teal }}>{nameA}'s Target Share</Label>
+                <Inp type="number" placeholder="e.g. 60000" value={newGoal.partnerATarget} onChange={(e: any) => syncNewGoalTotal({ partnerATarget: e.target.value })} />
+              </div>
+              <div>
+                <Label style={{ color: '#ec4899' }}>{nameB}'s Target Share</Label>
+                <Inp type="number" placeholder="e.g. 40000" value={newGoal.partnerBTarget} onChange={(e: any) => syncNewGoalTotal({ partnerBTarget: e.target.value })} />
+              </div>
+            </div>
+
+            {/* Split Current Savings Progress Matrix */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+              <div>
+                <Label>Target Milestone Date</Label>
+                <Inp type="date" value={newGoal.targetDate} onChange={(e: any) => setNewGoal((g) => ({ ...g, targetDate: e.target.value }))} />
+              </div>
+              <div>
+                <Label>{nameA}'s Current Saved</Label>
+                <Inp type="number" placeholder="e.g. 15000" value={newGoal.partnerACurrent} onChange={(e: any) => setNewGoal((g) => ({ ...g, partnerACurrent: e.target.value }))} />
+              </div>
+              <div>
+                <Label>{nameB}'s Current Saved</Label>
+                <Inp type="number" placeholder="e.g. 10000" value={newGoal.partnerBCurrent} onChange={(e: any) => setNewGoal((g) => ({ ...g, partnerBCurrent: e.target.value }))} />
               </div>
             </div>
 
             <div>
-              <Label>Desired Achievement Date (Target Deadline)</Label>
-              <Inp
-                type="date"
-                value={newGoal.targetDate}
-                onChange={(e: any) =>
-                  setNewGoal((g) => ({ ...g, targetDate: e.target.value }))
-                }
-                style={{ width: '100%' }}
-              />
-            </div>
-
-            <div>
-              <Label>Color</Label>
+              <Label>Theme Signature Color</Label>
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 {COLORS.map((c) => (
-                  <div
-                    key={c}
-                    onClick={() => setNewGoal((g) => ({ ...g, color: c }))}
-                    style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: '50%',
-                      background: c,
-                      cursor: 'pointer',
-                      border:
-                        newGoal.color === c
-                          ? `3px solid #fff`
-                          : '3px solid transparent',
-                    }}
-                  />
+                  <div key={c} onClick={() => setNewGoal((g) => ({ ...g, color: c }))} style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', border: newGoal.color === c ? `3px solid #fff` : '3px solid transparent' }} />
                 ))}
               </div>
             </div>
             
             <div style={{ display: 'flex', gap: 8 }}>
-              <Btn
-                variant="primary"
-                onClick={() => {
-                  onAdd(newGoal);
-                  setNewGoal({
-                    name: '',
-                    target: '',
-                    current: '',
-                    targetDate: '',
-                    icon: '🎯',
-                    color: C.amber,
-                  });
-                  setAdding(false);
-                }}
-              >
-                Save Goal
-              </Btn>
-              <Btn variant="ghost" onClick={() => setAdding(false)}>
-                Cancel
-              </Btn>
+              <Btn variant="primary" onClick={() => { onAdd(newGoal); setNewGoal({ name: '', target: '', partnerATarget: '', partnerBTarget: '', partnerACurrent: '', partnerBCurrent: '', targetDate: '', strategy: 'Short-Term', icon: '🎯', color: C.amber }); setAdding(false); }}>Save Milestone</Btn>
+              <Btn variant="ghost" onClick={() => setAdding(false)}>Cancel</Btn>
             </div>
           </div>
         </Card>
       )}
       
-      {/* GOALS GRID VIEW */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(290px,1fr))', gap: 16 }}>
-        {data.goals.map((g: any) => {
-          const isEditing = editing === g.id;
-          const pct = g.target > 0 ? (g.current / g.target) * 100 : 0;
-          const statusColor = g.paceStatus === 'Critical' ? C.red : g.paceStatus === 'Needs Attention' ? C.amber : C.teal;
+      {/* SECTION 1: ACTIVE STRATEGIC HORIZONS */}
+      <div>
+        <div style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: 6, marginBottom: 14 }}>
+          <h3 style={{ margin: 0, fontSize: 13, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Active Split-Funding Horizons ({ongoingGoals.length})</h3>
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(330px,1fr))', gap: 16 }}>
+          {ongoingGoals.map((g: any) => {
+            if (editing === g.id) return renderEditCard(g.id);
 
-          // ⚡ VIEW A: EDIT MODE INTERFACE
-          if (isEditing) {
+            const pct = g.target > 0 ? (g.current / g.target) * 100 : 0;
+            const pctA = g.partnerATarget > 0 ? (g.partnerACurrent / g.partnerATarget) * 100 : 0;
+            const pctB = g.partnerBTarget > 0 ? (g.partnerBCurrent / g.partnerBTarget) * 100 : 0;
+            const statusColor = g.paceStatus === 'Critical' ? C.red : g.paceStatus === 'Needs Attention' ? C.amber : C.teal;
+
             return (
-              <Card key={g.id} style={{ border: `1px solid ${C.teal}44`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <SectionTitle style={{ margin: 0, fontSize: 14 }}>Modify Goal Parameters</SectionTitle>
-                  <span style={{ fontSize: 20 }}>{form.icon}</span>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 8 }}>
-                  <div>
-                    <Label>Goal Title</Label>
-                    <Inp value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>Icon</Label>
-                    <Inp value={form.icon} onChange={(e: any) => setForm({ ...form, icon: e.target.value })} />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <div>
-                    <Label>Target (₹)</Label>
-                    <Inp type="number" value={form.target} onChange={(e: any) => setForm({ ...form, target: e.target.value })} />
-                  </div>
-                  <div>
-                    <Label>Current (₹)</Label>
-                    <Inp type="number" value={form.current} onChange={(e: any) => setForm({ ...form, current: e.target.value })} />
-                  </div>
-                </div>
-
+              <Card key={g.id} style={{ position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: 16 }}>
                 <div>
-                  <Label>Target Milestone Date</Label>
-                  <Inp type="date" value={form.targetDate} onChange={(e: any) => setForm({ ...form, targetDate: e.target.value })} style={{ width: '100%' }} />
-                </div>
-
-                <div>
-                  <Label>Aesthetic Theme</Label>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                    {COLORS.map((c) => (
-                      <div
-                        key={c}
-                        onClick={() => setForm({ ...form, color: c })}
-                        style={{
-                          width: 20, height: 20, borderRadius: '50%', background: c, cursor: 'pointer',
-                          border: form.color === c ? `2px solid #fff` : '2px solid transparent',
-                        }}
-                      />
-                    ))}
+                  <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 4 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: `${C.border}44`, color: C.text1 }}>{g.strategy}</span>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: `${statusColor}15`, color: statusColor, border: `1px solid ${statusColor}33` }}>{g.paceStatus}</span>
                   </div>
-                </div>
 
-                <div style={{ display: 'flex', gap: 8, marginTop: 6, justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <Btn variant="primary" onClick={() => { onUpdate(g.id, form); setEditing(null); }}>
-                      Update
-                    </Btn>
-                    <Btn variant="ghost" onClick={() => setEditing(null)}>
-                      Cancel
-                    </Btn>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 18 }}>{g.icon || '🎯'}</span>
+                    <div style={{ fontWeight: 700, color: C.textW, fontSize: 15 }}>{g.name}</div>
                   </div>
-                  <Btn variant="ghost" style={{ color: C.red, border: `1px solid ${C.red}33` }} onClick={() => { if(confirm('Delete this goal?')) { onDelete(g.id); setEditing(null); } }}>
-                    🗑️ Delete
-                  </Btn>
+                  
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
+                    Target: {g.targetDate ? new Date(g.targetDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short' }) : 'Flexible Deadline'}
+                  </div>
+
+                  {/* MASTER SEEDED PROGRESS */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4, fontWeight: 600, color: C.text1 }}>
+                    <span>Combined Progress</span>
+                    <span>{fmt(g.current, data.settings.currency)} / {fmt(g.target, data.settings.currency)} ({pct.toFixed(0)}%)</span>
+                  </div>
+                  <ProgressBar pct={pct} color={g.color || statusColor} height={8} />
+
+                  {/* SPLIT PARTNER WORKSPACES */}
+                  <div style={{ marginTop: 14, background: `${C.bg}66`, padding: 10, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+                        <span style={{ color: C.teal, fontWeight: 600 }}>👤 {nameA}'s Share</span>
+                        <span style={{ color: C.text2 }}>{fmt(g.partnerACurrent, data.settings.currency)} of {fmt(g.partnerATarget, data.settings.currency)} ({pctA.toFixed(0)}%)</span>
+                      </div>
+                      <ProgressBar pct={pctA} color={C.teal} height={4} />
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+                        <span style={{ color: '#ec4899', fontWeight: 600 }}>👤 {nameB}'s Share</span>
+                        <span style={{ color: C.text2 }}>{fmt(g.partnerBCurrent, data.settings.currency)} of {fmt(g.partnerBTarget, data.settings.currency)} ({pctB.toFixed(0)}%)</span>
+                      </div>
+                      <ProgressBar pct={pctB} color="#ec4899" height={4} />
+                    </div>
+                  </div>
+
+                  {/* TWIN CASH-FLOW VELOCITY CALCULATIONS */}
+                  {g.shortfall > 0 && g.monthsRemaining > 0 && (
+                    <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.border}22` }}>
+                      <span style={{ color: C.muted, display: 'block', fontSize: 10, uppercase: 'true', letterSpacing: '0.02em', marginBottom: 6 }}>⚠️ Required Monthly Savings Impact ({g.monthsRemaining} mos left):</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: C.text1 }}><strong style={{ color: C.teal }}>{nameA}:</strong> {fmt(g.velocityA, data.settings.currency)} / mo</span>
+                        <span style={{ color: C.text1 }}><strong style={{ color: '#ec4899' }}>{nameB}:</strong> {fmt(g.velocityB, data.settings.currency)} / mo</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
+                {renderEditFooter(g)}
               </Card>
             );
-          }
+          })}
+        </div>
+      </div>
 
-          // ⚡ VIEW B: STANDARD METRIC DISPLAY VIEW
-          return (
-            <Card key={g.id} style={{ position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                {/* Pace Status Badge */}
-                <span style={{
-                  position: 'absolute', top: 12, right: 12, fontSize: 10, fontWeight: 700,
-                  padding: '3px 8px', borderRadius: 20, background: `${statusColor}22`, color: statusColor,
-                  border: `1px solid ${statusColor}44`
-                }}>
-                  {g.paceStatus}
-                </span>
+      {/* SECTION 2: ARCHIVED TROPHY GALLERY */}
+      <div>
+        <div style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: 6, marginBottom: 14 }}>
+          <h3 style={{ margin: 0, fontSize: 13, color: C.green, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Achieved Trophies & Past Household Wins ({completedGoals.length})</h3>
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(310px,1fr))', gap: 16 }}>
+          {completedGoals.map((g: any) => {
+            if (editing === g.id) return renderEditCard(g.id);
 
+            return (
+              <Card key={g.id} style={{ position: 'relative', background: `${C.surface}66`, border: `1px solid ${C.green}33`, padding: 16 }}>
+                <span style={{ position: 'absolute', top: 12, right: 12, fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: `${C.green}20`, color: C.green, border: `1px solid ${C.green}44` }}>🏆 Capitalized</span>
+                
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{ fontSize: 18 }}>{g.icon || '🎯'}</span>
-                  <div style={{ fontWeight: 700, color: C.textW, fontSize: 15 }}>{g.name}</div>
+                  <span style={{ fontSize: 18 }}>{g.icon || '🎉'}</span>
+                  <div style={{ fontWeight: 700, color: C.text1, fontSize: 14, textDecoration: 'line-through' }}>{g.name}</div>
                 </div>
                 
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
-                  Target Date: {g.targetDate ? new Date(g.targetDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No deadline set'}
+                <p style={{ margin: '4px 0 10px 0', fontSize: 12, color: C.muted }}>
+                  Fully funded at **{fmt(g.target, data.settings.currency)}**! Split distribution: {nameA} ({fmt(g.partnerATarget, data.settings.currency)}) • {nameB} ({fmt(g.partnerBTarget, data.settings.currency)})
+                </p>
+
+                <div style={{ background: `${C.green}11`, padding: '6px 10px', borderRadius: 6, fontSize: 11, color: C.green, fontWeight: 600, textAlign: 'center' }}>
+                  100% Fully Capitalized Milestone Assets
                 </div>
-
-                {/* Progress Metrics */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-                  <span style={{ color: C.text1, fontWeight: 600 }}>{fmt(g.current, data.settings.currency)} saved</span>
-                  <span style={{ color: C.muted }}>of {fmt(g.target, data.settings.currency)} ({pct.toFixed(0)}%)</span>
-                </div>
-                
-                <ProgressBar pct={pct} color={g.color || statusColor} height={8} />
-
-                {/* ADVANCED TRACKING FORECAST FOOTER */}
-                {g.shortfall > 0 && g.monthsRemaining > 0 && (
-                  <div style={{ 
-                    marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}33`,
-                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 11
-                  }}>
-                    <div>
-                      <span style={{ color: C.muted, display: 'block', marginBottom: 2 }}>Time Window</span>
-                      <span style={{ fontWeight: 600, color: C.text1 }}>{g.monthsRemaining} Months left</span>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ color: C.muted, display: 'block', marginBottom: 2 }}>Required Run-Rate</span>
-                      <span style={{ fontWeight: 700, color: C.textW }}>{fmt(g.requiredMonthlyVelocity, data.settings.currency)} / mo</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Edit Trigger Action Bar */}
-              <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${C.border}11`, paddingTop: 8 }}>
-                <span 
-                  onClick={() => startEditing(g)}
-                  style={{ fontSize: 11, fontWeight: 600, color: C.muted, cursor: 'pointer', padding: '4px 8px', borderRadius: 4, background: `${C.border}33`, transition: 'color 0.2s' }}
-                  onMouseOver={(e) => e.currentTarget.style.color = C.teal}
-                  onMouseOut={(e) => e.currentTarget.style.color = C.muted}
-                >
-                  ⚙️ Edit Parameters
-                </span>
-              </div>
-            </Card>
-          );
-        })}
+                {renderEditFooter(g)}
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
-}
 
+  // EDIT STATE MODAL VIEW GENERATOR
+  function renderEditCard(id: string) {
+    return (
+      <Card key={id} style={{ border: `1px solid ${C.teal}44`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <Label style={{ fontWeight: 700, color: C.teal }}>Modify Split Metrics</Label>
+        <div>
+          <Label>Goal Title</Label>
+          <Inp value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} />
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <div>
+            <Label>{nameA}'s Target Split (₹)</Label>
+            <Inp type="number" value={form.partnerATarget} onChange={(e: any) => syncFormTotal({ partnerATarget: e.target.value })} />
+          </div>
+          <div>
+            <Label>{nameB}'s Target Split (₹)</Label>
+            <Inp type="number" value={form.partnerBTarget} onChange={(e: any) => syncFormTotal({ partnerBTarget: e.target.value })} />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <div>
+            <Label>{nameA}'s Saved (₹)</Label>
+            <Inp type="number" value={form.partnerACurrent} onChange={(e: any) => setForm({ ...form, partnerACurrent: e.target.value })} />
+          </div>
+          <div>
+            <Label>{nameB}'s Saved (₹)</Label>
+            <Inp type="number" value={form.partnerBCurrent} onChange={(e: any) => setForm({ ...form, partnerBCurrent: e.target.value })} />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <div>
+            <Label>Milestone Deadline</Label>
+            <Inp type="date" value={form.targetDate} onChange={(e: any) => setForm({ ...form, targetDate: e.target.value })} style={{ width: '100%' }} />
+          </div>
+          <div>
+            <Label>Strategy</Label>
+            <select value={form.strategy} onChange={(e) => setForm({ ...form, strategy: e.target.value })} style={{ width: '100%', background: C.bg, color: C.text1, border: `1px solid ${C.border}`, padding: '8px 10px', borderRadius: 6, fontSize: 13 }}>
+              {HORIZONS.map(h => <option key={h} value={h}>{h}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Btn variant="primary" onClick={() => { onUpdate(id, form); setEditing(null); }}>Update</Btn>
+            <Btn variant="ghost" onClick={() => setEditing(null)}>Cancel</Btn>
+          </div>
+          <span style={{ color: C.red, fontSize: 12, cursor: 'pointer', alignSelf: 'center' }} onClick={() => { if(confirm('Permanently delete goal parameters?')) { onDelete(id); setEditing(null); } }}>🗑️ Delete</span>
+        </div>
+      </Card>
+    );
+  }
+
+  function renderEditFooter(g: any) {
+    return (
+      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${C.border}11`, paddingTop: 8 }}>
+        <span onClick={() => startEditing(g)} style={{ fontSize: 10, fontWeight: 600, color: C.muted, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, background: `${C.border}22` }}>
+          ⚙️ Parameters
+        </span>
+      </div>
+    );
+  }
+}
 // ─── EMI TRACKER ─────────────────────────────────────────────────────────────
 function LoanTracker({ data, onAdd, onUpdate, onDelete }: any) {
   const [adding, setAdding] = useState(false);
@@ -4177,51 +4212,59 @@ export default function App() {
       }
     },
    addGoal: async (g: any) => {
-      // ⚡ THE FIX: If the form didn't generate an ID, create a secure unique UUID right here!
       const goalId = g.id || crypto.randomUUID(); 
-      const freshGoal = { ...g, id: goalId };
+      const freshGoal = { 
+        ...g, 
+        id: goalId,
+        current: Number(g.partnerACurrent || 0) + Number(g.partnerBCurrent || 0)
+      };
 
-      // 1. Safe Memory Update using the generated ID
       setData((prev: any) => ({ ...prev, goals: [...prev.goals, freshGoal] }));
 
-      // 2. Insert into Supabase
       const { error } = await supabase.from('goals').insert([
         {
-          id: goalId, // ⚡ Passes the solid UUID string instead of null!
+          id: goalId,
           household_id: data.householdId,
           name: g.name,
           target_amount: Number(g.target || 0),
-          current_amount: Number(g.current || 0),
-          target_date: g.targetDate, 
+          partner_a_target: Number(g.partnerATarget || 0),   // ⚡ Split Target
+          partner_b_target: Number(g.partnerBTarget || 0),   // ⚡ Split Target
+          partner_a_current: Number(g.partnerACurrent || 0), // ⚡ Split Progress
+          partner_b_current: Number(g.partnerBCurrent || 0), // ⚡ Split Progress
+          target_date: g.targetDate || null, 
+          strategy: g.strategy || 'Short-Term',
           icon: g.icon || '🎯',
           color: g.color || '#00e5ff'
         },
       ]);
-      
       if (error) alert('Failed to save goal to cloud: ' + error.message);
     },
 
     updateGoal: async (id: string, updated: any) => {
-      // 1. Safe Memory Update
       setData((prev: any) => ({
         ...prev,
-        goals: prev.goals.map((g: any) => (g.id === id ? updated : g)),
+        goals: prev.goals.map((g: any) => (g.id === id ? {
+          ...updated,
+          current: Number(updated.partnerACurrent || 0) + Number(updated.partnerBCurrent || 0)
+        } : g)),
       }));
 
-      // 2. Update in Supabase
       const { error } = await supabase
         .from('goals')
         .update({
           name: updated.name,
           target_amount: Number(updated.target || 0),
-          current_amount: Number(updated.current || 0),
-          target_date: updated.targetDate, // ⚡ Maps here too!
+          partner_a_target: Number(updated.partnerATarget || 0),
+          partner_b_target: Number(updated.partnerBTarget || 0),
+          partner_a_current: Number(updated.partnerACurrent || 0),
+          partner_b_current: Number(updated.partnerBCurrent || 0),
+          target_date: updated.targetDate || null, 
+          strategy: updated.strategy || 'Short-Term',
           icon: updated.icon,
           color: updated.color
         })
         .eq('id', id);
-
-      if (error) alert('Failed to update goal in cloud: ' + error.message);
+      if (error) alert('Failed to update goal to cloud: ' + error.message);
     },
 
     deleteGoal: async (id: string) => {
