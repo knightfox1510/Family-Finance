@@ -3884,7 +3884,7 @@ export default function App() {
         setLoading(false);
       });
     }
-  }, [session]);
+  }, [session, view]);
 
   const persist = useCallback((nd: any) => {
     setData(nd);
