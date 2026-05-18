@@ -3321,11 +3321,15 @@ function AIInsights({ data }: any) {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState('monthly');
 
+  // ⚡ UPGRADED: Expanded analytical engine modules
   const MODES = [
     { id: 'monthly', label: '📊 Monthly Summary' },
     { id: 'anomalies', label: '🔍 Unusual Spending' },
     { id: 'advice', label: '💡 Financial Advice' },
     { id: 'loans', label: '🏧 Loan Strategy' },
+    { id: 'runway', label: '⏳ Runway & Forecast' },
+    { id: 'milestones', label: '🎯 Goal Velocity' },
+    { id: 'discretionary', label: '✂️ Lifestyle Pruning' },
   ];
 
   const generate = async () => {
@@ -3349,6 +3353,9 @@ function AIInsights({ data }: any) {
     };
     const totalEMI = data.loans.reduce((s: number, l: any) => s + l.emi, 0);
 
+    // ⚡ CONTEXT INJECTION: Explicit system prompt updates regarding late-month paycheck alignment
+    const TIMING_CONTEXT = `CRUCIAL HOUSEHOLD CASH-FLOW CONTEXT: In this family ecosystem, primary salary/income inflows are credited strictly at the very end of the calendar month. Do not interpret mid-month liquid balance drawdowns, early-month lifestyle costs, or temporary account deficits as financial failure, overspending, or budgeting emergencies. Spending is intentionally sustained by existing capital reserves until the end-of-month paycheck lands. Evaluate all cash availability, pacing speeds, and optimization strategies with this month-end timing loop explicitly in mind.`;
+
     const prompts: Record<string, string> = {
       monthly: `You are a personal finance advisor for a couple in India. Analyze their spending data and write a warm, practical monthly summary. Couple: ${
         names.a
@@ -3362,14 +3369,16 @@ function AIInsights({ data }: any) {
         .map((g: any) => `${g.name}: ${((g.current / g.target) * 100).toFixed(0)}%`)
         .join(', ')}. Category budgets: ${JSON.stringify(
         data.settings.budgets
-      )}. Write a 3-4 paragraph summary covering: (1) overall spending health, (2) notable patterns or concerns by category, (3) how they're tracking against budgets, (4) one actionable recommendation for next month. Be specific with numbers and direct. Format with clear paragraphs, no bullet points.`,
+      )}. ${TIMING_CONTEXT} Write a 3-4 paragraph summary covering: (1) overall spending health factoring in the salary cycle, (2) notable patterns or concerns by category, (3) how they're tracking against budgets, (4) one actionable recommendation for next month. Be specific with numbers and direct. Format with clear paragraphs, no bullet points.`,
+      
       anomalies: `You are a sharp financial analyst. Look at this couple's spending data and identify genuinely unusual patterns, spikes, or concerns. Names: ${
         names.a
       } and ${names.b}. This month's category spending: ${JSON.stringify(
         catTotals
       )}. Budgets set: ${JSON.stringify(
         data.settings.budgets
-      )}. Monthly EMI: ₹${totalEMI}. Identify 3-4 specific anomalies or patterns worth their attention. Be concrete — mention actual numbers and categories. If something looks healthy, say so too. Write in clear paragraphs.`,
+      )}. Monthly EMI: ₹${totalEMI}. ${TIMING_CONTEXT} Ignore expected mid-month wallet dips. Focus strictly on category overruns that breach predefined limits or random anomalous transaction spikes compared to their standard spending bounds. Identify 3-4 specific anomalies or structural patterns worth their attention. Be concrete — mention actual numbers and categories. Write in clear paragraphs.`,
+      
       advice: `You are a trusted personal finance advisor for an Indian couple managing a shared household budget. Give them 4-5 specific, actionable pieces of advice based on their actual data. Combined monthly joint contributions: ₹${
         contrib.partnerA + contrib.partnerB
       }. This month's spending by category: ${JSON.stringify(
@@ -3384,7 +3393,8 @@ function AIInsights({ data }: any) {
         )
         .join(
           '; '
-        )}. Give advice that is practical for an Indian household. Reference their specific numbers. Write in clear paragraphs.`,
+        )}. ${TIMING_CONTEXT} Structure your financial advice to ensure liquid liquidity pools bridge the month smoothly until pay day without friction. Reference their specific numbers. Write in clear paragraphs.`,
+      
       loans: `You are a debt management expert. Analyze this couple's loan portfolio and give strategic advice. Loans: ${data.loans
         .map(
           (l: any) =>
@@ -3395,6 +3405,22 @@ function AIInsights({ data }: any) {
         )}. Total monthly EMI burden: ₹${totalEMI}. Monthly joint contribution: ₹${
         contrib.partnerA + contrib.partnerB
       }. Cover: (1) which loan to prioritize for prepayment and why, (2) overall debt-to-income health, (3) estimated time to debt freedom with current EMIs, (4) one concrete strategy to reduce total interest. Be specific with numbers.`,
+
+      runway: `You are a predictive cash-flow modeling engineer. Evaluate this couple's spending velocity and capital buffer longevity. Names: ${
+        names.a
+      } and ${names.b}. Current Month spending: ${JSON.stringify(
+        catTotals
+      )}. Active EMIs: ₹${totalEMI}. ${TIMING_CONTEXT} Based on their average spending trajectory, assess their liquid household flexibility and capital preservation strength. Project their retention performance over upcoming cycles and give guidance on optimizing cash velocity. Write in clear, structured paragraphs without bullet points.`,
+
+      milestones: `You are a strategic wealth consultant. Analyze this couple's shared savings milestones and individual split targets. Goals profiles: ${data.goals
+        .map((g: any) => `- ${g.name}: Target ₹${g.target}, Saved ₹${g.current}, Split targets: ${names.a} (₹${g.partnerATarget}), ${names.b} (₹${g.partnerBTarget}), Current individual accumulation: ${names.a} (₹${g.partnerACurrent}), ${names.b} (₹${g.partnerBCurrent}), Pace: ${g.paceStatus}, Months Left: ${g.monthsRemaining}, Required Monthly Speed: ${names.a} (₹${g.velocityA}/mo), ${names.b} (₹${g.velocityB}/mo)`)
+        .join('\n')}. Provide a deep tactical audit of their milestone completion tracks. Evaluate if their individual accumulation paces line up with active deadlines, flag fields that need reallocation, and outline strategies for both partners to optimize their combined funding velocity. Write in clear paragraphs.`,
+
+      discretionary: `You are an expert expense rationalization coach. Audit the structural division between this household's fixed core overhead and variable discretionary choices. Current metrics: ${JSON.stringify(
+        catTotals
+      )}. Budget targets: ${JSON.stringify(
+        data.settings.budgets
+      )}. Audit their transactions by segregating Core Fixed Commitments (Rent, Utilities, EMIs, Insurance) from Variable Discretionary Choices (Dining Out, Coffee & Snacks, Entertainment, Apparel). Identify specific categories where impulse spends are approaching limits and suggest realistic adjustment points to reclaim capital for investment pools. Write in clear paragraphs.`
     };
 
     try {
@@ -3418,25 +3444,10 @@ function AIInsights({ data }: any) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <Card>
         <SectionTitle>AI-Powered Financial Insights</SectionTitle>
-        <p
-          style={{
-            color: C.text1,
-            fontSize: 14,
-            margin: '0 0 18px',
-            lineHeight: 1.6,
-          }}
-        >
-          Get personalised insights generated by Gemini based on your actual
-          spending data, goals, and loans.
+        <p style={{ color: C.text1, fontSize: 14, margin: '0 0 18px', lineHeight: 1.6 }}>
+          Get personalised insights generated by Gemini based on your actual spending data, goals, and loans.
         </p>
-        <div
-          style={{
-            display: 'flex',
-            gap: 8,
-            flexWrap: 'wrap',
-            marginBottom: 18,
-          }}
-        >
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
           {MODES.map((m) => (
             <Btn
               key={m.id}
@@ -3448,53 +3459,30 @@ function AIInsights({ data }: any) {
             </Btn>
           ))}
         </div>
-        <Btn
-          variant="primary"
-          onClick={generate}
-          style={{ padding: '11px 24px', fontSize: 14 }}
-          disabled={loading}
-        >
+        <Btn variant="primary" onClick={generate} style={{ padding: '11px 24px', fontSize: 14 }} disabled={loading}>
           {loading ? 'Generating…' : '✨ Generate Insight'}
         </Btn>
       </Card>
 
       {loading && (
         <Card style={{ textAlign: 'center', padding: 40 }}>
-          <div
-            style={{
-              color: C.amber,
-              fontSize: 32,
-              marginBottom: 12,
-              animation: 'spin 1.2s linear infinite',
-            }}
-          >
+          <div style={{ color: C.amber, fontSize: 32, marginBottom: 12, animation: 'spin 1.2s linear infinite' }}>
             ✨
           </div>
-          <div style={{ color: C.text1, fontSize: 15 }}>
-            Gemini is analysing your finances…
-          </div>
+          <div style={{ color: C.text1, fontSize: 15 }}>Gemini is analysing your finances…</div>
           <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
         </Card>
       )}
 
       {error && (
-        <Card
-          style={{ border: `1px solid ${C.red}44`, background: C.red + '11' }}
-        >
+        <Card style={{ border: `1px solid ${C.red}44`, background: C.red + '11' }}>
           <p style={{ color: C.red, margin: 0 }}>{error}</p>
         </Card>
       )}
 
       {report && (
         <Card style={{ border: `1px solid ${C.amber}33` }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              marginBottom: 16,
-            }}
-          >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
             <span style={{ fontSize: 20 }}>✨</span>
             <span style={{ color: C.textW, fontWeight: 700, fontSize: 15 }}>
               {MODES.find((m) => m.id === mode)?.label}
@@ -3503,14 +3491,7 @@ function AIInsights({ data }: any) {
               {monthLabel(monthKey(today()))}
             </span>
           </div>
-          <div
-            style={{
-              color: C.text1,
-              fontSize: 14,
-              lineHeight: 1.8,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
+          <div style={{ color: C.text1, fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
             {report}
           </div>
         </Card>
