@@ -2627,18 +2627,20 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
             </div>
             
             {/* Split Allocation Matrix */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, padding: '12px', background: `${C.border}22', borderRadius: 8` }}>
-              <div>
-                <Label style={{ color: C.textW }}>Total Target Budget</Label>
-                <Inp type="number" placeholder="Auto-computed total" value={newGoal.target} onChange={(e: any) => setNewGoal((g) => ({ ...g, target: e.target.value }))} />
-              </div>
-              <div>
-                <Label style={{ color: C.teal }}>{nameA}'s Target Share</Label>
-                <Inp type="number" placeholder="e.g. 60000" value={newGoal.partnerATarget} onChange={(e: any) => syncNewGoalTotal({ partnerATarget: e.target.value })} />
-              </div>
-              <div>
-                <Label style={{ color: '#ec4899' }}>{nameB}'s Target Share</Label>
-                <Inp type="number" placeholder="e.g. 40000" value={newGoal.partnerBTarget} onChange={(e: any) => syncNewGoalTotal({ partnerBTarget: e.target.value })} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px', background: `${C.border}22`, borderRadius: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <div>
+                  <Label><span style={{ color: C.textW }}>Total Target Budget</span></Label>
+                  <Inp type="number" placeholder="Auto-computed total" value={newGoal.target} onChange={(e: any) => setNewGoal((g) => ({ ...g, target: e.target.value }))} />
+                </div>
+                <div>
+                  <Label><span style={{ color: C.teal }}>{nameA}'s Target Share</span></Label>
+                  <Inp type="number" placeholder="e.g. 60000" value={newGoal.partnerATarget} onChange={(e: any) => syncNewGoalTotal({ partnerATarget: e.target.value })} />
+                </div>
+                <div>
+                  <Label><span style={{ color: '#ec4899' }}>{nameB}'s Target Share</span></Label>
+                  <Inp type="number" placeholder="e.g. 40000" value={newGoal.partnerBTarget} onChange={(e: any) => syncNewGoalTotal({ partnerBTarget: e.target.value })} />
+                </div>
               </div>
             </div>
 
