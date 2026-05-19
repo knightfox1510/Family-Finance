@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// ⚡ VERCEL EXECUTION MAXIMIZATION PASS
+// Forces Vercel to allow the function to run up to 60 seconds, preventing early timeout drops
+export const maxDuration = 60; 
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-service-role-key-for-build-phase'; 
 const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -17,7 +21,7 @@ export async function POST(request: Request) {
     const payload = await request.json();
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH A: INTERACTIVE BUTTON PRESSURE SYSTEM (CALLBACK QUERIES)
+    // BRANCH A: INTERACTIVE MULTI-FIELD EDITING ENGINE (CALLBACK QUERIES)
     // ────────────────────────────────────────────────────────────────────────
     if (payload.callback_query) {
       const callbackQuery = payload.callback_query;
@@ -32,65 +36,72 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // Action A1: Reveal Quick Category Modification Grid
-      if (dataStr.startsWith('s_')) {
-        const txId = dataStr.split('s_')[1];
-        
+      // --- SUB-MENU 1: REVEAL QUICK CATEGORY MATRIX ---
+      if (dataStr.startsWith('s_cat_')) {
+        const txId = dataStr.split('s_cat_')[1];
         const inlineKeyboard: any[] = [];
         for (let i = 0; i < QUICK_CATEGORIES.length; i += 2) {
           inlineKeyboard.push([
-            { text: QUICK_CATEGORIES[i], callback_data: `c_${txId}_${i}` },
-            { text: QUICK_CATEGORIES[i+1], callback_data: `c_${txId}_${i+1}` }
+            { text: QUICK_CATEGORIES[i], callback_data: `v_cat_${txId}_${i}` },
+            { text: QUICK_CATEGORIES[i+1], callback_data: `v_cat_${txId}_${i+1}` }
           ]);
         }
-        inlineKeyboard.push([{ text: "◀ Cancel & Keep Original", callback_data: `k_${txId}` }]);
-
-        await editTelegramMessageInline(chatId, messageId, "✏️ <b>Select the correct category below:</b>", inlineKeyboard);
+        inlineKeyboard.push([{ text: "◀ Return to Main Menu", callback_data: `menu_${txId}` }]);
+        await editTelegramMessageInline(chatId, messageId, "✏️ <b>Select the replacement category below:</b>", inlineKeyboard);
         await answerCallbackQuery(callbackQuery.id);
         return NextResponse.json({ ok: true });
       }
 
-      // Action A2: Execute Database Update Sequence
-      if (dataStr.startsWith('c_')) {
-        const [_, txId, indexStr] = dataStr.split('_');
+      // --- SUB-MENU 2: REVEAL ACCOUNT SWITCHING SELECTION ---
+      if (dataStr.startsWith('s_acc_')) {
+        const txId = dataStr.split('s_acc_')[1];
+        const inlineKeyboard = [
+          [
+            { text: "👤 Partner A", callback_data: `v_acc_${txId}_PartnerA` },
+            { text: "👤 Partner B", callback_data: `v_acc_${txId}_PartnerB` }
+          ],
+          [{ text: "💳 Joint Wallet", callback_data: `v_acc_${txId}_Joint` }],
+          [{ text: "◀ Return to Main Menu", callback_data: `menu_${txId}` }]
+        ];
+        await editTelegramMessageInline(chatId, messageId, "🏧 <b>Select the correct target funding account:</b>", inlineKeyboard);
+        await answerCallbackQuery(callbackQuery.id);
+        return NextResponse.json({ ok: true });
+      }
+
+      // --- EXECUTE UPDATE: CATEGORY CHANGE ---
+      if (dataStr.startsWith('v_cat_')) {
+        const [_, __, txId, indexStr] = dataStr.split('_');
         const targetCategory = QUICK_CATEGORIES[parseInt(indexStr, 10)];
 
-        await supabase
-          .from('transactions')
-          .update({ category: targetCategory })
-          .eq('id', txId);
-
-        const freshBanner = `🔄 <b>Category Corrected Successfully!</b>\n\n📦 <b>New Category:</b> ${targetCategory} ✨\n🏧 <b>Updated By:</b> @${tgUser}`;
-        
-        await editTelegramMessageInline(chatId, messageId, freshBanner, []);
-        await answerCallbackQuery(callbackQuery.id, `✅ Adjusted to ${targetCategory}`);
-        return NextResponse.json({ ok: true });
+        await supabase.from('transactions').update({ category: targetCategory }).eq('id', txId);
+        await answerCallbackQuery(callbackQuery.id, `📦 Adjusted to ${targetCategory}`);
+        // Reset view back to primary selection card options
+        return handleReturnToMenu(chatId, messageId, txId, callbackQuery.id);
       }
 
-      // Action A3: Purge Row From Cloud Database Disk
+      // --- EXECUTE UPDATE: ACCOUNT RE-ASSIGNMENT ---
+      if (dataStr.startsWith('v_acc_')) {
+        const [_, __, txId, rawAccount] = dataStr.split('_');
+        const normalizedAccount = rawAccount === 'PartnerA' ? 'Partner A' : rawAccount === 'PartnerB' ? 'Partner B' : 'Joint';
+
+        await supabase.from('transactions').update({ account_used: normalizedAccount }).eq('id', txId);
+        await answerCallbackQuery(callbackQuery.id, `🏧 Account remapped to ${normalizedAccount}`);
+        return handleReturnToMenu(chatId, messageId, txId, callbackQuery.id);
+      }
+
+      // --- EXECUTE UPDATE: PURGE TRANSACTION ---
       if (dataStr.startsWith('d_')) {
         const txId = dataStr.split('d_')[1];
-
-        await supabase
-          .from('transactions')
-          .delete()
-          .eq('id', txId);
-
-        await editTelegramMessageInline(chatId, messageId, "🗑️ <b>Transaction permanently cleared from database ledger.</b>", []);
-        await answerCallbackQuery(callbackQuery.id, "💥 Purged successfully.");
+        await supabase.from('transactions').delete().eq('id', txId);
+        await editTelegramMessageInline(chatId, messageId, "🗑️ <b>Transaction permanently deleted from cloud ledger.</b>", []);
+        await answerCallbackQuery(callbackQuery.id, " Purged successfully.");
         return NextResponse.json({ ok: true });
       }
 
-      // Action A4: Discard Edits & Return to Primary Controls
-      if (dataStr.startsWith('k_')) {
-        const txId = dataStr.split('k_')[1];
-        const defaultKeyboard = [[
-          { text: "✏️ Change Category", callback_data: `s_${txId}` },
-          { text: "🗑️ Delete Entry", callback_data: `d_${txId}` }
-        ]];
-        await editTelegramMessageInline(chatId, messageId, "✅ <b>Transaction configuration preserved in ledger.</b>", defaultKeyboard);
-        await answerCallbackQuery(callbackQuery.id);
-        return NextResponse.json({ ok: true });
+      // --- UTILITY ACTION: RESTORE MAIN DOCK MENU ---
+      if (dataStr.startsWith('menu_')) {
+        const txId = dataStr.split('menu_')[1];
+        return handleReturnToMenu(chatId, messageId, txId, callbackQuery.id);
       }
 
       return NextResponse.json({ ok: true });
@@ -111,7 +122,7 @@ export async function POST(request: Request) {
       }
 
       if (rawText.startsWith('/start')) {
-        await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the control panel buttons to alter metrics on the fly.");
+        await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the control panel buttons to alter any logged row field dynamically.");
         return NextResponse.json({ ok: true });
       }
 
@@ -119,19 +130,18 @@ export async function POST(request: Request) {
       const geminiKey = process.env.GEMINI_API_KEY;
       const isPartnerA = tgUser.toLowerCase().includes('goku');
       const senderIdentity = isPartnerA ? 'Partner A' : 'Partner B';
-    
-    // ─── FULL MATRIX SYSTEM PROMPT (HIGH GRANULARITY) ───────────────────────
-    const systemPrompt = `You are an expert personal finance data-entry clerk processing raw text and banking SMS strings for a household ledger in India.
-    Analyze the user text input and map it cleanly into a structured JSON payload that matches the exact database schema rules.
 
-    ---------------------------------------------------------------------------------------------------------
-    🌟 GOLDEN RULE #1: EXPLICIT CATEGORY OVERRIDE
-    If the text explicitly mentions ANY of the valid system categories listed below by name (case-insensitive), 
-    you MUST prioritize and select that category over any generic semantic or merchant mapping rules.
-    Example: "500 Zepto but log as Miscellaneous" -> MUST return "Miscellaneous" (overriding the Zepto -> Online Groceries rule).
-    ---------------------------------------------------------------------------------------------------------
+      // 💥 REWORKED SYSTEM PROMPT MATRIX WITH REMAPPED ACCOUNT LOGIC
+      const systemPrompt = `You are an expert personal finance data-entry clerk processing raw text and banking SMS strings for a household ledger in India.
+      Analyze the user text input and map it cleanly into a structured JSON payload that matches the exact database schema rules.
 
-    VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
+      ---------------------------------------------------------------------------------------------------------
+      🌟 GOLDEN RULE #1: EXPLICIT CATEGORY OVERRIDE
+      If the text explicitly mentions ANY of the valid system categories listed below by name (case-insensitive), 
+      you MUST prioritize and select that category over any generic semantic or merchant mapping rules.
+      ---------------------------------------------------------------------------------------------------------
+
+      VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
     - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, specific alcohol logs)
     - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, physically eating out at a venue)
     - "Education"           (Course fees, certifications, books, training programs, upskilling materials)
@@ -162,29 +172,24 @@ export async function POST(request: Request) {
     - "Interest Earned"     (Bank savings account quarterly interest payouts, fixed deposit (FD) interest pay-ins)
     - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
     - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
+      
+      CRUCIAL ACCOUNTING & ROUTING LAWS:
+      1. REWORKED ACCOUNT SELECTION LOGIC:
+         - If the text explicitly contains the words "joint", "joint account", or "joint wallet", set the "account" field to exactly "Joint".
+         - If the text explicitly mentions "Partner A" or the name "Gaurav", set the "account" field to exactly "Partner A" (Even if added by Partner B).
+         - If the text explicitly mentions "Partner B" or the name "Karishma", set the "account" field to exactly "Partner B" (Even if added by Partner A).
+         - DEFAULT CONDITION: If neither "joint" nor specific partner identities are explicitly spelled out, set "account" to exactly the identity of the person typing the message: "${senderIdentity}".
+      
+      2. SETTLEMENT TOGGLE VELOCITY CHECK ("to_settle"):
+         - If the text contains text fragments like "to be settled", "tosettle", or "to settle", set "toSettle" to true. Else false.
+      
+      3. TRANSACTION TYPE LOGIC ("type"):
+         - If the text contains "Salary", "Bonus", "Interest credited", "refund", or "rental income", set "type" to "income". Else "expense".
 
-    CRUCIAL ROUTING & ACCOUNTING LAWS:
-    1. ACCOUNT SELECTION LOGIC:
-       - If the user text explicitly includes the words "joint", "joint account", "joint wallet", or names the partner explicitly, set the "account" field to "Joint".
-       - DEFAULT RULE: If the text does NOT explicitly say "joint" or "joint account" AND does not mention a specific partner name, it is a personal expense of the person logging it. Set "account" to exactly "${senderIdentity}".
-    
-    2. SETTLEMENT TOGGLE VELOCITY CHECK ("to_settle"):
-       - If the text contains text fragments like "to be settled", "tosettle", or "to settle", set "toSettle" to true.
-       - DEFAULT RULE: If those exact strings are missing, set "toSettle" to false.
-    
-    3. TRANSACTION TYPE LOGIC ("type"):
-       - If the text or description includes words like "Salary", "Bonus", "Interest credited", "refund", or "rental income", set "type" to "income".
-       - DEFAULT RULE: For all standard debits, merchant payments, or retail transactions, set "type" to "expense".
-       
-    4. DATA FORMATTING DEFINITIONS:
-       - amount: Clean positive integer string representing the real value transaction text. Strip currency symbols.
-       - note: Extract a clean, natural descriptive summary phrase of the event context (e.g., "Zepto grocery run", "Starbucks coffee", "Salary credit"). Strip out bank account strings or transaction codes from SMS.
+      Return ONLY a raw valid JSON object matching this structural pattern:
+      {"amount": 1200, "category": "Online Groceries", "note": "Weekly Zepto run", "type": "expense", "account": "Joint", "toSettle": false}`;
 
-    Return ONLY a raw valid JSON object. Do not enclose it in markdown blocks like \`\`\`json. Output format matching template pattern structure:
-    {"amount": 1200, "category": "Online Groceries", "note": "Weekly Zepto run", "type": "expense", "account": "Joint", "toSettle": false}`;
-
-    // Fire text payload directly to Gemini API
-  const geminiRes = await fetch(
+      const geminiRes = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
         {
           method: 'POST',
@@ -201,11 +206,10 @@ export async function POST(request: Request) {
       rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const parsedTx = JSON.parse(rawJsonText);
 
-      // ⚡ VALID UUID FALLBACK: Generates a 100% compliant 36-character UUID layout string
       const secureUuidFallback = crypto.randomUUID();
 
       const insertPayload = {
-        id: secureUuidFallback, // Matches your table's required UUID syntax constraints perfectly
+        id: secureUuidFallback,
         household_id: householdId,
         date: new Date().toISOString().slice(0, 10),
         amount: Number(parsedTx.amount || 0),
@@ -230,11 +234,13 @@ export async function POST(request: Request) {
 
       const activeId = dbRows && dbRows[0] ? dbRows[0].id : secureUuidFallback;
 
-      const responseMsg = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${insertPayload.amount}\n📦 <b>Category:</b> ${insertPayload.category}\n📝 <b>Note:</b> ${insertPayload.note}`;
+      const responseMsg = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${insertPayload.amount}\n📦 <b>Category:</b> ${insertPayload.category}\n🏧 <b>Account:</b> ${insertPayload.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + insertPayload.account_used}\n📝 <b>Note:</b> ${insertPayload.note}`;
       
+      // 📡 ADVANCED CONTROL CONSOLE ROW: Splits management into dedicated edit paths
       const inlineKeyboard = [[
-        { text: "✏️ Change Category", callback_data: `s_${activeId}` },
-        { text: "🗑️ Delete Entry", callback_data: `d_${activeId}` }
+        { text: "📦 Category", callback_data: `s_cat_${activeId}` },
+        { text: "🏧 Account", callback_data: `s_acc_${activeId}` },
+        { text: "🗑️ Delete", callback_data: `d_${activeId}` }
       ]];
 
       await sendTelegramMessageInline(chatId, responseMsg, inlineKeyboard);
@@ -249,8 +255,24 @@ export async function POST(request: Request) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// TELEGRAM RUNTIME CORE TRANSMISSION PIPELINES
+// TELEGRAM RUNTIME CENTRAL SWITCHBOARD CONTROLLERS
 // ────────────────────────────────────────────────────────────────────────
+async function handleReturnToMenu(chatId: number, messageId: number, txId: string, queryId: string) {
+  const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
+  if (txRows && txRows[0]) {
+    const tx = txRows[0];
+    const baseBanner = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category}\n🏧 <b>Account:</b> ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + tx.account_used}\n📝 <b>Note:</b> ${tx.note}`;
+    
+    const inlineKeyboard = [[
+      { text: "📦 Category", callback_data: `s_cat_${txId}` },
+      { text: "🏧 Account", callback_data: `s_acc_${txId}` },
+      { text: "🗑️ Delete", callback_data: `d_${txId}` }
+    ]];
+    await editTelegramMessageInline(chatId, messageId, baseBanner, inlineKeyboard);
+  }
+  return NextResponse.json({ ok: true });
+}
+
 async function sendTelegramMessage(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
