@@ -42,22 +42,28 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // ─── WIZARD STEP 2: CATEGORY SELECTED -> CHOOSE ACCOUNT ───
+      // ─── WIZARD STEP 2: MULTI-TENANT GENERIC NAME LOOKUP ───
       if (dataStr.startsWith('w_cat_')) {
         const [_, __, txId, catIndex] = dataStr.split('_');
         const chosenCategory = MASTER_PREDICTIONS[parseInt(catIndex, 10)];
 
         await supabase.from('transactions').update({ category: chosenCategory }).eq('id', txId);
 
+        // Fetch the transaction details to find the household context
         const { data: tx } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
-        let nameA = "Gaurav"; 
-        let nameB = "Karishma";
+        
+        // Generic defaults for multi-user scaling
+        let nameA = "Partner A"; 
+        let nameB = "Partner B";
+
         if (tx?.household_id) {
+          // Read the dynamic configurations from the settings table
           const { data: st } = await supabase.from('household_settings').select('settings_data').eq('household_id', tx.household_id).single();
           if (st?.settings_data) {
             const settings = typeof st.settings_data === 'string' ? JSON.parse(st.settings_data) : st.settings_data;
-            nameA = settings.partnerAName || nameA;
-            nameB = settings.partnerBName || nameB;
+            // Support both standard camelCase or snake_case dynamic keys configuration pairs
+            nameA = settings.partnerAName || settings.partner_a_name || nameA;
+            nameB = settings.partnerBName || settings.partner_b_name || nameB;
           }
         }
 
@@ -401,17 +407,24 @@ async function handleReturnToMenu(chatId: number, messageId: number, txId: strin
   if (txRows && txRows[0]) {
     const tx = txRows[0];
     
-    let nameA = "Gaurav";
-    let nameB = "Karishma";
+    // Multi-tenant generic baseline defaults
+    let nameA = "Partner A";
+    let nameB = "Partner B";
+    
     if (tx.household_id) {
       const { data: settingsRow } = await supabase.from('household_settings').select('settings_data').eq('household_id', tx.household_id).single();
+      
       if (settingsRow?.settings_data) {
-        const settings = typeof settingsRow.settings_data === 'string' ? JSON.parse(settingsRow.settings_data) : settingsRow.settings_data;
-        nameA = settings.partnerAName || nameA;
-        nameB = settings.partnerBName || nameB;
+        const settings = typeof settingsRow.settings_data === 'string' 
+          ? JSON.parse(settingsRow.settings_data) 
+          : settingsRow.settings_data;
+        
+        nameA = settings.partnerAName || settings.partner_a_name || nameA;
+        nameB = settings.partnerBName || settings.partner_b_name || nameB;
       }
     }
 
+    // Assign text display strings dynamically based on tenant variables
     let accountDisplay = '💳 Joint Wallet';
     if (tx.account_used === 'Partner A') accountDisplay = `👤 ${nameA}`;
     if (tx.account_used === 'Partner B') accountDisplay = `👤 ${nameB}`;
