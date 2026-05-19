@@ -366,19 +366,6 @@ export async function POST(request: Request) {
         })
       });
       
-      // UPGRADED FETCH TO NATIVE STRUCTURAL JSON GENERATION
-      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input: "${rawText}"` }] }],
-          // ─── FORCE NATIVE STRUCTURAL GENERATION PARAMETERS ──────────────────
-          generationConfig: {
-            responseMimeType: "application/json"
-          }
-        })
-      });
-
       const geminiData = await geminiRes.json();
       let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
