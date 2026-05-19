@@ -316,7 +316,6 @@ async function loadData(userId: string) {
         partnerA: r.partner_a_amount,
         partnerB: r.partner_b_amount,
       })),
-      settings: settings,
     };
     return formattedData;
   } catch (err) {
