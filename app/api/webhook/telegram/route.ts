@@ -354,13 +354,13 @@ export async function POST(request: Request) {
       ACCOUNT SELECTION RULES:
       - Map to "Partner A" if text mentions or explicitly implies ${nameA}.
       - Map to "Partner B" if text mentions or explicitly implies ${nameB}.
-      - Map to "Joint" if text says joint/corporate wallet/shared pool.
-      - Default to "Joint" if no distinct profile entity matching can be inferred.
+      - Map to "Joint" if text says joint/joint account/wallet.
+      - Default to "${senderIdentity}" if no distinct profile entity matching can be inferred from the text.
 
       SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
       TYPE: "income" if text contains salary/bonus/credited/refund. Else "expense".
 
-      CRUCIAL CLEANING RULE: The "note" field must contain ONLY the physical item description or store merchant name (e.g., "Savana", "Zepto", "Fuel"). Strikingly remove dynamic tracking names like "${nameA}", "${nameB}", "Joint" or settlement phrases from the final note string entirely. Do not put the category name inside the note.`;
+      CRUCIAL CLEANING RULE: The "note" field must contain ONLY the physical item description or store merchant name (e.g., "Savana", "Zepto", "Fuel"). Strikingly remove dynamic tracking names like "${nameA}", "${nameB}", "Joint" or settlement phrases from the final note string entirely. Do not put the category name inside the note, unless there is no other way to do it.`;
 
       // 3. Define the deterministic strict array object constraints schema blueprint
       const transactionSchema = {
