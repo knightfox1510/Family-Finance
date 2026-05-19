@@ -1941,8 +1941,12 @@ function ExpenseList({
     .filter((e: any) => {
       if (filter.month !== 'All' && monthKey(e.date) !== filter.month)
         return false;
-      if (filter.account !== 'All' && e.account !== filter.account)
+      
+      // Extract the account value safely regardless of key naming conventions
+      const itemAccount = e.account || e.account_used;
+      if (filter.account !== 'All' && itemAccount !== filter.account)
         return false;
+        
       if (filter.category !== 'All' && e.category !== filter.category)
         return false;
       if (filter.type !== 'All' && (e.type || 'expense') !== filter.type)
@@ -2204,7 +2208,19 @@ function ExpenseList({
                       {e.type === 'income' ? '+' : ''}{fmt(e.amount, data.settings.currency)}
                     </td>
                     <td style={{ padding: '10px 14px' }}>
-                      <Badge color={e.account === 'Joint' ? C.green : C.blue}>{e.account === 'Partner A' ? names.a : e.account === 'Partner B' ? names.b : 'Joint Wallet'}</Badge>
+                      {(() => {
+                        // Safely read either key format coming from the database
+                        const activeAccount = e.account || e.account_used;
+                        const isJoint = activeAccount === 'Joint' || !activeAccount;
+                        
+                        return (
+                          <Badge color={isJoint ? C.green : C.blue}>
+                            {activeAccount === 'Partner A' ? (names.a || 'Partner A') : 
+                             activeAccount === 'Partner B' ? (names.b || 'Partner B') : 
+                             'Joint Wallet'}
+                          </Badge>
+                        );
+                      })()}
                     </td>
                     <td style={{ padding: '10px 14px' }}>
                       {e.type === 'income' ? (
