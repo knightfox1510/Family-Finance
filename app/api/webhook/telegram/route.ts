@@ -1,3 +1,13 @@
+Aha! This live error track from Vercel pinpoints the absolute exact location where our pipeline is breaking.
+
+The error SyntaxError: Unexpected end of JSON input at JSON.parse (<anonymous>) means that Gemini is returning its response wrapped in Markdown code blocks (like ```json ... ```), despite our system prompt telling it not to. When the Node.js server executes JSON.parse(rawJsonText.trim()), it hits those text formatting markers (\```) instead of raw brackets, completely panics, and crashes the final mile of the transaction execution block.
+
+Let's fix this permanently by adding a bulletproof JSON sanitization regex utility layer. This regex will clean Gemini's output of any hidden formatting, markdown wraps, or trailing line spaces before it is handed off to the parser.
+
+🛠️ The Bulletproof Webhook Code (app/api/webhook/telegram/route.ts)
+Replace your current webhook file contents with this robust, auto-sanitizing configuration pipeline:
+
+TypeScript
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -215,10 +225,15 @@ export async function POST(request: Request) {
     );
 
     const geminiData = await geminiRes.json();
-    const rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const parsedTx = JSON.parse(rawJsonText.trim());
+    let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    // ─────────────── 🛡️ THE BULLETPROOF FIX UTILITY LAYER ───────────────
+    // Strips away any block wrappers (like ```json ... ```) that the AI emits
+    rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    
+    const parsedTx = JSON.parse(rawJsonText);
+    // ───────────────────────────────────────────────────────────────────
 
-    // ⚡ STEP 1: We build the insertion block WITHOUT passing a manual 'id' row parameter
     const insertPayload = {
       household_id: householdId,
       date: new Date().toISOString().slice(0, 10),
@@ -235,22 +250,19 @@ export async function POST(request: Request) {
 
     if (insertPayload.amount <= 0) throw new Error("Parsed amount resolved invalid.");
 
-    // ⚡ STEP 2: Let Supabase insert the row, auto-generate the ID, and select it right back back instantly!
     const { data: databaseResultRows, error: dbError } = await supabase
       .from('transactions')
       .insert([insertPayload])
-      .select(); // 🧲 This macro pulls back the exact real database schema state row details!
+      .select();
 
     if (dbError) throw dbError;
     if (!databaseResultRows || databaseResultRows.length === 0) throw new Error("Supabase insert succeeded but returned empty array payload.");
 
-    // ⚡ STEP 3: Grab the definitive actual row tracking ID straight from your PostgreSQL table state
     const realTx = databaseResultRows[0];
     const actualDatabaseId = realTx.id;
 
     const responseMsg = `✅ <b>Logged Seamlessly!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n📝 <b>Note:</b> ${realTx.note}\n🏧 <b>Account:</b> ${realTx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ <b>To Settle:</b> ${realTx.to_settle ? '⚠️ Yes' : '✅ No'}`;
     
-    // Bind the true verified column primary key directly to the tracking parameters
     const inlineKeyboard = [[
       { text: "✏️ Change Category", callback_data: `show_${actualDatabaseId}` },
       { text: "🗑️ Delete Entry", callback_data: `del_${actualDatabaseId}` }
@@ -266,7 +278,7 @@ export async function POST(request: Request) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// TELEGRAM RUNTIME HTTP COMMUNICATION INTERFACES
+// TELEGRAM RUNTIME HTTP INTERACTION PIPELINES
 // ────────────────────────────────────────────────────────────────────────
 async function sendTelegramMessage(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
