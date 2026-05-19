@@ -2216,21 +2216,28 @@ function ExpenseList({
                     <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>
                       {e.type === 'income' ? '+' : ''}{fmt(e.amount, data.settings.currency)}
                     </td>
+                    {/* 7. Account Used Slot */}
                     <td style={{ padding: '10px 14px' }}>
                       {(() => {
-                        // Safely read either key format coming from the database
+                        // Support both raw Supabase database keys and transformed local state shapes
                         const activeAccount = e.account || e.account_used;
-                        const isJoint = activeAccount === 'Joint' || !activeAccount;
                         
-                        return (
-                          <Badge color={isJoint ? C.green : C.blue}>
-                            {activeAccount === 'Partner A' ? (names.a || 'Partner A') : 
-                             activeAccount === 'Partner B' ? (names.b || 'Partner B') : 
-                             'Joint Wallet'}
-                          </Badge>
-                        );
+                        // Standardize string checking metrics to avoid casing glitches
+                        const matchKey = String(activeAccount || '').trim().toLowerCase();
+                        
+                        if (matchKey === 'partner a' || matchKey === 'partnera') {
+                          return <Badge color={C.blue}>{names.a || 'Partner A'}</Badge>;
+                        }
+                        if (matchKey === 'partner b' || matchKey === 'partnerb') {
+                          return <Badge color={C.blue}>{names.b || 'Partner B'}</Badge>;
+                        }
+                        
+                        // 💳 SYSTEM DEFAULT: If it's explicitly 'Joint' OR empty/undefined, 
+                        // fallback dynamically to your system's unified configurations setting
+                        return <Badge color={C.green}>Joint Account</Badge>;
                       })()}
                     </td>
+                    
                     <td style={{ padding: '10px 14px' }}>
                       {e.type === 'income' ? (
                         <span style={{ color: C.muted }}>—</span>
