@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto'; // ⚡ FORCE IMPORT: Guarantees native cross-platform UUID compatibility
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-service-role-key-for-build-phase'; 
@@ -32,7 +33,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // ACTION 1: User clicked "Change Category" -> Reveal Grid Matrix
       if (dataStr.startsWith('show_')) {
         const txId = dataStr.split('show_')[1];
         
@@ -45,12 +45,11 @@ export async function POST(request: Request) {
         }
         inlineKeyboard.push([{ text: "◀ Cancel & Keep Original", callback_data: `keep_${txId}` }]);
 
-        await editTelegramMessageInline(chatId, messageId, "✏️ **Select the correct category below:**", inlineKeyboard);
+        await editTelegramMessageInline(chatId, messageId, "✏️ <b>Select the correct category below:</b>", inlineKeyboard);
         await answerCallbackQuery(callbackQuery.id);
         return NextResponse.json({ ok: true });
       }
 
-      // ACTION 2: User selected a replacement category button
       if (dataStr.startsWith('cat_')) {
         const [_, txId, indexStr] = dataStr.split('_');
         const targetCategory = QUICK_CATEGORIES[parseInt(indexStr, 10)];
@@ -67,14 +66,13 @@ export async function POST(request: Request) {
         }
 
         const tx = updatedRows?.[0] || {};
-        const freshBanner = `🔄 **Category Corrected Successfully!**\n\n💰 **Amount:** ₹${tx.amount}\n📦 **Category:** ${tx.category} ✨\n📝 **Note:** ${tx.note}\n🏧 **Account:** ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n👤 **Updated By:** @${tgUser}`;
+        const freshBanner = `🔄 <b>Category Corrected Successfully!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category} ✨\n📝 <b>Note:</b> ${tx.note || 'None'}\n🏧 <b>Account:</b> ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n👤 <b>Updated By:</b> @${tgUser}`;
         
         await editTelegramMessageInline(chatId, messageId, freshBanner, []);
         await answerCallbackQuery(callbackQuery.id, `✅ Adjusted to ${targetCategory}`);
         return NextResponse.json({ ok: true });
       }
 
-      // ACTION 3: User clicked "Delete" -> Drop row from database instantly
       if (dataStr.startsWith('del_')) {
         const txId = dataStr.split('del_')[1];
 
@@ -88,22 +86,19 @@ export async function POST(request: Request) {
           return NextResponse.json({ ok: true });
         }
 
-        // Wipe the confirmation metrics from view entirely so it can't be modified later
-        const deletionBanner = `🗑️ **Transaction Permanently Deleted**\n\nThis entry has been securely cleared from your cloud profile database ledger.`;
+        const deletionBanner = `🗑️ <b>Transaction Permanently Deleted</b>\n\nThis entry has been securely cleared from your cloud profile database ledger.`;
         await editTelegramMessageInline(chatId, messageId, deletionBanner, []);
         await answerCallbackQuery(callbackQuery.id, "💥 Entry permanently purged.");
         return NextResponse.json({ ok: true });
       }
 
-      // ACTION 4: Discard modifications
       if (dataStr.startsWith('keep_')) {
-        // Fetch original transaction data to restore standard display controls
         const txId = dataStr.split('keep_')[1];
         const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
         
         if (txRows && txRows[0]) {
           const tx = txRows[0];
-          const standardBanner = `✅ **Logged Seamlessly!**\n\n💰 **Amount:** ₹${tx.amount}\n📦 **Category:** ${tx.category}\n📝 **Note:** ${tx.note}\n🏧 **Account:** ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ **To Settle:** ${tx.to_settle ? '⚠️ Yes' : '✅ No'}`;
+          const standardBanner = `✅ <b>Logged Seamlessly!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category}\n📝 <b>Note:</b> ${tx.note || 'None'}\n🏧 <b>Account:</b> ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ <b>To Settle:</b> ${tx.to_settle ? '⚠️ Yes' : '✅ No'}`;
           
           const defaultKeyboard = [[
             { text: "✏️ Change Category", callback_data: `show_${txId}` },
@@ -224,6 +219,7 @@ export async function POST(request: Request) {
     const rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const parsedTx = JSON.parse(rawJsonText.trim());
 
+    // Clean cryptographic instantiation fallback to ensure standard build compiling
     const transactionId = crypto.randomUUID();
 
     const newDbTx = {
@@ -246,9 +242,9 @@ export async function POST(request: Request) {
     const { error: dbError } = await supabase.from('transactions').insert([newDbTx]);
     if (dbError) throw dbError;
 
-    const responseMsg = `✅ **Logged Seamlessly!**\n\n💰 **Amount:** ₹${newDbTx.amount}\n📦 **Category:** ${newDbTx.category}\n📝 **Note:** ${newDbTx.note}\n🏧 **Account:** ${newDbTx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ **To Settle:** ${newDbTx.to_settle ? '⚠️ Yes' : '✅ No'}`;
+    // 📡 Upgraded to standard HTML parsing layouts to insulate text formatting exceptions safely
+    const responseMsg = `✅ <b>Logged Seamlessly!</b>\n\n💰 <b>Amount:</b> ₹${newDbTx.amount}\n📦 <b>Category:</b> ${newDbTx.category}\n📝 <b>Note:</b> ${newDbTx.note}\n🏧 <b>Account:</b> ${newDbTx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ <b>To Settle:</b> ${newDbTx.to_settle ? '⚠️ Yes' : '✅ No'}`;
     
-    // ⚡ DOUBLE ACTION SYSTEM DOCK ROW: Changes Category and adds Delete option
     const inlineKeyboard = [[
       { text: "✏️ Change Category", callback_data: `show_${transactionId}` },
       { text: "🗑️ Delete Entry", callback_data: `del_${transactionId}` }
@@ -264,14 +260,14 @@ export async function POST(request: Request) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// TELEGRAM SYSTEM API COMMUNICATION PIPELINES
+// NATIVE HTML COMPLIANT TELEGRAM API DISPATCHERS
 // ────────────────────────────────────────────────────────────────────────
 async function sendTelegramMessage(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'Markdown' }),
+    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML' }), // Changed to HTML!
   });
 }
 
@@ -283,7 +279,7 @@ async function sendTelegramMessageInline(chatId: number, text: string, keyboard:
     body: JSON.stringify({
       chat_id: chatId,
       text: text,
-      parse_mode: 'Markdown',
+      parse_mode: 'HTML', // Changed to HTML!
       reply_markup: { inline_keyboard: keyboard }
     }),
   });
@@ -298,7 +294,7 @@ async function editTelegramMessageInline(chatId: number, messageId: number, text
       chat_id: chatId,
       message_id: messageId,
       text: text,
-      parse_mode: 'Markdown',
+      parse_mode: 'HTML', // Changed to HTML!
       reply_markup: { inline_keyboard: keyboard }
     }),
   });
