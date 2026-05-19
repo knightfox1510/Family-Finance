@@ -4616,79 +4616,19 @@ importData: async ({ expenses, contributions }: any) => {
               </div>
             )}
             
-            {/* ⚡ PRIVACY EYE + SIDEBAR TRIGGER CONTROL HUB */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button
-                onClick={togglePrivacy}
-                title={privacyMode ? "Reveal Financial Data" : "Mask Private Data"}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: C.text1,
-                  cursor: 'pointer',
-                  fontSize: 18,
-                  padding: 4,
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                {privacyMode ? '🙈' : '👁️'}
-              </button>
-
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: C.text1,
-                  cursor: 'pointer',
-                  fontSize: 20,
-                  padding: 4,
-                }}
-              >
-                {sidebarOpen ? '◀' : '☰'}
-              </button>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-              padding: '20px 12px',
-              flex: 1,
-              overflowY: 'auto',
-            }}
-          >
-            {NAV.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => setView(n.id)}
-                title={n.label}
-                style={{
-                  background: view === n.id ? C.amber + '22' : 'transparent',
-                  border: 'none',
-                  color: view === n.id ? C.amber : C.text2,
-                  borderRadius: 10,
-                  padding: sidebarOpen ? '12px 16px' : '12px',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: view === n.id ? 700 : 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: sidebarOpen ? 'flex-start' : 'center',
-                  gap: 12,
-                  transition: 'all .2s',
-                  textAlign: 'left',
-                }}
-              >
-                <span style={{ fontSize: 18 }}>{n.icon}</span>
-                {sidebarOpen && (
-                  <span style={{ whiteSpace: 'nowrap' }}>{n.label}</span>
-                )}
-              </button>
-            ))}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: C.text1,
+                cursor: 'pointer',
+                fontSize: 20,
+                padding: 4,
+              }}
+            >
+              {sidebarOpen ? '◀' : '☰'}
+            </button>
           </div>
 
           <div style={{ padding: '0 20px 10px', fontSize: 11, color: C.text2, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -4700,13 +4640,39 @@ importData: async ({ expenses, contributions }: any) => {
               padding: '20px',
               borderTop: `1px solid ${C.border}`,
               display: 'flex',
+              flexDirection: sidebarOpen ? 'row' : 'column',
+              gap: 10,
               justifyContent: 'center',
+              alignItems: 'center'
             }}
           >
+            {/* ⚡ PRIVACY EYE: Securely nested at the bottom utility dock */}
+            <button
+              onClick={togglePrivacy}
+              title={privacyMode ? "Reveal Financial Data" : "Mask Private Data"}
+              style={{
+                width: sidebarOpen ? 'auto' : '100%',
+                background: 'transparent',
+                border: `1px solid ${C.border}`,
+                color: privacyMode ? C.amber : C.text2,
+                borderRadius: 8,
+                padding: '10px 14px',
+                fontSize: 16,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s',
+              }}
+            >
+              {privacyMode ? '🙈' : '👁️'}
+            </button>
+
             <button
               onClick={() => supabase.auth.signOut()}
               title="Log Out"
               style={{
+                flex: 1,
                 width: '100%',
                 background: 'transparent',
                 border: sidebarOpen ? `1px solid ${C.border}` : 'none',
@@ -4716,12 +4682,15 @@ importData: async ({ expenses, contributions }: any) => {
                 fontSize: 14,
                 cursor: 'pointer',
                 fontWeight: 600,
+                textAlign: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               {sidebarOpen ? 'Log Out' : '🚪'}
             </button>
           </div>
-        </div>
       )}
 
       {/* MAIN AREA */}
