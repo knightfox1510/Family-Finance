@@ -214,7 +214,7 @@ async function loadData(userId: string) {
       partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
       expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.expense_categories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
       incomeCategories: unpackedSettings.incomeCategories || unpackedSettings.income_categories || DEFAULT_SETTINGS.incomeCategories,
-      budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {}
+      budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {},
       telegramUsername: currentProfileRow.data?.telegram_username || unpackedSettings.telegramUsername || ''
     };
     
