@@ -32,24 +32,27 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      if (dataStr.startsWith('show_')) {
-        const txId = dataStr.split('show_')[1];
+      // Action 1: User clicked "Change Category" -> Show Compact Grid
+      if (dataStr.startsWith('s_')) {
+        const txId = dataStr.split('s_')[1];
         
         const inlineKeyboard: any[] = [];
         for (let i = 0; i < QUICK_CATEGORIES.length; i += 2) {
           inlineKeyboard.push([
-            { text: QUICK_CATEGORIES[i], callback_data: `cat_${txId}_${i}` },
-            { text: QUICK_CATEGORIES[i+1], callback_data: `cat_${txId}_${i+1}` }
+            // Ultra-short prefix 'c_' keeps total payload size well under 64 bytes
+            { text: QUICK_CATEGORIES[i], callback_data: `c_${txId}_${i}` },
+            { text: QUICK_CATEGORIES[i+1], callback_data: `c_${txId}_${i+1}` }
           ]);
         }
-        inlineKeyboard.push([{ text: "◀ Cancel & Keep Original", callback_data: `keep_${txId}` }]);
+        inlineKeyboard.push([{ text: "◀ Cancel & Keep", callback_data: `k_${txId}` }]);
 
         await editTelegramMessageInline(chatId, messageId, "✏️ <b>Select the correct category below:</b>", inlineKeyboard);
         await answerCallbackQuery(callbackQuery.id);
         return NextResponse.json({ ok: true });
       }
 
-      if (dataStr.startsWith('cat_')) {
+      // Action 2: User selected a replacement category from the grid
+      if (dataStr.startsWith('c_')) {
         const [_, txId, indexStr] = dataStr.split('_');
         const targetCategory = QUICK_CATEGORIES[parseInt(indexStr, 10)];
 
@@ -65,15 +68,16 @@ export async function POST(request: Request) {
         }
 
         const tx = updatedRows?.[0] || {};
-        const freshBanner = `🔄 <b>Category Corrected Successfully!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category} ✨\n📝 <b>Note:</b> ${tx.note || 'None'}\n🏧 <b>Account:</b> ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n👤 <b>Updated By:</b> @${tgUser}`;
+        const freshBanner = `🔄 <b>Category Corrected Successfully!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount || 'Recorded'}\n📦 <b>Category:</b> ${tx.category || targetCategory} ✨\n🏧 <b>User handle:</b> @${tgUser}`;
         
         await editTelegramMessageInline(chatId, messageId, freshBanner, []);
         await answerCallbackQuery(callbackQuery.id, `✅ Adjusted to ${targetCategory}`);
         return NextResponse.json({ ok: true });
       }
 
-      if (dataStr.startsWith('del_')) {
-        const txId = dataStr.split('del_')[1];
+      // Action 3: Clear row from database instantly
+      if (dataStr.startsWith('d_')) {
+        const txId = dataStr.split('d_')[1];
 
         const { error: deleteError } = await supabase
           .from('transactions')
@@ -85,26 +89,19 @@ export async function POST(request: Request) {
           return NextResponse.json({ ok: true });
         }
 
-        const deletionBanner = `🗑️ <b>Transaction Permanently Deleted</b>\n\nThis entry has been securely cleared from your cloud profile database ledger.`;
-        await editTelegramMessageInline(chatId, messageId, deletionBanner, []);
-        await answerCallbackQuery(callbackQuery.id, "💥 Entry permanently purged.");
+        await editTelegramMessageInline(chatId, messageId, "🗑️ <b>Transaction permanently cleared from database ledger.</b>", []);
+        await answerCallbackQuery(callbackQuery.id, "💥 Purged successfully.");
         return NextResponse.json({ ok: true });
       }
 
-      if (dataStr.startsWith('keep_')) {
-        const txId = dataStr.split('keep_')[1];
-        const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
-        
-        if (txRows && txRows[0]) {
-          const tx = txRows[0];
-          const standardBanner = `✅ <b>Logged Seamlessly!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category}\n📝 <b>Note:</b> ${tx.note || 'None'}\n🏧 <b>Account:</b> ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ <b>To Settle:</b> ${tx.to_settle ? '⚠️ Yes' : '✅ No'}`;
-          
-          const defaultKeyboard = [[
-            { text: "✏️ Change Category", callback_data: `show_${txId}` },
-            { text: "🗑️ Delete Entry", callback_data: `del_${txId}` }
-          ]];
-          await editTelegramMessageInline(chatId, messageId, standardBanner, defaultKeyboard);
-        }
+      // Action 4: Cancel and restore basic options
+      if (dataStr.startsWith('k_')) {
+        const txId = dataStr.split('k_')[1];
+        const defaultKeyboard = [[
+          { text: "✏️ Change Category", callback_data: `s_${txId}` },
+          { text: "🗑️ Delete Entry", callback_data: `d_${txId}` }
+        ]];
+        await editTelegramMessageInline(chatId, messageId, "✅ <b>Transaction configuration preserved in ledger.</b>", defaultKeyboard);
         await answerCallbackQuery(callbackQuery.id);
         return NextResponse.json({ ok: true });
       }
@@ -113,7 +110,7 @@ export async function POST(request: Request) {
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH B: HANDLE STANDARD INCOMING NATURAL TEXT MESSAGES
+    // BRANCH B: HANDLE STANDARD INCOMING TEXT MESSAGES
     // ────────────────────────────────────────────────────────────────────────
     if (!payload.message || !payload.message.text) {
       return NextResponse.json({ ok: true });
@@ -130,7 +127,7 @@ export async function POST(request: Request) {
     }
 
     if (rawText.startsWith('/start')) {
-      await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the inline control buttons beneath confirmations to modify or delete logs dynamically.");
+      await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the buttons beneath confirmations to modify or delete logs dynamically.");
       return NextResponse.json({ ok: true });
     }
 
@@ -217,12 +214,8 @@ export async function POST(request: Request) {
     const geminiData = await geminiRes.json();
     let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
-    // ─────────────── 🛡️ THE BULLETPROOF FIX UTILITY LAYER ───────────────
-    // Strips away any block wrappers (like ```json ... ```) that the AI emits
     rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-    
     const parsedTx = JSON.parse(rawJsonText);
-    // ───────────────────────────────────────────────────────────────────
 
     const insertPayload = {
       household_id: householdId,
@@ -246,16 +239,18 @@ export async function POST(request: Request) {
       .select();
 
     if (dbError) throw dbError;
-    if (!databaseResultRows || databaseResultRows.length === 0) throw new Error("Supabase insert succeeded but returned empty array payload.");
+    if (!databaseResultRows || databaseResultRows.length === 0) throw new Error("Supabase insert empty response.");
 
     const realTx = databaseResultRows[0];
     const actualDatabaseId = realTx.id;
 
-    const responseMsg = `✅ <b>Logged Seamlessly!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n📝 <b>Note:</b> ${realTx.note}\n🏧 <b>Account:</b> ${realTx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ <b>To Settle:</b> ${realTx.to_settle ? '⚠️ Yes' : '✅ No'}`;
+    // 📡 MAXIMUM ISOLATION: Clean, basic HTML text to bypass any text rendering landmines
+    const responseMsg = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n📝 <b>Note:</b> ${realTx.note || 'None'}`;
     
+    // ⚡ SINGLE CHAR KEYS: 's_' and 'd_' keep total data lengths perfectly minimal
     const inlineKeyboard = [[
-      { text: "✏️ Change Category", callback_data: `show_${actualDatabaseId}` },
-      { text: "🗑️ Delete Entry", callback_data: `del_${actualDatabaseId}` }
+      { text: "✏️ Change Category", callback_data: `s_${actualDatabaseId}` },
+      { text: "🗑️ Delete Entry", callback_data: `d_${actualDatabaseId}` }
     ]];
 
     await sendTelegramMessageInline(chatId, responseMsg, inlineKeyboard);
@@ -268,7 +263,7 @@ export async function POST(request: Request) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// TELEGRAM RUNTIME HTTP INTERACTION PIPELINES
+// TELEGRAM RUNTIME CORE TRANSMISSION DOCKS
 // ────────────────────────────────────────────────────────────────────────
 async function sendTelegramMessage(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
