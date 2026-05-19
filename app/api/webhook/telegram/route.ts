@@ -1,13 +1,3 @@
-Aha! This live error track from Vercel pinpoints the absolute exact location where our pipeline is breaking.
-
-The error SyntaxError: Unexpected end of JSON input at JSON.parse (<anonymous>) means that Gemini is returning its response wrapped in Markdown code blocks (like ```json ... ```), despite our system prompt telling it not to. When the Node.js server executes JSON.parse(rawJsonText.trim()), it hits those text formatting markers (\```) instead of raw brackets, completely panics, and crashes the final mile of the transaction execution block.
-
-Let's fix this permanently by adding a bulletproof JSON sanitization regex utility layer. This regex will clean Gemini's output of any hidden formatting, markdown wraps, or trailing line spaces before it is handed off to the parser.
-
-🛠️ The Bulletproof Webhook Code (app/api/webhook/telegram/route.ts)
-Replace your current webhook file contents with this robust, auto-sanitizing configuration pipeline:
-
-TypeScript
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
