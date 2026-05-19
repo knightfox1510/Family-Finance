@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize a privileged server-side Supabase client using secret keys
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-// Uses the master admin service role key directly to bypass RLS restrictions safely from the server side
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''; 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
+
+// ⚡ FALLBACK IMPLEMENTATION: Passes compilation checks even when hidden keys aren't exposed to the compiler yet
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-service-role-key-for-build-phase'; 
+
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: false,
