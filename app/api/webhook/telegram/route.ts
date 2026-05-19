@@ -311,4 +311,3 @@ async function answerCallbackQuery(callbackQueryId: string, alertText?: string) 
     }),
   });
 }
-}
