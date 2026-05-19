@@ -3760,6 +3760,55 @@ function Settings({
         </div>
       </Card>
 
+      {/* ✈️ TELEGRAM BOT USERNAME LINK */}
+      <Card style={{ border: `1px solid ${C.teal}44` }}>
+        <SectionTitle>Telegram Account Synchronization</SectionTitle>
+        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
+          Link your public Telegram handle to enable conversational AI transaction logging. 
+          Do not include the <code>@</code> symbol.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <Label>Your Personal Telegram Username</Label>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <Inp
+                placeholder="e.g. goku_ops"
+                value={s.telegramUsername || s.telegram_username || ''}
+                onChange={(e: any) =>
+                  setS((x: any) => ({ ...x, telegramUsername: e.target.value.replace(/@/g, '').trim() }))
+                }
+                style={{ fontFamily: 'monospace' }}
+              />
+              <Btn
+                variant="ghost"
+                onClick={async () => {
+                  const handle = s.telegramUsername;
+                  if (!handle) {
+                    alert('Please input a valid username handle first.');
+                    return;
+                  }
+                  
+                  // Fire an explicit on-demand single database column update patch
+                  const { error } = await supabase
+                    .from('profiles')
+                    .update({ telegram_username: handle })
+                    .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
+
+                  if (error) {
+                    alert('Failed to link Telegram username: ' + error.message);
+                  } else {
+                    alert(`Successfully linked @${handle} to your ledger profile!`);
+                  }
+                }}
+              >
+                🔐 Link Handle
+              </Btn>
+            </div>
+          </div>
+        </div>
+      </Card>
+
 
       
       {/* Multiplayer / Household Sync */}
@@ -4654,26 +4703,26 @@ export default function App() {
     },
 
     saveSettings: async (s: any) => {
-      // 1. Update the local UI state reactively
       setData((prev: any) => ({ ...prev, settings: s }));
 
-      // 2. Compute what the active user's systemic role is based on their device state
       const deviceRole = typeof window !== 'undefined' 
         ? localStorage.getItem('active_partner_role') || 'Partner A' 
         : 'Partner A';
 
-      // 3. Run both database updates in parallel for clean performance
       try {
         const promises = [
-          // A. Save the global household settings
+          // A. Save household settings configurations
           supabase.from('household_settings').upsert({
             household_id: data.householdId,
             settings_data: s,
           }, { onConflict: 'household_id' }),
 
-          // B. Sync the active user's role profile to the profiles table
+          // B. Sync individual user profile attributes seamlessly!
           supabase.from('profiles')
-            .update({ display_name: deviceRole })
+            .update({ 
+              display_name: deviceRole,
+              telegram_username: s.telegramUsername // ✨ ENSURE THIS LINE IS ADDED HERE
+            })
             .eq('id', session.user.id)
         ];
 
