@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const payload = await request.json();
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH A: THE ADVANCED INTERACTIVE CONTROL CONSOLE (CALLBACK QUERIES)
+    // BRANCH A: INTERACTIVE CONTROL CONSOLE DISPATCH (CALLBACK QUERIES)
     // ────────────────────────────────────────────────────────────────────────
     if (payload.callback_query) {
       const callbackQuery = payload.callback_query;
@@ -34,7 +34,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // --- SUB-MENU: SHOW CATEGORY GRID ---
       if (dataStr.startsWith('s_cat_')) {
         const txId = dataStr.split('s_cat_')[1];
         const inlineKeyboard: any[] = [];
@@ -50,7 +49,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // --- SUB-MENU: SHOW ACCOUNT SELECTION ---
       if (dataStr.startsWith('s_acc_')) {
         const txId = dataStr.split('s_acc_')[1];
         const inlineKeyboard = [
@@ -66,17 +64,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // --- ACTION: PROMPT USER FOR NOTE TEXT ---
       if (dataStr.startsWith('s_not_')) {
         const txId = dataStr.split('s_not_')[1];
-        // Using ForceReply prompts Telegram to auto-focus the user's typing bar bound to this exact text block
         const promptMsg = `📝 <b>Editing Note for transaction reference:</b>\n<code>${txId}</code>\n\nPlease reply directly to this message block with your new custom note content.`;
         await sendTelegramForceReply(chatId, promptMsg);
         await answerCallbackQuery(callbackQuery.id);
         return NextResponse.json({ ok: true });
       }
 
-      // --- DIRECT TOGGLE ACTION: SETTLEMENT STATUS SWITCH ---
       if (dataStr.startsWith('t_set_')) {
         const txId = dataStr.split('t_set_')[1];
         const { data: current } = await supabase.from('transactions').select('to_settle').eq('id', txId).single();
@@ -88,7 +83,6 @@ export async function POST(request: Request) {
         return handleReturnToMenu(chatId, messageId, txId);
       }
 
-      // --- DIRECT TOGGLE ACTION: EXPENSE ⇄ INCOME SWITCH ---
       if (dataStr.startsWith('t_typ_')) {
         const txId = dataStr.split('t_typ_')[1];
         const { data: current } = await supabase.from('transactions').select('type').eq('id', txId).single();
@@ -100,7 +94,6 @@ export async function POST(request: Request) {
         return handleReturnToMenu(chatId, messageId, txId);
       }
 
-      // --- VALUE EXECUTION RESOLUTIONS ---
       if (dataStr.startsWith('v_cat_')) {
         const [_, __, txId, indexStr] = dataStr.split('_');
         const targetCategory = QUICK_CATEGORIES[parseInt(indexStr, 10)];
@@ -134,11 +127,12 @@ export async function POST(request: Request) {
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH B: STANDARD MESSAGES & TEXT REPLY LISTENER HANDLERS
+    // BRANCH B: STANDARD CONVERSATIONAL & ENTRY PARSER ENGINE
     // ────────────────────────────────────────────────────────────────────────
     if (payload.message) {
       const chatId = payload.message.chat.id;
       const tgUser = payload.message.from.username || '';
+      const rawText = payload.message.text || '';
       
       const allowedUsers = (process.env.TELEGRAM_ALLOWED_USER_NAMES || '').toLowerCase().split(',');
       if (!allowedUsers.includes(tgUser.toLowerCase())) {
@@ -146,50 +140,21 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // 🛑 OPTION RUNTIME CHECK: IS THIS A REPLY ATTEMPT TO MODIFY A NOTE?
+      // Intercept inline text notes modifications reply listeners
       if (payload.message.reply_to_message && payload.message.reply_to_message.text) {
         const replyText = payload.message.reply_to_message.text;
-        
-        // Scan the parent system alert to extract the matching unique key identifier
         if (replyText.includes('Editing Note for transaction reference:')) {
-          const textLines = replyText.split('\n');
-          const txId = textLines[1]?.trim(); // Extracts the exact UUID from line 2
-          const freshNoteContent = payload.message.text;
-
+          const txId = replyText.split('\n')[1]?.trim();
           if (txId) {
-            // Update the note field inside Supabase instantly
-            await supabase.from('transactions').update({ note: freshNoteContent }).eq('id', txId);
-            await sendTelegramMessage(chatId, `📝 <b>Note updated successfully to:</b> "${freshNoteContent}"`);
-            
-            // Re-fetch database metrics to paint a fresh dashboard interface
-            const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
-            if (txRows && txRows[0]) {
-              // Re-post a pristine main tracking view console down down below
-              const tx = txRows[0];
-              const baseBanner = `<b>📥 Transaction Updated Console</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category}\n🏧 <b>Account:</b> ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + tx.account_used}\n⚖️ <b>To Settle:</b> ${tx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${tx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${tx.note}`;
-              const inlineKeyboard = [
-                [
-                  { text: "📦 Category", callback_data: `s_cat_${txId}` },
-                  { text: "🏧 Account", callback_data: `s_acc_${txId}` },
-                  { text: "📝 Edit Note", callback_data: `s_not_${txId}` }
-                ],
-                [
-                  { text: tx.to_settle ? "⚖️ To Settle: Yes" : "⚖️ To Settle: No", callback_data: `t_set_${txId}` },
-                  { text: tx.type === 'expense' ? "🛑 Type: Expense" : "💸 Type: Income", callback_data: `t_typ_${txId}` },
-                  { text: "🗑️ Delete", callback_data: `d_${txId}` }
-                ]
-              ];
-              await sendTelegramMessageInline(chatId, baseBanner, inlineKeyboard);
-            }
-            return NextResponse.json({ ok: true });
+            await supabase.from('transactions').update({ note: rawText }).eq('id', txId);
+            await sendTelegramMessage(chatId, `📝 <b>Note updated successfully to:</b> "${rawText}"`);
+            return handleReturnToMenu(chatId, payload.message.message_id - 1, txId);
           }
         }
       }
 
-      // --- STANDARD TEXT EXPENSE ADDITIONS PIPELINE ---
-      const rawText = payload.message.text || '';
       if (rawText.startsWith('/start')) {
-        await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the control panel dashboard grid beneath confirmation logs to alter any matrix metric dynamically.");
+        await sendTelegramMessage(chatId, "👋 Welcome! Send expenses naturally to log them, or ask plain English questions to run real-time metrics data summaries!");
         return NextResponse.json({ ok: true });
       }
 
@@ -198,10 +163,88 @@ export async function POST(request: Request) {
       const isPartnerA = tgUser.toLowerCase().includes('goku');
       const senderIdentity = isPartnerA ? 'Partner A' : 'Partner B';
 
-      const systemPrompt = `You are an expert personal finance data-entry clerk processing text for a household ledger in India.
-      Analyze the text input and map it cleanly into a structured JSON payload matching these criteria:
+      // 📡 INTENT DISCRIMINATOR PROMPT MATRIX
+      const intentPrompt = `You are a intent analysis router for a personal finance system. 
+      Analyze this user text input and determine if they want to LOG a transaction entry, or QUERY/ANALYZE existing historical data records.
+      
+      Examples of LOG: "250 Zepto", "1200 dining out joint", "500 petrol paid by Gaurav to settle"
+      Examples of QUERY: "How much did we spend on Zepto this week?", "Show me the last 5 transactions", "What is our balance?"
 
-            VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
+      Respond ONLY with a raw single word: "LOG" or "QUERY". Input text: "${rawText}"`;
+
+      const intentRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: intentPrompt }] }] })
+      });
+      const intentData = await intentRes.json();
+      const resolvedIntent = (intentData.candidates?.[0]?.content?.parts?.[0]?.text || 'LOG').trim().toUpperCase();
+
+      // ─── OPTION PORTAL 1: CONVERSATIONAL TEXT-TO-SQL INTENT QUERY ───
+      if (resolvedIntent.includes('QUERY')) {
+        const currentYear = new Date().getFullYear();
+        
+        const textToSqlPrompt = `You are an expert PostgreSQL engineer tracking a ledger. Generate a clean SELECT query to answer the question based on this table schema.
+        Table Name: "transactions"
+        Columns:
+        - "id" (uuid, primary key)
+        - "household_id" (uuid)
+        - "date" (date, format YYYY-MM-DD)
+        - "amount" (numeric)
+        - "category" (text: "Groceries", "Dining Out", "Online Groceries", "Online Food Orders", "Cab Services", "Personal Transportation", "Miscellaneous", etc.)
+        - "type" (text: "expense" or "income")
+        - "account_used" (text: "Joint", "Partner A", "Partner B")
+        - "added_by" (text: "Partner A", "Partner B")
+        - "note" (text)
+        - "to_settle" (boolean)
+        - "settled" (boolean)
+
+        CRUCIAL INSTRUCTIONS:
+        1. Always filter by household_id = '${householdId}' explicitly.
+        2. Output ONLY the raw SQL query. Do not wrap it in markdown code blocks like \`\`\`sql. 
+        3. Make text comparisons case-insensitive using ILIKE where applicable.
+        4. Current Year context boundary is: ${currentYear}.
+        
+        User plain text question: "${rawText}"`;
+
+        const sqlGenRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: textToSqlPrompt }] }] })
+        });
+        const sqlGenData = await sqlGenRes.json();
+        let querySql = (sqlGenData.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
+        querySql = querySql.replace(/```sql/gi, '').replace(/```/g, '').trim();
+
+        // Fire query directly to our secure readout database function
+        const { data: sqlOutput, error: rpcError } = await supabase.rpc('execute_read_only_query', { query_text: querySql });
+
+        if (rpcError || (sqlOutput && sqlOutput.error)) {
+          await sendTelegramMessage(chatId, `⚠️ <b>Database metrics mapping boundary failed.</b> Please try rephrasing your analysis statement question.`);
+          return NextResponse.json({ ok: true });
+        }
+
+        // Humanize the tabular database numbers back into conversational phrases
+        const summaryPrompt = `You are a helpful personal finance copilot. Translate this raw JSON database data result into a beautifully clear, conversational, and direct bulletproof HTML summary message to answer the user's question.
+        User Question: "${rawText}"
+        Executed SQL: \`${querySql}\`
+        Raw Result Dataset: ${JSON.stringify(sqlOutput)}
+        
+        Format beautifully using HTML formatting rules (<b>, <code>, <i>) where applicable. Keep it concise.`;
+
+        const summaryRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: summaryPrompt }] }] })
+        });
+        const summaryData = await summaryRes.json();
+        const finalConversationalReply = summaryData.candidates?.[0]?.content?.parts?.[0]?.text || 'No summarization yielded.';
+
+        await sendTelegramMessage(chatId, finalConversationalReply);
+        return NextResponse.json({ ok: true });
+      }
+
+      // ─── OPTION PORTAL 2: STANDARD TRANSACTION INSULATION PUSH ENTRY ───
+      const systemPrompt = `You are an expert personal finance clerk processing raw ledger data. Map text input to valid JSON.
+      
+     VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
     - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, specific alcohol logs)
     - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, physically eating out at a venue)
     - "Education"           (Course fees, certifications, books, training programs, upskilling materials)
@@ -233,29 +276,17 @@ export async function POST(request: Request) {
     - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
     - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
       
-      CRUCIAL ACCOUNTING & ROUTING LAWS:
-      1. ACCOUNT SELECTION LOGIC:
-         - If the text explicitly contains the words "joint", "joint account", or "joint wallet", set "account" to "Joint".
-         - If the text explicitly mentions "Partner A" or the name "Gaurav", set "account" to "Partner A".
-         - If the text explicitly mentions "Partner B" or the name "Karishma", set "account" to "Partner B".
-         - DEFAULT: If neither are explicitly stated, default to exactly "${senderIdentity}".
-      
-      2. SETTLEMENT TOGGLE ("to_settle"): If text contains "to be settled", "tosettle", or "to settle", set "toSettle" to true. Else false.
-      3. TRANSACTION TYPE ("type"): If text contains "Salary", "Bonus", "Interest credited", "refund", or "rental income", set "type" to "income". Else "expense".
+      ACCOUNT SELECTION: "Joint" if text says joint/joint account. "Partner A" if mentions Gaurav or Goku. "Partner B" if mentions Karishma or Kari. Else default to "${senderIdentity}".
+      SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
+      TYPE: "income" if text contains salary/bonus/interest credited. Else "expense".
 
-      Return ONLY a raw valid JSON object pattern matching structure:
-      {"amount": 1200, "category": "Online Groceries", "note": "Weekly Zepto run", "type": "expense", "account": "Joint", "toSettle": false}`;
+      Return ONLY a raw valid JSON string:
+      {"amount": 500, "category": "Online Groceries", "note": "Zepto", "type": "expense", "account": "Joint", "toSettle": false}`;
 
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input text to process: "${rawText}"` }] }],
-          }),
-        }
-      );
+      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input: "${rawText}"` }] }] })
+      });
 
       const geminiData = await geminiRes.json();
       let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -263,7 +294,6 @@ export async function POST(request: Request) {
       const parsedTx = JSON.parse(rawJsonText);
 
       const secureUuidFallback = crypto.randomUUID();
-
       const insertPayload = {
         id: secureUuidFallback,
         household_id: householdId,
@@ -280,7 +310,6 @@ export async function POST(request: Request) {
       };
 
       if (insertPayload.amount <= 0) throw new Error("Parsed amount resolved invalid.");
-
       const { data: dbRows, error: dbError } = await supabase.from('transactions').insert([insertPayload]).select();
       if (dbError) throw dbError;
 
@@ -289,7 +318,6 @@ export async function POST(request: Request) {
 
       const responseMsg = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n🏧 <b>Account:</b> ${realTx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + realTx.account_used}\n⚖️ <b>To Settle:</b> ${realTx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${realTx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${realTx.note}`;
       
-      // 📡 THE CONTROL PANEL HUB GRID
       const inlineKeyboard = [
         [
           { text: "📦 Category", callback_data: `s_cat_${activeId}` },
@@ -315,7 +343,7 @@ export async function POST(request: Request) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// DYNAMIC REDRAW ENGINE & TELEGRAM DISPATCH PIPELINES
+// DYNAMIC REDRAW SWITCHBOARD HOOKS
 // ────────────────────────────────────────────────────────────────────────
 async function handleReturnToMenu(chatId: number, messageId: number, txId: string) {
   const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
@@ -343,8 +371,7 @@ async function handleReturnToMenu(chatId: number, messageId: number, txId: strin
 async function sendTelegramMessage(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML' }),
   });
 }
@@ -352,55 +379,31 @@ async function sendTelegramMessage(chatId: number, text: string) {
 async function sendTelegramMessageInline(chatId: number, text: string, keyboard: any[]) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: text,
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: keyboard }
-    }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } }),
   });
 }
 
 async function editTelegramMessageInline(chatId: number, messageId: number, text: string, keyboard: any[]) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      message_id: messageId,
-      text: text,
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: keyboard }
-    }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } }),
   });
 }
 
 async function sendTelegramForceReply(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: text,
-      parse_mode: 'HTML',
-      reply_markup: { force_reply: true, selective: true }
-    }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML', reply_markup: { force_reply: true, selective: true } }),
   });
 }
 
 async function answerCallbackQuery(callbackQueryId: string, alertText?: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      callback_query_id: callbackQueryId,
-      text: alertText || "",
-      show_alert: false
-    }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ callback_query_id: callbackQueryId, text: alertText || "", show_alert: false }),
   });
 }
