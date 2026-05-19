@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import crypto from 'crypto'; // ⚡ FORCE IMPORT: Guarantees native cross-platform UUID compatibility
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-service-role-key-for-build-phase'; 
@@ -204,7 +203,7 @@ export async function POST(request: Request) {
     {"amount": 1200, "category": "Online Groceries", "note": "Weekly Zepto run", "type": "expense", "account": "Joint", "toSettle": false}`;
 
     // Fire text payload directly to Gemini API
-    const geminiRes = await fetch(
+   const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
       {
         method: 'POST',
@@ -219,11 +218,8 @@ export async function POST(request: Request) {
     const rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
     const parsedTx = JSON.parse(rawJsonText.trim());
 
-    // Clean cryptographic instantiation fallback to ensure standard build compiling
-    const transactionId = crypto.randomUUID();
-
-    const newDbTx = {
-      id: transactionId,
+    // ⚡ STEP 1: We build the insertion block WITHOUT passing a manual 'id' row parameter
+    const insertPayload = {
       household_id: householdId,
       date: new Date().toISOString().slice(0, 10),
       amount: Number(parsedTx.amount || 0),
@@ -237,17 +233,27 @@ export async function POST(request: Request) {
       settled_with: null
     };
 
-    if (newDbTx.amount <= 0) throw new Error("Parsed amount resolved invalid.");
+    if (insertPayload.amount <= 0) throw new Error("Parsed amount resolved invalid.");
 
-    const { error: dbError } = await supabase.from('transactions').insert([newDbTx]);
+    // ⚡ STEP 2: Let Supabase insert the row, auto-generate the ID, and select it right back back instantly!
+    const { data: databaseResultRows, error: dbError } = await supabase
+      .from('transactions')
+      .insert([insertPayload])
+      .select(); // 🧲 This macro pulls back the exact real database schema state row details!
+
     if (dbError) throw dbError;
+    if (!databaseResultRows || databaseResultRows.length === 0) throw new Error("Supabase insert succeeded but returned empty array payload.");
 
-    // 📡 Upgraded to standard HTML parsing layouts to insulate text formatting exceptions safely
-    const responseMsg = `✅ <b>Logged Seamlessly!</b>\n\n💰 <b>Amount:</b> ₹${newDbTx.amount}\n📦 <b>Category:</b> ${newDbTx.category}\n📝 <b>Note:</b> ${newDbTx.note}\n🏧 <b>Account:</b> ${newDbTx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ <b>To Settle:</b> ${newDbTx.to_settle ? '⚠️ Yes' : '✅ No'}`;
+    // ⚡ STEP 3: Grab the definitive actual row tracking ID straight from your PostgreSQL table state
+    const realTx = databaseResultRows[0];
+    const actualDatabaseId = realTx.id;
+
+    const responseMsg = `✅ <b>Logged Seamlessly!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n📝 <b>Note:</b> ${realTx.note}\n🏧 <b>Account:</b> ${realTx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ <b>To Settle:</b> ${realTx.to_settle ? '⚠️ Yes' : '✅ No'}`;
     
+    // Bind the true verified column primary key directly to the tracking parameters
     const inlineKeyboard = [[
-      { text: "✏️ Change Category", callback_data: `show_${transactionId}` },
-      { text: "🗑️ Delete Entry", callback_data: `del_${transactionId}` }
+      { text: "✏️ Change Category", callback_data: `show_${actualDatabaseId}` },
+      { text: "🗑️ Delete Entry", callback_data: `del_${actualDatabaseId}` }
     ]];
 
     await sendTelegramMessageInline(chatId, responseMsg, inlineKeyboard);
@@ -260,14 +266,14 @@ export async function POST(request: Request) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// NATIVE HTML COMPLIANT TELEGRAM API DISPATCHERS
+// TELEGRAM RUNTIME HTTP COMMUNICATION INTERFACES
 // ────────────────────────────────────────────────────────────────────────
 async function sendTelegramMessage(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML' }), // Changed to HTML!
+    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML' }),
   });
 }
 
@@ -279,7 +285,7 @@ async function sendTelegramMessageInline(chatId: number, text: string, keyboard:
     body: JSON.stringify({
       chat_id: chatId,
       text: text,
-      parse_mode: 'HTML', // Changed to HTML!
+      parse_mode: 'HTML',
       reply_markup: { inline_keyboard: keyboard }
     }),
   });
@@ -294,7 +300,7 @@ async function editTelegramMessageInline(chatId: number, messageId: number, text
       chat_id: chatId,
       message_id: messageId,
       text: text,
-      parse_mode: 'HTML', // Changed to HTML!
+      parse_mode: 'HTML',
       reply_markup: { inline_keyboard: keyboard }
     }),
   });
