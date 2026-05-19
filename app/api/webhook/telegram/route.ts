@@ -88,7 +88,7 @@ export async function POST(request: Request) {
 
         const settleKeyboard = [
           [
-            { text: "⚠️ Yes, Split 50/50", callback_data: `w_fin_${txId}_true` },
+            { text: "⚠️ Yes, Joint Account", callback_data: `w_fin_${txId}_true` },
             { text: "✅ No, Personal Expense", callback_data: `w_fin_${txId}_false` }
           ]
         ];
@@ -291,50 +291,78 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // ─── 🤖 PATH 2: MULTI-ROW NATURAL LANGUAGE PARSER PIPELINE ───
+      // ─── 🤖 PATH 2: MULTI-ROW DYNAMIC TENANT NATURAL LANGUAGE PARSER ───
+      
+      // 1. Pre-fetch multi-tenant custom profile configurations from settings
+      let nameA = "Partner A";
+      let nameB = "Partner B";
+      
+      if (householdId) {
+        const { data: settingsRow } = await supabase
+          .from('household_settings')
+          .select('settings_data')
+          .eq('household_id', householdId)
+          .single();
+          
+        if (settingsRow?.settings_data) {
+          const settings = typeof settingsRow.settings_data === 'string' 
+            ? JSON.parse(settingsRow.settings_data) 
+            : settingsRow.settings_data;
+          
+          nameA = settings.partnerAName || settings.partner_a_name || nameA;
+          nameB = settings.partnerBName || settings.partner_b_name || nameB;
+        }
+      }
+
+      // 2. Build the system configuration prompt injecting dynamic variables
       const systemPrompt = `You are an expert personal finance clerk parsing ledger lines. 
       Analyze the text input and extract EVERY individual transaction item mentioned. 
       Map the entries into a valid JSON array of objects.
       
       VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
-    - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, whiskey, gin, vodka, specific alcohol logs)
-    - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, food at JP, JP food, physically eating out at a venue)
-    - "Education"           (Course fees, certifications, books, training programs, upskilling materials)
-    - "Entertainment"       (Movie tickets, Movie names, BookMyShow, gaming arcades, bowling alleys, concerts, events, fun outings)
-    - "Groceries"           (Offline local kirana stores, Metro, Fruits, Grocery, physical vegetable/fruit markets, cash grocery purchases)
-    - "Healthcare"          (Pharmacies, Medical, medical stores like Apollo, doctor, checkups, lab tests, dental treatments, medicines)
-    - "Gifting"             (Buying gifts for friends, family members, relatives; shagun/cash envelopes for weddings or birthdays)
-    - "Housing"             (Monthly house rent, society maintenance bills, Home loan EMI)
-    - "Insurance"           (Health insurance premiums, car/bike motor insurance renewals, term life insurance policies)
-    - "Investments"         (Mutual fund allocations, monthly SIPs, Smallcase, Zerodha, Gold coin, US stocks, IND Money, NJ E-wealth, SIP, direct stocks buying, gold purchases, PPF deposits, Index funds)
-    - "Miscellaneous"       (Unexpected or unclassifiable payments, ATM cash withdrawals, random one-off pocket cash items)
-    - "Offline Shopping"    (Physical retail checkout counters, apparel or footwear bought at a mall/store, lifestyle physical shopping)
-    - "Online Shopping"     (Amazon, Flipkart, Myntra, Ajio, Tata CLiQ, non-grocery online courier packages, retail websites)
-    - "Personal Care"       (Salon visits, haircuts, beauty parlour sessions, grooming products, spa, cosmetics, skincare items)
-    - "Personal Transportation" (Petrol, Bike EMI, Helmet, car or motorcycle service/repairs, toll payments, fastag recharges, parking fees)
-    - "Savings"             (Manual transfers to long-term cash reserves, emergency savings funds, specific sinking fund transfers)
-    - "Subscriptions"       (Netflix, Amazon Prime, Google API, Spotify, iCloud storage, YouTube Premium, gym memberships, recurring software apps/services)
-    - "Health & Fitness"    (Protein powder, gym supplements, Yoga classes, workout fitness gear, tracking straps, organic health food products)
-    - "Taxes"               (Income tax filings, property tax payments, municipal or government duty filings)
-    - "Technology"          (Software license keys, digital tools, cloud hosting packages, gadgets, computer/mobile electronic accessories)
-    - "Travel"              (Flight tickets, hotel bookings, Airbnb stays, IRCTC train tickets, vacation bookings, luggage travel luggage bags)
-    - "Utilities"           (Mobile recharges like Jio/Airtel/VI, home broadband Wi-Fi bills, electricity bills, piped gas, Laundry, Maid salary, Cook Salary)
-    - "Online Food Orders"  (Zomato, Swiggy food, EatClub, Domino's, pizza/burger drops, cloud kitchen orders)
-    - "Household Items"     (Household items, Kitchen items, Cleaning liquids, laundry/washing detergents, garbage bags, trash cans, mop replacements, house decor, bedsheets, Amazon orders)
-    - "Cab Services"        (Uber rides, Ola bookings, Rapido, InDrive, auto, rickshaw, cab)
-    - "Hosting Day"         (Ordering bulk food/alcohol/snacks specifically when friends, family, or guests are visiting the house for a social gathering)
-    - "Online Groceries"    (Zepto orders, Blinkit orders, Swiggy Instamart delivery, BigBasket, daily milk/produce apps)
-    - "Interest Earned"     (Bank savings account quarterly interest payouts, fixed deposit (FD) interest pay-ins)
-    - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
-    - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
+      - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, whiskey, gin, vodka, specific alcohol logs)
+      - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, food at JP, JP food, physically eating out at a venue)
+      - "Education"           (Course fees, certifications, books, training programs, upskilling materials)
+      - "Entertainment"       (Movie tickets, Movie names, BookMyShow, gaming arcades, bowling alleys, concerts, events, fun outings)
+      - "Groceries"           (Offline local kirana stores, Metro, Fruits, Grocery, physical vegetable/fruit markets, cash grocery purchases)
+      - "Healthcare"          (Pharmacies, Medical, medical stores like Apollo, doctor, checkups, lab tests, dental treatments, medicines)
+      - "Gifting"             (Buying gifts for friends, family members, relatives; shagun/cash envelopes for weddings or birthdays)
+      - "Housing"             (Monthly house rent, society maintenance bills, Home loan EMI)
+      - "Insurance"           (Health insurance premiums, car/bike motor insurance renewals, term life insurance policies)
+      - "Investments"         (Mutual fund allocations, monthly SIPs, Smallcase, Zerodha, Gold coin, US stocks, IND Money, NJ E-wealth, SIP, direct stocks buying, gold purchases, PPF deposits, Index funds)
+      - "Miscellaneous"       (Unexpected or unclassifiable payments, ATM cash withdrawals, random one-off pocket cash items)
+      - "Offline Shopping"    (Physical retail checkout counters, apparel or footwear bought at a mall/store, lifestyle physical shopping)
+      - "Online Shopping"     (Amazon, Flipkart, Myntra, Ajio, Tata CLiQ, non-grocery online courier packages, retail websites)
+      - "Personal Care"       (Salon visits, haircuts, beauty parlour sessions, grooming products, spa, cosmetics, skincare items)
+      - "Personal Transportation" (Petrol, Bike EMI, Helmet, car or motorcycle service/repairs, toll payments, fastag recharges, parking fees)
+      - "Savings"             (Manual transfers to long-term cash reserves, emergency savings funds, specific sinking fund transfers)
+      - "Subscriptions"       (Netflix, Amazon Prime, Google API, Spotify, iCloud storage, YouTube Premium, gym memberships, recurring software apps/services)
+      - "Health & Fitness"    (Protein powder, gym supplements, Yoga classes, workout fitness gear, tracking straps, organic health food products)
+      - "Taxes"               (Income tax filings, property tax payments, municipal or government duty filings)
+      - "Technology"          (Software license keys, digital tools, cloud hosting packages, gadgets, computer/mobile electronic accessories)
+      - "Travel"              (Flight tickets, hotel bookings, Airbnb stays, IRCTC train tickets, vacation bookings, luggage travel luggage bags)
+      - "Utilities"           (Mobile recharges like Jio/Airtel/VI, home broadband Wi-Fi bills, electricity bills, piped gas, Laundry, Maid salary, Cook Salary)
+      - "Online Food Orders"  (Zomato, Swiggy food, EatClub, Domino's, pizza/burger drops, cloud kitchen orders)
+      - "Household Items"     (Household items, Kitchen items, Cleaning liquids, laundry/washing detergents, garbage bags, trash cans, mop replacements, house decor, bedsheets, Amazon orders)
+      - "Cab Services"        (Uber rides, Ola bookings, Rapido, InDrive, auto, rickshaw, cab)
+      - "Hosting Day"         (Ordering bulk food/alcohol/snacks specifically when friends, family, or guests are visiting the house for a social gathering)
+      - "Online Groceries"    (Zepto orders, Blinkit orders, Swiggy Instamart delivery, BigBasket, daily milk/produce apps)
+      - "Interest Earned"     (Bank savings account quarterly interest payouts, fixed deposit (FD) interest pay-ins)
+      - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
+      - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
       
-      ACCOUNT SELECTION: "Joint" if text says joint/joint account/wallet. "Partner A" if mentions Gaurav. "Partner B" if mentions Karishma. Else default to "${senderIdentity}".
+      ACCOUNT SELECTION RULES:
+      - Map to "Partner A" if text mentions or explicitly implies ${nameA}.
+      - Map to "Partner B" if text mentions or explicitly implies ${nameB}.
+      - Map to "Joint" if text says joint/corporate wallet/shared pool.
+      - Default to "Joint" if no distinct profile entity matching can be inferred.
+
       SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
       TYPE: "income" if text contains salary/bonus/credited/refund. Else "expense".
 
-      CRUCIAL CLEANING RULE: The "note" field must contain ONLY the physical description or store merchant name (e.g., "Savana", "Zepto", "Fuel"). Strikingly remove tracking names like "Gaurav", "Karishma", "Joint" or settlement phrases like "to settle", "to be settled" from the final note string entirely. Do not put the category name inside the note.`;
+      CRUCIAL CLEANING RULE: The "note" field must contain ONLY the physical item description or store merchant name (e.g., "Savana", "Zepto", "Fuel"). Strikingly remove dynamic tracking names like "${nameA}", "${nameB}", "Joint" or settlement phrases from the final note string entirely. Do not put the category name inside the note.`;
 
-      // Define a strict schema to prevent Gemini from returning empty strings or broken fields
+      // 3. Define the deterministic strict array object constraints schema blueprint
       const transactionSchema = {
         type: "ARRAY",
         description: "List of extracted financial transaction items from the user input sentence string",
@@ -352,7 +380,7 @@ export async function POST(request: Request) {
         }
       };
 
-      // RUNNING DOCK CALL WITH NATIVE SCHEMA PROTECTION
+      // 4. Dispatch call using native structural constraints enforcement
       const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
@@ -360,7 +388,6 @@ export async function POST(request: Request) {
           contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input: "${rawText}"` }] }],
           generationConfig: {
             responseMimeType: "application/json",
-            // ─── THE CRITICAL MISSING LINK: SPECIFY THE TYPE COMPLIANCE SCHEMA ───
             responseSchema: transactionSchema
           }
         })
@@ -369,29 +396,33 @@ export async function POST(request: Request) {
       const geminiData = await geminiRes.json();
       let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
-      // Fallback fallback cleaning if string containers present markdown markers
       if (rawJsonText.includes('```')) {
         rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
       } else {
         rawJsonText = rawJsonText.trim();
       }
 
-      // Check if the payload returned is completely blank before parsing to protect from crashing
       if (!rawJsonText) {
         console.error("Gemini returned an empty response text context body string.");
         await sendTelegramMessage(chatId, "⚠️ AI configuration failed to map this sentence layout clearly. Please use short syntax elements.");
         return NextResponse.json({ ok: true });
       }
       
-      // Parse the JSON payload safely as a robust Array list container
       const parsedTransactionsArray = JSON.parse(rawJsonText);
       
       if (!Array.isArray(parsedTransactionsArray)) {
         throw new Error("Gemini compile failure: Output did not resolve to an array matrix.");
       }
 
+      // 5. Asynchronous sequential database commit mapping runner loop
       for (const parsedTx of parsedTransactionsArray) {
         const secureUuidFallback = crypto.randomUUID();
+        
+        // Normalize returned accounts into generic database-safe column values
+        let dbAccountMapping = 'Joint';
+        if (parsedTx.account === 'Partner A') dbAccountMapping = 'Partner A';
+        if (parsedTx.account === 'Partner B') dbAccountMapping = 'Partner B';
+
         const insertPayload = {
           id: secureUuidFallback,
           household_id: householdId,
@@ -399,7 +430,7 @@ export async function POST(request: Request) {
           amount: Number(parsedTx.amount || 0),
           category: parsedTx.category || 'Miscellaneous',
           type: parsedTx.type || 'expense',
-          account_used: parsedTx.account,
+          account_used: dbAccountMapping,
           added_by: senderIdentity,
           note: parsedTx.note || 'Multi-log entry',
           to_settle: Boolean(parsedTx.toSettle),
@@ -412,17 +443,6 @@ export async function POST(request: Request) {
         const { data: dbRows } = await supabase.from('transactions').insert([insertPayload]).select();
         const realTx = dbRows && dbRows[0] ? dbRows[0] : insertPayload;
         const activeId = realTx.id;
-
-        let nameA = "Partner A";
-        let nameB = "Partner B";
-        if (householdId) {
-          const { data: settingsRow } = await supabase.from('household_settings').select('settings_data').eq('household_id', householdId).single();
-          if (settingsRow?.settings_data) {
-            const settings = typeof settingsRow.settings_data === 'string' ? JSON.parse(settingsRow.settings_data) : settingsRow.settings_data;
-            nameA = settings.partnerAName || settings.partner_a_name || nameA;
-            nameB = settings.partnerBName || settings.partner_b_name || nameB;
-          }
-        }
 
         let accountDisplay = '💳 Joint Account';
         if (realTx.account_used === 'Partner A') accountDisplay = `👤 ${nameA}`;
@@ -453,14 +473,11 @@ export async function POST(request: Request) {
   } catch (err: any) {
     console.error('Core Webhook Route Operations Error Failure:', err);
     
-    // ─── SAFELY ALERT THE USER VIA TELEGRAM ON CRITICAL RUNTIME CRASHES ───
     try {
-      // Extract the chatId from either message payload branch dynamically
       const requestPayload = JSON.parse(await request.clone().text()).catch(() => ({}));
       const chatId = requestPayload?.message?.chat?.id || requestPayload?.callback_query?.message?.chat?.id;
       
       if (chatId) {
-        // Human-friendly debugging string matching your theme accents
         const failureAlert = `❌ <b>Transaction Logging Failed</b>\n\n⚠️ Your entry could not be processed automatically.\n\n🧐 <b>Error Context:</b> <code>${err?.message || 'Unknown Runtime Exception'}</code>\n\n<i>Please check your balance values or re-verify the text formatting structures.</i>`;
         
         const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -474,7 +491,6 @@ export async function POST(request: Request) {
       console.error('Failed to dispatch error alert callback payload back to Telegram:', nestedNotificationError);
     }
 
-    // Always keep returning 200 OK to Telegram so it doesn't jam up your webhook queues
     return NextResponse.json({ ok: true }); 
   }
 }
