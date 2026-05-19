@@ -4798,7 +4798,16 @@ export default function App() {
             padding: isMobile ? '20px 20px 100px' : '40px 40px 100px',
           }}
         >
-          <div style={{ marginBottom: 24 }}>
+          {/* DYNAMIC HEADER CONTROLS DOCK */}
+          <div 
+            style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginBottom: 24,
+              gap: 12
+            }}
+          >
             <h2
               style={{
                 color: C.textW,
@@ -4810,67 +4819,66 @@ export default function App() {
             >
               {NAV.find((n) => n.id === view)?.label}
             </h2>
+
+            {/* 🔄 THE GLOBAL REFRESH UTILITY (Stays active across Dashboard, Income, Expenses, & Settlements) */}
+            {view !== 'add' && view !== 'settings' && (
+              <button
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                style={{
+                  background: isRefreshing ? C.surface : 'transparent',
+                  border: `1px solid ${C.border}`,
+                  color: isRefreshing ? C.text2 : C.text1,
+                  padding: '6px 14px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  cursor: isRefreshing ? 'not-allowed' : 'pointer',
+                  opacity: isRefreshing ? 0.6 : 1,
+                  transition: 'all 0.2s ease',
+                  outline: 'none',
+                }}
+              >
+                <svg
+                  style={{
+                    width: 13,
+                    height: 13,
+                    color: C.amber,
+                    transform: isRefreshing ? 'rotate(360deg)' : 'none',
+                    transition: isRefreshing ? 'transform 0.5s linear infinite' : 'none',
+                    animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
+                  }}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <style>{`
+                    @keyframes spin {
+                      0% { transform: rotate(0deg); }
+                      100% { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2.5}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.253 8H18"
+                  />
+                </svg>
+                {isRefreshing ? 'Syncing Vault...' : 'Refresh Data'}
+              </button>
+            )}
           </div>
 
           {/* VIEW ROUTER */}
-          {view === 'dashboard' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* 🔄 THE INTERACTIVE DOCK ALIGNED PERFECTLY TO YOUR MATRIX PANELS */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -10, marginBottom: 5 }}>
-                <button
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshing}
-                  style={{
-                    background: isRefreshing ? C.surface : 'transparent',
-                    border: `1px solid ${C.border}`,
-                    color: isRefreshing ? C.muted : C.text1,
-                    padding: '6px 14px',
-                    borderRadius: 8,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    cursor: isRefreshing ? 'not-allowed' : 'pointer',
-                    opacity: isRefreshing ? 0.6 : 1,
-                    transition: 'all 0.2s ease',
-                    outline: 'none',
-                  }}
-                >
-                  <svg
-                    style={{
-                      width: 13,
-                      height: 13,
-                      color: C.amber,
-                      transform: isRefreshing ? 'rotate(360deg)' : 'none',
-                      transition: isRefreshing ? 'transform 0.5s linear infinite' : 'none',
-                      animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
-                    }}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <style>{`
-                      @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                      }
-                    `}</style>
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.253 8H18"
-                    />
-                  </svg>
-                  {isRefreshing ? 'Syncing Vault...' : 'Refresh Data'}
-                </button>
-              </div>
 
-              {/* Native Dashboard Component continues running inside the grid view container */}
-              <Dashboard data={data} onAddExpense={actions.addExpense} />
-            </div>
+          {/* VIEW ROUTER */}
+          {view === 'dashboard' && (
+            <Dashboard data={data} onAddExpense={actions.addExpense} />
           )}
           
           {view === 'add' && (
