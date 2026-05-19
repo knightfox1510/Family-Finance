@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// ⚡ VERCEL EXECUTION MAXIMIZATION PASS
-// Forces Vercel to allow the function to run up to 60 seconds, preventing early timeout drops
 export const maxDuration = 60; 
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
@@ -21,7 +19,7 @@ export async function POST(request: Request) {
     const payload = await request.json();
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH A: INTERACTIVE MULTI-FIELD EDITING ENGINE (CALLBACK QUERIES)
+    // BRANCH A: THE ADVANCED INTERACTIVE CONTROL CONSOLE (CALLBACK QUERIES)
     // ────────────────────────────────────────────────────────────────────────
     if (payload.callback_query) {
       const callbackQuery = payload.callback_query;
@@ -36,7 +34,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // --- SUB-MENU 1: REVEAL QUICK CATEGORY MATRIX ---
+      // --- SUB-MENU: SHOW CATEGORY GRID ---
       if (dataStr.startsWith('s_cat_')) {
         const txId = dataStr.split('s_cat_')[1];
         const inlineKeyboard: any[] = [];
@@ -46,13 +44,13 @@ export async function POST(request: Request) {
             { text: QUICK_CATEGORIES[i+1], callback_data: `v_cat_${txId}_${i+1}` }
           ]);
         }
-        inlineKeyboard.push([{ text: "◀ Return to Main Menu", callback_data: `menu_${txId}` }]);
+        inlineKeyboard.push([{ text: "◀ Return to Menu", callback_data: `menu_${txId}` }]);
         await editTelegramMessageInline(chatId, messageId, "✏️ <b>Select the replacement category below:</b>", inlineKeyboard);
         await answerCallbackQuery(callbackQuery.id);
         return NextResponse.json({ ok: true });
       }
 
-      // --- SUB-MENU 2: REVEAL ACCOUNT SWITCHING SELECTION ---
+      // --- SUB-MENU: SHOW ACCOUNT SELECTION ---
       if (dataStr.startsWith('s_acc_')) {
         const txId = dataStr.split('s_acc_')[1];
         const inlineKeyboard = [
@@ -61,68 +59,137 @@ export async function POST(request: Request) {
             { text: "👤 Partner B", callback_data: `v_acc_${txId}_PartnerB` }
           ],
           [{ text: "💳 Joint Wallet", callback_data: `v_acc_${txId}_Joint` }],
-          [{ text: "◀ Return to Main Menu", callback_data: `menu_${txId}` }]
+          [{ text: "◀ Return to Menu", callback_data: `menu_${txId}` }]
         ];
         await editTelegramMessageInline(chatId, messageId, "🏧 <b>Select the correct target funding account:</b>", inlineKeyboard);
         await answerCallbackQuery(callbackQuery.id);
         return NextResponse.json({ ok: true });
       }
 
-      // --- EXECUTE UPDATE: CATEGORY CHANGE ---
+      // --- ACTION: PROMPT USER FOR NOTE TEXT ---
+      if (dataStr.startsWith('s_not_')) {
+        const txId = dataStr.split('s_not_')[1];
+        // Using ForceReply prompts Telegram to auto-focus the user's typing bar bound to this exact text block
+        const promptMsg = `📝 <b>Editing Note for transaction reference:</b>\n<code>${txId}</code>\n\nPlease reply directly to this message block with your new custom note content.`;
+        await sendTelegramForceReply(chatId, promptMsg);
+        await answerCallbackQuery(callbackQuery.id);
+        return NextResponse.json({ ok: true });
+      }
+
+      // --- DIRECT TOGGLE ACTION: SETTLEMENT STATUS SWITCH ---
+      if (dataStr.startsWith('t_set_')) {
+        const txId = dataStr.split('t_set_')[1];
+        const { data: current } = await supabase.from('transactions').select('to_settle').eq('id', txId).single();
+        if (current) {
+          const nextState = !current.to_settle;
+          await supabase.from('transactions').update({ to_settle: nextState }).eq('id', txId);
+          await answerCallbackQuery(callbackQuery.id, `⚖️ Settlement flipped to: ${nextState ? 'Yes' : 'No'}`);
+        }
+        return handleReturnToMenu(chatId, messageId, txId);
+      }
+
+      // --- DIRECT TOGGLE ACTION: EXPENSE ⇄ INCOME SWITCH ---
+      if (dataStr.startsWith('t_typ_')) {
+        const txId = dataStr.split('t_typ_')[1];
+        const { data: current } = await supabase.from('transactions').select('type').eq('id', txId).single();
+        if (current) {
+          const nextType = current.type === 'expense' ? 'income' : 'expense';
+          await supabase.from('transactions').update({ type: nextType }).eq('id', txId);
+          await answerCallbackQuery(callbackQuery.id, `🔄 Flow type swapped to: ${nextType}`);
+        }
+        return handleReturnToMenu(chatId, messageId, txId);
+      }
+
+      // --- VALUE EXECUTION RESOLUTIONS ---
       if (dataStr.startsWith('v_cat_')) {
         const [_, __, txId, indexStr] = dataStr.split('_');
         const targetCategory = QUICK_CATEGORIES[parseInt(indexStr, 10)];
-
         await supabase.from('transactions').update({ category: targetCategory }).eq('id', txId);
-        await answerCallbackQuery(callbackQuery.id, `📦 Adjusted to ${targetCategory}`);
-        // Reset view back to primary selection card options
-        return handleReturnToMenu(chatId, messageId, txId, callbackQuery.id);
+        await answerCallbackQuery(callbackQuery.id, `📦 Updated to ${targetCategory}`);
+        return handleReturnToMenu(chatId, messageId, txId);
       }
 
-      // --- EXECUTE UPDATE: ACCOUNT RE-ASSIGNMENT ---
       if (dataStr.startsWith('v_acc_')) {
         const [_, __, txId, rawAccount] = dataStr.split('_');
         const normalizedAccount = rawAccount === 'PartnerA' ? 'Partner A' : rawAccount === 'PartnerB' ? 'Partner B' : 'Joint';
-
         await supabase.from('transactions').update({ account_used: normalizedAccount }).eq('id', txId);
-        await answerCallbackQuery(callbackQuery.id, `🏧 Account remapped to ${normalizedAccount}`);
-        return handleReturnToMenu(chatId, messageId, txId, callbackQuery.id);
+        await answerCallbackQuery(callbackQuery.id, `🏧 Account mapped: ${normalizedAccount}`);
+        return handleReturnToMenu(chatId, messageId, txId);
       }
 
-      // --- EXECUTE UPDATE: PURGE TRANSACTION ---
       if (dataStr.startsWith('d_')) {
         const txId = dataStr.split('d_')[1];
         await supabase.from('transactions').delete().eq('id', txId);
         await editTelegramMessageInline(chatId, messageId, "🗑️ <b>Transaction permanently deleted from cloud ledger.</b>", []);
-        await answerCallbackQuery(callbackQuery.id, " Purged successfully.");
+        await answerCallbackQuery(callbackQuery.id, "Purged.");
         return NextResponse.json({ ok: true });
       }
 
-      // --- UTILITY ACTION: RESTORE MAIN DOCK MENU ---
       if (dataStr.startsWith('menu_')) {
         const txId = dataStr.split('menu_')[1];
-        return handleReturnToMenu(chatId, messageId, txId, callbackQuery.id);
+        return handleReturnToMenu(chatId, messageId, txId);
       }
 
       return NextResponse.json({ ok: true });
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH B: STANDARD NATURAL TEXT DISPATCH HOOKS
+    // BRANCH B: STANDARD MESSAGES & TEXT REPLY LISTENER HANDLERS
     // ────────────────────────────────────────────────────────────────────────
-    if (payload.message && payload.message.text) {
+    if (payload.message) {
       const chatId = payload.message.chat.id;
       const tgUser = payload.message.from.username || '';
-      const rawText = payload.message.text;
-
+      
       const allowedUsers = (process.env.TELEGRAM_ALLOWED_USER_NAMES || '').toLowerCase().split(',');
       if (!allowedUsers.includes(tgUser.toLowerCase())) {
         await sendTelegramMessage(chatId, "🚫 Access Denied: Unauthorized profile.");
         return NextResponse.json({ ok: true });
       }
 
+      // 🛑 OPTION RUNTIME CHECK: IS THIS A REPLY ATTEMPT TO MODIFY A NOTE?
+      if (payload.message.reply_to_message && payload.message.reply_to_message.text) {
+        const replyText = payload.message.reply_to_message.text;
+        
+        // Scan the parent system alert to extract the matching unique key identifier
+        if (replyText.includes('Editing Note for transaction reference:')) {
+          const textLines = replyText.split('\n');
+          const txId = textLines[1]?.trim(); // Extracts the exact UUID from line 2
+          const freshNoteContent = payload.message.text;
+
+          if (txId) {
+            // Update the note field inside Supabase instantly
+            await supabase.from('transactions').update({ note: freshNoteContent }).eq('id', txId);
+            await sendTelegramMessage(chatId, `📝 <b>Note updated successfully to:</b> "${freshNoteContent}"`);
+            
+            // Re-fetch database metrics to paint a fresh dashboard interface
+            const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
+            if (txRows && txRows[0]) {
+              // Re-post a pristine main tracking view console down down below
+              const tx = txRows[0];
+              const baseBanner = `<b>📥 Transaction Updated Console</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category}\n🏧 <b>Account:</b> ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + tx.account_used}\n⚖️ <b>To Settle:</b> ${tx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${tx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${tx.note}`;
+              const inlineKeyboard = [
+                [
+                  { text: "📦 Category", callback_data: `s_cat_${txId}` },
+                  { text: "🏧 Account", callback_data: `s_acc_${txId}` },
+                  { text: "📝 Edit Note", callback_data: `s_not_${txId}` }
+                ],
+                [
+                  { text: tx.to_settle ? "⚖️ To Settle: Yes" : "⚖️ To Settle: No", callback_data: `t_set_${txId}` },
+                  { text: tx.type === 'expense' ? "🛑 Type: Expense" : "💸 Type: Income", callback_data: `t_typ_${txId}` },
+                  { text: "🗑️ Delete", callback_data: `d_${txId}` }
+                ]
+              ];
+              await sendTelegramMessageInline(chatId, baseBanner, inlineKeyboard);
+            }
+            return NextResponse.json({ ok: true });
+          }
+        }
+      }
+
+      // --- STANDARD TEXT EXPENSE ADDITIONS PIPELINE ---
+      const rawText = payload.message.text || '';
       if (rawText.startsWith('/start')) {
-        await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the control panel buttons to alter any logged row field dynamically.");
+        await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the control panel dashboard grid beneath confirmation logs to alter any matrix metric dynamically.");
         return NextResponse.json({ ok: true });
       }
 
@@ -131,17 +198,10 @@ export async function POST(request: Request) {
       const isPartnerA = tgUser.toLowerCase().includes('goku');
       const senderIdentity = isPartnerA ? 'Partner A' : 'Partner B';
 
-      // 💥 REWORKED SYSTEM PROMPT MATRIX WITH REMAPPED ACCOUNT LOGIC
-      const systemPrompt = `You are an expert personal finance data-entry clerk processing raw text and banking SMS strings for a household ledger in India.
-      Analyze the user text input and map it cleanly into a structured JSON payload that matches the exact database schema rules.
+      const systemPrompt = `You are an expert personal finance data-entry clerk processing text for a household ledger in India.
+      Analyze the text input and map it cleanly into a structured JSON payload matching these criteria:
 
-      ---------------------------------------------------------------------------------------------------------
-      🌟 GOLDEN RULE #1: EXPLICIT CATEGORY OVERRIDE
-      If the text explicitly mentions ANY of the valid system categories listed below by name (case-insensitive), 
-      you MUST prioritize and select that category over any generic semantic or merchant mapping rules.
-      ---------------------------------------------------------------------------------------------------------
-
-      VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
+            VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
     - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, specific alcohol logs)
     - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, physically eating out at a venue)
     - "Education"           (Course fees, certifications, books, training programs, upskilling materials)
@@ -174,19 +234,16 @@ export async function POST(request: Request) {
     - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
       
       CRUCIAL ACCOUNTING & ROUTING LAWS:
-      1. REWORKED ACCOUNT SELECTION LOGIC:
-         - If the text explicitly contains the words "joint", "joint account", or "joint wallet", set the "account" field to exactly "Joint".
-         - If the text explicitly mentions "Partner A" or the name "Gaurav", set the "account" field to exactly "Partner A" (Even if added by Partner B).
-         - If the text explicitly mentions "Partner B" or the name "Karishma", set the "account" field to exactly "Partner B" (Even if added by Partner A).
-         - DEFAULT CONDITION: If neither "joint" nor specific partner identities are explicitly spelled out, set "account" to exactly the identity of the person typing the message: "${senderIdentity}".
+      1. ACCOUNT SELECTION LOGIC:
+         - If the text explicitly contains the words "joint", "joint account", or "joint wallet", set "account" to "Joint".
+         - If the text explicitly mentions "Partner A" or the name "Gaurav", set "account" to "Partner A".
+         - If the text explicitly mentions "Partner B" or the name "Karishma", set "account" to "Partner B".
+         - DEFAULT: If neither are explicitly stated, default to exactly "${senderIdentity}".
       
-      2. SETTLEMENT TOGGLE VELOCITY CHECK ("to_settle"):
-         - If the text contains text fragments like "to be settled", "tosettle", or "to settle", set "toSettle" to true. Else false.
-      
-      3. TRANSACTION TYPE LOGIC ("type"):
-         - If the text contains "Salary", "Bonus", "Interest credited", "refund", or "rental income", set "type" to "income". Else "expense".
+      2. SETTLEMENT TOGGLE ("to_settle"): If text contains "to be settled", "tosettle", or "to settle", set "toSettle" to true. Else false.
+      3. TRANSACTION TYPE ("type"): If text contains "Salary", "Bonus", "Interest credited", "refund", or "rental income", set "type" to "income". Else "expense".
 
-      Return ONLY a raw valid JSON object matching this structural pattern:
+      Return ONLY a raw valid JSON object pattern matching structure:
       {"amount": 1200, "category": "Online Groceries", "note": "Weekly Zepto run", "type": "expense", "account": "Joint", "toSettle": false}`;
 
       const geminiRes = await fetch(
@@ -202,7 +259,6 @@ export async function POST(request: Request) {
 
       const geminiData = await geminiRes.json();
       let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      
       rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const parsedTx = JSON.parse(rawJsonText);
 
@@ -225,23 +281,27 @@ export async function POST(request: Request) {
 
       if (insertPayload.amount <= 0) throw new Error("Parsed amount resolved invalid.");
 
-      const { data: dbRows, error: dbError } = await supabase
-        .from('transactions')
-        .insert([insertPayload])
-        .select();
-
+      const { data: dbRows, error: dbError } = await supabase.from('transactions').insert([insertPayload]).select();
       if (dbError) throw dbError;
 
-      const activeId = dbRows && dbRows[0] ? dbRows[0].id : secureUuidFallback;
+      const realTx = dbRows && dbRows[0] ? dbRows[0] : insertPayload;
+      const activeId = realTx.id;
 
-      const responseMsg = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${insertPayload.amount}\n📦 <b>Category:</b> ${insertPayload.category}\n🏧 <b>Account:</b> ${insertPayload.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + insertPayload.account_used}\n📝 <b>Note:</b> ${insertPayload.note}`;
+      const responseMsg = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n🏧 <b>Account:</b> ${realTx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + realTx.account_used}\n⚖️ <b>To Settle:</b> ${realTx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${realTx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${realTx.note}`;
       
-      // 📡 ADVANCED CONTROL CONSOLE ROW: Splits management into dedicated edit paths
-      const inlineKeyboard = [[
-        { text: "📦 Category", callback_data: `s_cat_${activeId}` },
-        { text: "🏧 Account", callback_data: `s_acc_${activeId}` },
-        { text: "🗑️ Delete", callback_data: `d_${activeId}` }
-      ]];
+      // 📡 THE CONTROL PANEL HUB GRID
+      const inlineKeyboard = [
+        [
+          { text: "📦 Category", callback_data: `s_cat_${activeId}` },
+          { text: "🏧 Account", callback_data: `s_acc_${activeId}` },
+          { text: "📝 Edit Note", callback_data: `s_not_${activeId}` }
+        ],
+        [
+          { text: realTx.to_settle ? "⚖️ To Settle: Yes" : "⚖️ To Settle: No", callback_data: `t_set_${activeId}` },
+          { text: realTx.type === 'expense' ? "🛑 Type: Expense" : "💸 Type: Income", callback_data: `t_typ_${activeId}` },
+          { text: "🗑️ Delete", callback_data: `d_${activeId}` }
+        ]
+      ];
 
       await sendTelegramMessageInline(chatId, responseMsg, inlineKeyboard);
       return NextResponse.json({ ok: true });
@@ -255,19 +315,26 @@ export async function POST(request: Request) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// TELEGRAM RUNTIME CENTRAL SWITCHBOARD CONTROLLERS
+// DYNAMIC REDRAW ENGINE & TELEGRAM DISPATCH PIPELINES
 // ────────────────────────────────────────────────────────────────────────
-async function handleReturnToMenu(chatId: number, messageId: number, txId: string, queryId: string) {
+async function handleReturnToMenu(chatId: number, messageId: number, txId: string) {
   const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
   if (txRows && txRows[0]) {
     const tx = txRows[0];
-    const baseBanner = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category}\n🏧 <b>Account:</b> ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + tx.account_used}\n📝 <b>Note:</b> ${tx.note}`;
+    const baseBanner = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category}\n🏧 <b>Account:</b> ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + tx.account_used}\n⚖️ <b>To Settle:</b> ${tx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${tx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${tx.note}`;
     
-    const inlineKeyboard = [[
-      { text: "📦 Category", callback_data: `s_cat_${txId}` },
-      { text: "🏧 Account", callback_data: `s_acc_${txId}` },
-      { text: "🗑️ Delete", callback_data: `d_${txId}` }
-    ]];
+    const inlineKeyboard = [
+      [
+        { text: "📦 Category", callback_data: `s_cat_${txId}` },
+        { text: "🏧 Account", callback_data: `s_acc_${txId}` },
+        { text: "📝 Edit Note", callback_data: `s_not_${txId}` }
+      ],
+      [
+        { text: tx.to_settle ? "⚖️ To Settle: Yes" : "⚖️ To Settle: No", callback_data: `t_set_${txId}` },
+        { text: tx.type === 'expense' ? "🛑 Type: Expense" : "💸 Type: Income", callback_data: `t_typ_${txId}` },
+        { text: "🗑️ Delete", callback_data: `d_${txId}` }
+      ]
+    ];
     await editTelegramMessageInline(chatId, messageId, baseBanner, inlineKeyboard);
   }
   return NextResponse.json({ ok: true });
@@ -307,6 +374,20 @@ async function editTelegramMessageInline(chatId: number, messageId: number, text
       text: text,
       parse_mode: 'HTML',
       reply_markup: { inline_keyboard: keyboard }
+    }),
+  });
+}
+
+async function sendTelegramForceReply(chatId: number, text: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: text,
+      parse_mode: 'HTML',
+      reply_markup: { force_reply: true, selective: true }
     }),
   });
 }
