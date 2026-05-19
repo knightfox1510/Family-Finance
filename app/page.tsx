@@ -1577,8 +1577,13 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
 
   // SESSION PROFILE RADAR: Determine logged-in context immediately
   const email = session?.user?.email?.toLowerCase() || '';
-  const loggedInAccount = email.includes('karishma') || email.includes(names.b.toLowerCase()) ? names.b : names.a;
-  const loggedInAddedBy = email.includes('karishma') || email.includes(names.b.toLowerCase()) ? 'Partner B' : 'Partner A';
+  
+  // ─── 🤖 COMPLETELY ANONYMOUS, ZERO-HARDCODE IDENTITY RADAR ───
+  const savedRole = typeof window !== 'undefined' ? localStorage.getItem('active_partner_role') : 'Partner A';
+  const activeRole = savedRole === 'Partner B' ? 'Partner B' : 'Partner A';
+  
+  const loggedInAccount = activeRole === 'Partner B' ? names.b : names.a;
+  const loggedInAddedBy = activeRole === 'Partner B' ? 'Partner B' : 'Partner A';
 
   // Smart Identity Detection: Automatically sets logged-in identity for fresh entries
   useEffect(() => {
@@ -3716,6 +3721,41 @@ function Settings({
           </div>
         </div>
       </Card>
+
+      {/* 👤 ACTIVE PROFILE SELECTION */}
+      <Card style={{ border: `1px solid ${C.purple}44` }}>
+        <SectionTitle>Active Device Profile</SectionTitle>
+        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 12px' }}>
+          Select which partner profile is actively using this device. This automates your expense logging tags.
+        </p>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Btn 
+            variant={typeof window !== 'undefined' && localStorage.getItem('active_partner_role') === 'Partner A' ? 'primary' : 'ghost'}
+            style={{ flex: 1 }}
+            onClick={() => {
+              localStorage.setItem('active_partner_role', 'Partner A');
+              alert(`Device profile successfully locked to: ${s.partnerAName}`);
+              window.location.reload(); // Refresh to broadcast state shifts
+            }}
+          >
+            👤 {s.partnerAName || 'Partner A'}
+          </Btn>
+          <Btn 
+            variant={typeof window !== 'undefined' && localStorage.getItem('active_partner_role') === 'Partner B' ? 'primary' : 'ghost'}
+            style={{ flex: 1 }}
+            onClick={() => {
+              localStorage.setItem('active_partner_role', 'Partner B');
+              alert(`Device profile successfully locked to: ${s.partnerBName}`);
+              window.location.reload();
+            }}
+          >
+            👤 {s.partnerBName || 'Partner B'}
+          </Btn>
+        </div>
+      </Card>
+
+
+      
       {/* Multiplayer / Household Sync */}
       <Card style={{ border: `1px solid ${C.teal}44` }}>
         <SectionTitle>Household Sync (Multiplayer)</SectionTitle>
