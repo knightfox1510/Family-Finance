@@ -3,8 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 
 // Initialize a privileged server-side Supabase client using secret keys
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Uses the master admin service role key directly to bypass RLS restrictions safely from the server side
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''; 
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  }
+});
 
 export async function POST(request: Request) {
   try {
