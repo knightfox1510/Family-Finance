@@ -131,117 +131,126 @@ function seedData() {
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 async function loadData(userId: string) {
-  try {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('household_id')
-      .eq('id', userId)
-      .single();
-    if (!profile) throw new Error('Profile not found');
-    const hId = profile.household_id;
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('household_id')
+        .eq('id', userId)
+        .single();
+      if (!profile) throw new Error('Profile not found');
+      const hId = profile.household_id;
 
-    // ⚡ Pagination Engine
-    let allTransactions: any[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
+      // ⚡ Pagination Engine
+      let allTransactions: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-    while (hasMore) {
-      const { data: txChunk, error: txError } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('household_id', hId)
-        .order('date', { ascending: false })
-        .order('id', { ascending: true }) 
-        .range(page * pageSize, (page + 1) * pageSize - 1);
+      while (hasMore) {
+        const { data: txChunk, error: txError } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('household_id', hId)
+          .order('date', { ascending: false })
+          .order('id', { ascending: true }) 
+          .range(page * pageSize, (page + 1) * pageSize - 1);
 
-      if (txError) throw txError;
+        if (txError) throw txError;
 
-      if (!txChunk || txChunk.length === 0) {
-        hasMore = false;
-      } else {
-        allTransactions = [...allTransactions, ...txChunk];
-        if (txChunk.length < pageSize) {
+        if (!txChunk || txChunk.length === 0) {
           hasMore = false;
         } else {
-          page++;
+          allTransactions = [...allTransactions, ...txChunk];
+          if (txChunk.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
         }
       }
-    }
 
-    // 1. Fetch data arrays in parallel
-    const [gl, ln, cb, st, currentProfileRow] = await Promise.all([
-      supabase.from('goals').select('*').eq('household_id', hId),
-      supabase.from('loans').select('*').eq('household_id', hId),
-      supabase.from('contributions').select('*').eq('household_id', hId),
-      supabase.from('household_settings').select('*').eq('household_id', hId),
-      supabase.from('profiles').select('telegram_username, display_name').eq('id', userId).single()
-    ]);
+      // 1. Fetch data arrays in parallel
+      const [gl, ln, cb, st, currentProfileRow] = await Promise.all([
+        supabase.from('goals').select('*').eq('household_id', hId),
+        supabase.from('loans').select('*').eq('household_id', hId),
+        supabase.from('contributions').select('*').eq('household_id', hId),
+        supabase.from('household_settings').select('*').eq('household_id', hId),
+        supabase.from('profiles').select('telegram_username, display_name').eq('id', userId).single()
+      ]);
 
-    // 2. Safe in-memory sorting for configs
-    let cloudSettingsRow = null;
-    if (st.data && st.data.length > 0) {
-      const sortedSettings = [...st.data].sort((a: any, b: any) => {
-        if (a.created_at && b.created_at) {
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        }
-        return 0;
-      });
-      cloudSettingsRow = sortedSettings[0] || st.data[st.data.length - 1];
-    }
-    
-    // 3. Defensive JSON Unpacker
-    let unpackedSettings: any = {};
-    if (cloudSettingsRow) {
-      if (cloudSettingsRow.settings_data) {
-        if (typeof cloudSettingsRow.settings_data === 'string') {
-          try {
-            unpackedSettings = JSON.parse(cloudSettingsRow.settings_data);
-          } catch (e) {
-            unpackedSettings = {};
+      // 2. Safe in-memory sorting for configs
+      let cloudSettingsRow = null;
+      if (st.data && st.data.length > 0) {
+        const sortedSettings = [...st.data].sort((a: any, b: any) => {
+          if (a.created_at && b.created_at) {
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          }
+          return 0;
+        });
+        cloudSettingsRow = sortedSettings[0] || st.data[st.data.length - 1];
+      }
+      
+      // 3. Defensive JSON Unpacker
+      let unpackedSettings: any = {};
+      if (cloudSettingsRow) {
+        if (cloudSettingsRow.settings_data) {
+          if (typeof cloudSettingsRow.settings_data === 'string') {
+            try {
+              unpackedSettings = JSON.parse(cloudSettingsRow.settings_data);
+            } catch (e) {
+              unpackedSettings = {};
+            }
+          } else {
+            unpackedSettings = cloudSettingsRow.settings_data;
           }
         } else {
-          unpackedSettings = cloudSettingsRow.settings_data;
+          unpackedSettings = cloudSettingsRow;
         }
-      } else {
-        unpackedSettings = cloudSettingsRow;
       }
-    }
-    
-    // 4. ✨ BUILD THE SETTINGS ENTITY (Must happen BEFORE formattedData)
-    const settings = {
-      ...DEFAULT_SETTINGS,
-      ...unpackedSettings,
-      partnerAName: unpackedSettings.partnerAName || unpackedSettings.partner_a_name || unpackedSettings.partnerA || 'Partner A',
-      partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
-      expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.expense_categories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
-      incomeCategories: unpackedSettings.incomeCategories || unpackedSettings.income_categories || DEFAULT_SETTINGS.incomeCategories,
-      budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {},
-      telegramUsername: currentProfileRow.data?.telegram_username || unpackedSettings.telegramUsername || ''
-    };
-
-    // 5. 🎯 TRANSFORMS CLOUD DATA FOR APPLICAION RADAR UI
-    const formattedData = {
-      householdId: hId,
-      categories: settings.expenseCategories, 
-      partnerAName: settings.partnerAName,
-      partnerBName: settings.partnerBName,
-      currentUserRole: currentProfileRow.data?.display_name || 'Partner A', // Dynamically passed!
-      settings: settings, // Safely mounts active settings mapping tree context
       
-      expenses: allTransactions.map((r: any) => ({
-        id: r.id,
-        date: r.date,
-        amount: r.amount,
-        category: r.category,
-        type: r.type,
-        account: toUI(r.account_used), 
-        addedBy: toUI(r.added_by),     
-        note: r.note,
-        toSettle: r.to_settle === true || r.to_settle === 'true' || r.to_settle === 'Yes',
-        settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
-        settledFor: toUI(r.settled_with), 
-      })),
+      // 4. ✨ BUILD THE SETTINGS ENTITY
+      const settings = {
+        ...DEFAULT_SETTINGS,
+        ...unpackedSettings,
+        partnerAName: unpackedSettings.partnerAName || unpackedSettings.partner_a_name || unpackedSettings.partnerA || 'Partner A',
+        partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
+        expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.expense_categories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
+        incomeCategories: unpackedSettings.incomeCategories || unpackedSettings.income_categories || DEFAULT_SETTINGS.incomeCategories,
+        budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {},
+        telegramUsername: currentProfileRow.data?.telegram_username || unpackedSettings.telegramUsername || ''
+      };
+
+      // 🛠️ HOISTED TRANSLATION HELPER
+      // Placed exactly here so it reads 'settings' correctly and is ready before 'formattedData'
+      const toUI = (val: string) => {
+        if (!val) return '';
+        if (val === 'Partner A') return settings.partnerAName;
+        if (val === 'Partner B') return settings.partnerBName;
+        return val;
+      };
+
+      // 5. 🎯 TRANSFORMS CLOUD DATA FOR APPLICATION RADAR UI
+      const formattedData = {
+        householdId: hId,
+        categories: settings.expenseCategories, 
+        partnerAName: settings.partnerAName,
+        partnerBName: settings.partnerBName,
+        currentUserRole: currentProfileRow.data?.display_name || 'Partner A',
+        settings: settings, 
+        
+        expenses: allTransactions.map((r: any) => ({
+          id: r.id,
+          date: r.date,
+          amount: r.amount,
+          category: r.category,
+          type: r.type,
+          account: toUI(r.account_used), 
+          addedBy: toUI(r.added_by),     
+          note: r.note,
+          toSettle: r.to_settle === true || r.to_settle === 'true' || r.to_settle === 'Yes',
+          settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
+          settledFor: toUI(r.settled_with), 
+        })),
       
       goals: (gl.data || []).map((r: any) => {
         const targetAmt = Number(r.target_amount || 0);
