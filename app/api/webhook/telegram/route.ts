@@ -201,11 +201,11 @@ export async function POST(request: Request) {
       rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const parsedTx = JSON.parse(rawJsonText);
 
-      // 💥 HIGH RESILIENCE FIX: Generate a reliable local ID right now
-      const fallbackId = `tx_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      // ⚡ VALID UUID FALLBACK: Generates a 100% compliant 36-character UUID layout string
+      const secureUuidFallback = crypto.randomUUID();
 
       const insertPayload = {
-        id: fallbackId, // Passes your unique local fallback key securely to the table
+        id: secureUuidFallback, // Matches your table's required UUID syntax constraints perfectly
         household_id: householdId,
         date: new Date().toISOString().slice(0, 10),
         amount: Number(parsedTx.amount || 0),
@@ -221,7 +221,6 @@ export async function POST(request: Request) {
 
       if (insertPayload.amount <= 0) throw new Error("Parsed amount resolved invalid.");
 
-      // Attempt row placement execution
       const { data: dbRows, error: dbError } = await supabase
         .from('transactions')
         .insert([insertPayload])
@@ -229,8 +228,7 @@ export async function POST(request: Request) {
 
       if (dbError) throw dbError;
 
-      // Determine matching tracking identity effortlessly
-      const activeId = dbRows && dbRows[0] ? dbRows[0].id : fallbackId;
+      const activeId = dbRows && dbRows[0] ? dbRows[0].id : secureUuidFallback;
 
       const responseMsg = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${insertPayload.amount}\n📦 <b>Category:</b> ${insertPayload.category}\n📝 <b>Note:</b> ${insertPayload.note}`;
       
@@ -251,7 +249,7 @@ export async function POST(request: Request) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// TELEGRAM CORE API ROUTING ENGINE
+// TELEGRAM RUNTIME CORE TRANSMISSION PIPELINES
 // ────────────────────────────────────────────────────────────────────────
 async function sendTelegramMessage(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
