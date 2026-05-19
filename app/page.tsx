@@ -4648,13 +4648,37 @@ export default function App() {
     },
 
     saveSettings: async (s: any) => {
+      // 1. Update the local UI state reactively
       setData((prev: any) => ({ ...prev, settings: s }));
-      const { error } = await supabase.from('household_settings').upsert({
-        household_id: data.householdId,
-        settings_data: s,
-      }, { onConflict: 'household_id' });
-      
-      if (error) alert('Supabase rejected settings change: ' + error.message);
+
+      // 2. Compute what the active user's systemic role is based on their device state
+      const deviceRole = typeof window !== 'undefined' 
+        ? localStorage.getItem('active_partner_role') || 'Partner A' 
+        : 'Partner A';
+
+      // 3. Run both database updates in parallel for clean performance
+      try {
+        const promises = [
+          // A. Save the global household settings
+          supabase.from('household_settings').upsert({
+            household_id: data.householdId,
+            settings_data: s,
+          }, { onConflict: 'household_id' }),
+
+          // B. Sync the active user's role profile to the profiles table
+          supabase.from('profiles')
+            .update({ display_name: deviceRole })
+            .eq('id', session.user.id)
+        ];
+
+        const results = await Promise.all(promises);
+        const primaryError = results.find(r => r.error);
+        if (primaryError) throw primaryError.error;
+
+      } catch (err: any) {
+        console.error("Failed to sync settings changes to Supabase:", err);
+        alert('Settings saved locally, but database sync failed: ' + err.message);
+      }
     },
 
     joinHousehold: async (newHouseholdId: string) => {
