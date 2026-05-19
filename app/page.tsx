@@ -1898,7 +1898,18 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
 
 
 // ─── EXPENSE LIST ─────────────────────────────────────────────────────────────
-function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete, onDuplicate }: any) {
+function ExpenseList({ 
+  data, 
+  onToggleToSettle, 
+  onDelete, 
+  onUpdate, 
+  onBulkDelete, 
+  onDuplicate,
+  // ─── PART 3: RECEIVE NEW BATCH PROPS HOOKS ───────────────────────
+  onBulkFlagToSettle,
+  onBulkMarkAsSettled,
+  onBulkAssignToAccount
+}: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
@@ -1914,6 +1925,9 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
+  // ─── LOCAL STATE FOR THE ACCOUNT ASSIGNMENT DROPDOWN ───────────────
+  const [selectedTargetAccount, setSelectedTargetAccount] = useState<string>('');
 
   const sf = (k: string, v: string) => setFilter((f) => ({ ...f, [k]: v }));
   
@@ -2021,18 +2035,93 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
         </div>
       </Card>
 
+      {/* ─── UPGRADED BULK PANEL DRAWER MATRIX BLOCK ────────────────── */}
       {selectedIds.size > 0 && (
-        <Card style={{ background: C.red + '15', border: `1px solid ${C.red}44`, padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Card style={{ background: C.red + '15', border: `1px solid ${C.red}44`, padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <span style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>💥 {selectedIds.size} entries selected</span>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            
+            {/* 🏧 dynamic dropdown assign engine wrapper */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderRight: `1px solid ${C.border}`, paddingRight: 12, marginRight: 4 }}>
+              <select
+                value={selectedTargetAccount}
+                onChange={(e) => setSelectedTargetAccount(e.target.value)}
+                style={{
+                  background: C.bg,
+                  color: C.text1,
+                  border: `1px solid ${C.border}`,
+                  padding: '6px 10px',
+                  borderRadius: 8,
+                  fontSize: 12,
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">-- Assign Account --</option>
+                <option value="Partner A">{names.a || 'Partner A'}</option>
+                <option value="Partner B">{names.b || 'Partner B'}</option>
+                <option value="Joint">Joint Account</option>
+              </select>
+              
+              <Btn
+                variant="ghost"
+                disabled={!selectedTargetAccount}
+                style={{ 
+                  fontSize: 12, 
+                  padding: '6px 12px', 
+                  opacity: selectedTargetAccount ? 1 : 0.5,
+                  borderColor: selectedTargetAccount ? C.amber : C.border,
+                  color: selectedTargetAccount ? C.amber : C.muted
+                }}
+                onClick={() => {
+                  const ids: string[] = [];
+                  selectedIds.forEach((id: string) => ids.push(id));
+                  onBulkAssignToAccount(ids, selectedTargetAccount);
+                  setSelectedTargetAccount(''); 
+                  setSelectedIds(new Set());    
+                }}
+              >
+                🔄 Assign
+              </Btn>
+            </div>
+
             <Btn variant="ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setSelectedIds(new Set())}>Deselect All</Btn>
+            
+            <Btn 
+              variant="ghost" 
+              style={{ fontSize: 12, padding: '6px 12px', border: `1px solid ${C.amber}`, color: C.amber }} 
+              onClick={() => {
+                const ids: string[] = [];
+                selectedIds.forEach((id: string) => ids.push(id));
+                onBulkFlagToSettle(ids);
+                setSelectedIds(new Set());
+              }}
+            >
+              ⚖️ Flag to Settle
+            </Btn>
+
+            <Btn 
+              variant="ghost" 
+              style={{ fontSize: 12, padding: '6px 12px', border: `1px solid ${C.emerald}`, color: C.emerald }} 
+              onClick={() => {
+                const ids: string[] = [];
+                selectedIds.forEach((id: string) => ids.push(id));
+                onBulkMarkAsSettled(ids);
+                setSelectedIds(new Set());
+              }}
+            >
+              ✅ Mark as Settled
+            </Btn>
+
             <Btn variant="danger" style={{ fontSize: 12, padding: '6px 14px', fontWeight: 700 }} onClick={() => {
-              const idsToDelete: string[] = [];
-              selectedIds.forEach((id: string) => idsToDelete.push(id));
-              onBulkDelete(idsToDelete);
-              setSelectedIds(new Set());
+              if (confirm(`Are you absolutely sure you want to permanently delete these ${selectedIds.size} records?`)) {
+                const idsToDelete: string[] = [];
+                selectedIds.forEach((id: string) => idsToDelete.push(id));
+                onBulkDelete(idsToDelete);
+                setSelectedIds(new Set());
+              }
             }}>🗑️ Delete Selected</Btn>
           </div>
         </Card>
@@ -2043,13 +2132,10 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: C.bg }}>
-                {/* 1. Selection Checkbox Slot */}
                 <th style={{ padding: '11px 14px', width: 40 }}>
                   <input type="checkbox" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleAll} style={{ cursor: 'pointer', accentColor: C.amber }} />
                 </th>
-                {/* 2. Copy Button Column Header */}
                 <th style={{ padding: '11px 14px', width: 65, color: C.muted, fontWeight: 600, textAlign: 'left' }}>Copy</th>
-                {/* 3 through 9. Rest of Headers Re-indexed */}
                 {['Date', 'Note', 'Category', 'Amount', 'Account', 'Settlement Status', 'Actions'].map((h) => (
                   <th key={h} style={{ padding: '11px 14px', color: C.muted, fontWeight: 600, textAlign: 'left' }}>{h}</th>
                 ))}
@@ -2060,8 +2146,8 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
                 if (editingId === e.id) {
                   return (
                     <tr key={e.id} style={{ background: C.bg + '99', borderTop: `1px solid ${C.amber}` }}>
-                      <td /> {/* Checkbox slot padding */}
-                      <td /> {/* Copy slot padding */}
+                      <td /> 
+                      <td /> 
                       <td style={{ padding: 8 }}>
                         <Inp type="date" value={editForm.date} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, date: ev.target.value }))} />
                       </td>
@@ -2105,29 +2191,21 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
 
                 return (
                   <tr key={e.id} style={{ borderTop: `1px solid ${C.border}`, background: selectedIds.has(e.id) ? C.red + '08' : (i % 2 === 0 ? 'transparent' : C.bg + '80') }}>
-                    {/* 1. Selection Checkbox Slot */}
                     <td style={{ padding: '10px 14px' }}>
                       <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} style={{ cursor: 'pointer', accentColor: C.amber }} />
                     </td>
-                    {/* 2. Copy Button Slot (Now right next to checkbox at the start) */}
                     <td style={{ padding: '10px 14px' }}>
                       <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11, color: C.amber, borderColor: `${C.amber}33` }} onClick={() => onDuplicate(e)}>📋 Copy</Btn>
                     </td>
-                    {/* 3. Date Slot */}
                     <td style={{ padding: '10px 14px', color: C.text2, whiteSpace: 'nowrap' }}>{e.date}</td>
-                    {/* 4. Note Slot (Moved up front right after date!) */}
                     <td style={{ padding: '10px 14px', color: C.muted, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.note || '—'}</td>
-                    {/* 5. Category Slot */}
                     <td style={{ padding: '10px 14px', color: C.text1 }}>{e.category}</td>
-                    {/* 6. Amount Slot */}
                     <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>
                       {e.type === 'income' ? '+' : ''}{fmt(e.amount, data.settings.currency)}
                     </td>
-                    {/* 7. Account Used Slot */}
                     <td style={{ padding: '10px 14px' }}>
-                      <Badge color={e.account === 'Joint' ? C.green : C.blue}>{e.account}</Badge>
+                      <Badge color={e.account === 'Joint' ? C.green : C.blue}>{e.account === 'Partner A' ? names.a : e.account === 'Partner B' ? names.b : 'Joint Wallet'}</Badge>
                     </td>
-                    {/* 8. Settlement Status Slot */}
                     <td style={{ padding: '10px 14px' }}>
                       {e.type === 'income' ? (
                         <span style={{ color: C.muted }}>—</span>
@@ -2141,7 +2219,6 @@ function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete,
                         <Badge color={C.amber}>⏳ Pending</Badge>
                       )}
                     </td>
-                    {/* 9. Core Row Inline Mutation Trigger Actions */}
                     <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>
                       <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => startEdit(e)}>Edit</Btn>
                       <Btn variant="danger" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => onDelete(e.id)}>✕</Btn>
@@ -4239,6 +4316,73 @@ export default function App() {
       }
     },
 
+    bulkAssignToAccount: async (targetIds: string[], targetAccount: string) => {
+      if (!targetIds || targetIds.length === 0 || !targetAccount) return;
+      
+      try {
+        setLoading(true);
+        const { error } = await supabase
+          .from('transactions')
+          .update({ account_used: targetAccount })
+          .in('id', targetIds);
+
+        if (error) throw error;
+
+        // Force reactive background state refresh
+        const freshData = await loadData(session.user.id);
+        setData(freshData);
+      } catch (err) {
+        console.error("Bulk account re-allocation pipeline failure:", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+
+    // ─── BULK ACTION 1: MASS FLAG MUTUAL SPLIT ───────────────────────
+    bulkFlagToSettle: async (targetIds: string[]) => {
+      if (!targetIds || targetIds.length === 0) return;
+      
+      try {
+        setLoading(true);
+        const { error } = await supabase
+          .from('transactions')
+          .update({ to_settle: true })
+          .in('id', targetIds);
+
+        if (error) throw error;
+        
+        // Instant background sync reload
+        const freshData = await loadData(session.user.id);
+        setData(freshData);
+      } catch (err) {
+        console.error("Bulk operational split modification failure:", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+
+    // ─── BULK ACTION 2: MASS CLEAR & SETTLE ENTRIES ──────────────────
+    bulkMarkAsSettled: async (targetIds: string[]) => {
+      if (!targetIds || targetIds.length === 0) return;
+      
+      try {
+        setLoading(true);
+        const { error } = await supabase
+          .from('transactions')
+          .update({ settled: true })
+          .in('id', targetIds);
+
+        if (error) throw error;
+
+        const freshData = await loadData(session.user.id);
+        setData(freshData);
+      } catch (err) {
+        console.error("Bulk clearing ledger state update failure:", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+
     toggleToSettle: async (id: string) => {
       const expense = data.expenses.find((e: any) => e.id === id);
       const newValue = !expense.toSettle;
@@ -4903,6 +5047,9 @@ export default function App() {
               onDelete={actions.deleteExpense}
               onUpdate={actions.updateExpense}
               onBulkDelete={actions.bulkDeleteExpense}
+              onBulkFlagToSettle={actions.bulkFlagToSettle}
+              onBulkMarkAsSettled={actions.bulkMarkAsSettled}
+              onBulkAssignToAccount={actions.bulkAssignToAccount}
               onDuplicate={(e: any) => {
                 setDuplicateData({
                   ...e,
