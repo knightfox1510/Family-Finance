@@ -300,7 +300,10 @@ export async function POST(request: Request) {
       }
 
       // ─── 🤖 PATH 2: STANDARD NATURAL LANGUAGE PARSER PIPELINE ───
-      const systemPrompt = `You are an expert personal finance clerk processing raw ledger data. Map text input to valid JSON.
+      const systemPrompt = `You are an expert personal finance clerk parsing ledger lines. 
+      Analyze the text input and extract EVERY individual transaction item mentioned. 
+      Map the entries into a valid JSON array of objects.
+      
             VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
     - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, whiskey, gin, vodka, specific alcohol logs)
     - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, food at JP, JP food, physically eating out at a venue)
@@ -333,12 +336,20 @@ export async function POST(request: Request) {
     - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
     - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
     
-      ACCOUNT SELECTION: "Joint" if text says joint/joint account/joint wallet. "Partner A" if mentions Gaurav. "Partner B" if mentions Karishma. Else default to "${senderIdentity}".
+      ACCOUNT SELECTION: "Joint" if text says joint/joint account/wallet. "Partner A" if mentions Gaurav. "Partner B" if mentions Karishma. Else default to "${senderIdentity}".
       SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
-      TYPE: "income" if text contains salary/bonus/interest credited/refund. Else "expense".
+      TYPE: "income" if text contains salary/bonus/credited/refund. Else "expense".
 
-      Return ONLY a raw valid JSON string:
-      {"amount": 500, "category": "Online Groceries", "note": "Zepto", "type": "expense", "account": "Joint", "toSettle": false}`;
+      CRUCIAL RULES:
+      1. Your output must be a clean, valid raw JSON array of objects ONLY. Do not wrap it in markdown code blocks.
+      2. Process single items as an array with one object: [{"amount": 100, ...}]
+      3. Split composite items into individual objects. "500 swiggy and 200 cab" becomes two objects.
+
+      Example Output format:
+      [
+        {"amount": 500, "category": "Online Food Orders", "note": "Swiggy", "type": "expense", "account": "Joint", "toSettle": false},
+        {"amount": 200, "category": "Cab Services", "note": "Cab", "type": "expense", "account": "Joint", "toSettle": false}
+      ]`;
 
       const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -348,51 +359,73 @@ export async function POST(request: Request) {
       const geminiData = await geminiRes.json();
       let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
       rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      const parsedTx = JSON.parse(rawJsonText);
-
-      const secureUuidFallback = crypto.randomUUID();
-      const insertPayload = {
-        id: secureUuidFallback,
-        household_id: householdId,
-        date: new Date().toISOString().slice(0, 10),
-        amount: Number(parsedTx.amount || 0),
-        category: parsedTx.category || 'Miscellaneous',
-        type: parsedTx.type || 'expense',
-        account_used: parsedTx.account,
-        added_by: senderIdentity,
-        note: parsedTx.note || 'Telegram automated entry',
-        to_settle: Boolean(parsedTx.toSettle),
-        settled: false,
-        settled_with: null
-      };
-
-      if (insertPayload.amount <= 0) throw new Error("Parsed amount resolved invalid.");
-      const { data: dbRows, error: dbError } = await supabase.from('transactions').insert([insertPayload]).select();
-      if (dbError) throw dbError;
-
-      const realTx = dbRows && dbRows[0] ? dbRows[0] : insertPayload;
-      const activeId = realTx.id;
-
-      const responseMsg = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n🏧 <b>Account:</b> ${realTx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + realTx.account_used}\n⚖️ <b>To Settle:</b> ${realTx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${realTx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${realTx.note}`;
       
-      const inlineKeyboard = [
-        [
-          { text: "📦 Category", callback_data: `s_cat_${activeId}` },
-          { text: "🏧 Account", callback_data: `s_acc_${activeId}` },
-          { text: "📝 Edit Note", callback_data: `s_not_${activeId}` }
-        ],
-        [
-          { text: realTx.to_settle ? "⚖️ To Settle: Yes" : "⚖️ To Settle: No", callback_data: `t_set_${activeId}` },
-          { text: realTx.type === 'expense' ? "🛑 Type: Expense" : "💸 Type: Income", callback_data: `t_typ_${activeId}` },
-          { text: "🗑️ Delete", callback_data: `d_${activeId}` }
-        ]
-      ];
+      // Parse the JSON payload safely as a robust Array list container
+      const parsedTransactionsArray = JSON.parse(rawJsonText);
+      
+      if (!Array.isArray(parsedTransactionsArray)) {
+        throw new Error("Gemini compile failure: Output did not resolve to an array matrix.");
+      }
 
-      await sendTelegramMessageInline(chatId, responseMsg, inlineKeyboard);
+      // 🔄 Loop through and write each individual item out sequentially
+      for (const parsedTx of parsedTransactionsArray) {
+        const secureUuidFallback = crypto.randomUUID();
+        const insertPayload = {
+          id: secureUuidFallback,
+          household_id: householdId,
+          date: new Date().toISOString().slice(0, 10),
+          amount: Number(parsedTx.amount || 0),
+          category: parsedTx.category || 'Miscellaneous',
+          type: parsedTx.type || 'expense',
+          account_used: parsedTx.account,
+          added_by: senderIdentity,
+          note: parsedTx.note || 'Multi-log entry',
+          to_settle: Boolean(parsedTx.toSettle),
+          settled: false,
+          settled_with: null
+        };
+
+        if (insertPayload.amount <= 0) continue; // Safely skip invalid entries
+
+        const { data: dbRows } = await supabase.from('transactions').insert([insertPayload]).select();
+        const realTx = dbRows && dbRows[0] ? dbRows[0] : insertPayload;
+        const activeId = realTx.id;
+
+        // Pull the dynamic multi-tenant user naming values matching this household context
+        let nameA = "Partner A";
+        let nameB = "Partner B";
+        if (householdId) {
+          const { data: settingsRow } = await supabase.from('household_settings').select('settings_data').eq('household_id', householdId).single();
+          if (settingsRow?.settings_data) {
+            const settings = typeof settingsRow.settings_data === 'string' ? JSON.parse(settingsRow.settings_data) : settingsRow.settings_data;
+            nameA = settings.partnerAName || settings.partner_a_name || nameA;
+            nameB = settings.partnerBName || settings.partner_b_name || nameB;
+          }
+        }
+
+        let accountDisplay = '💳 Joint Wallet';
+        if (realTx.account_used === 'Partner A') accountDisplay = `👤 ${nameA}`;
+        if (realTx.account_used === 'Partner B') accountDisplay = `👤 ${nameB}`;
+
+        const responseMsg = `<b>📥 Transaction Item Logged!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n🏧 <b>Account:</b> ${accountDisplay}\n⚖️ <b>To Settle:</b> ${realTx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${realTx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${realTx.note}`;
+        
+        const inlineKeyboard = [
+          [
+            { text: "📦 Category", callback_data: `s_cat_${activeId}` },
+            { text: "🏧 Account", callback_data: `s_acc_${activeId}` },
+            { text: "📝 Edit Note", callback_data: `s_not_${activeId}` }
+          ],
+          [
+            { text: realTx.to_settle ? "⚖️ To Settle: Yes" : "⚖️ To Settle: No", callback_data: `t_set_${activeId}` },
+            { text: realTx.type === 'expense' ? "🛑 Type: Expense" : "💸 Type: Income", callback_data: `t_typ_${activeId}` },
+            { text: "🗑️ Delete", callback_data: `d_${activeId}` }
+          ]
+        ];
+
+        await sendTelegramMessageInline(chatId, responseMsg, inlineKeyboard);
+      }
+
       return NextResponse.json({ ok: true });
-    }
-
-    return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('Core Webhook Route Operations Error Failure:', err);
     return NextResponse.json({ ok: true }); 
