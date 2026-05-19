@@ -294,7 +294,6 @@ export async function POST(request: Request) {
       // ─── 🤖 PATH 2: MULTI-ROW NATURAL LANGUAGE PARSER PIPELINE ───
       const systemPrompt = `You are an expert personal finance clerk parsing ledger lines. 
       Analyze the text input and extract EVERY individual transaction item mentioned. 
-      This includes inputs written as lists or separated by new lines/line breaks.
       Map the entries into a valid JSON array of objects.
       
       VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
@@ -333,17 +332,39 @@ export async function POST(request: Request) {
       SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
       TYPE: "income" if text contains salary/bonus/credited/refund. Else "expense".
 
-      CRUCIAL RULES:
-      1. Your output must be a clean, valid raw JSON array of objects ONLY. Do not wrap it in markdown code blocks.
-      2. Process single items as an array containing exactly one object.
-      3. Split composite compound items or items separated by newlines/line-breaks into individual distinct objects.
-      4. CLEAN NOTE TEXT: The "note" field must contain ONLY the physical item description or store merchant name (e.g., "test transaction", "Swiggy", "Fuel"). Strikingly remove operational tracking keywords like account names ("Gaurav", "Karishma", "Joint") or settlement phrases ("to settle", "to be settled") from the final note string. Do not include the category name inside the note field.
+      CRUCIAL CLEANING RULE: The "note" field must contain ONLY the physical description or store merchant name (e.g., "Savana", "Zepto", "Fuel"). Strikingly remove tracking names like "Gaurav", "Karishma", "Joint" or settlement phrases like "to settle", "to be settled" from the final note string entirely. Do not put the category name inside the note.`;
 
-      Example Output format:
-      [
-        {"amount": 100, "category": "Dining Out", "note": "test transaction", "type": "expense", "account": "Joint", "toSettle": false},
-        {"amount": 200, "category": "Utilities", "note": "test transaction", "type": "expense", "account": "Joint", "toSettle": false}
-      ]`;
+      // Define a strict schema to prevent Gemini from returning empty strings or broken fields
+      const transactionSchema = {
+        type: "ARRAY",
+        description: "List of extracted financial transaction items from the user input sentence string",
+        items: {
+          type: "OBJECT",
+          properties: {
+            amount: { type: "NUMBER", description: "The exact numerical value of the transaction cost" },
+            category: { type: "STRING", description: "The mapped valid expense/income category string name" },
+            note: { type: "STRING", description: "Clean description of the merchant or item only" },
+            type: { type: "STRING", description: "Must be exactly 'expense' or 'income'" },
+            account: { type: "STRING", description: "Must be exactly 'Partner A', 'Partner B', or 'Joint'" },
+            toSettle: { type: "BOOLEAN", description: "Set to true if tracking splits are requested, otherwise false" }
+          },
+          required: ["amount", "category", "note", "type", "account", "toSettle"]
+        }
+      };
+
+      // RUNNING DOCK CALL WITH NATIVE SCHEMA PROTECTION
+      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input: "${rawText}"` }] }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            // ─── THE CRITICAL MISSING LINK: SPECIFY THE TYPE COMPLIANCE SCHEMA ───
+            responseSchema: transactionSchema
+          }
+        })
+      });
       
       // UPGRADED FETCH TO NATIVE STRUCTURAL JSON GENERATION
       const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
