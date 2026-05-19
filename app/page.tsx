@@ -3774,50 +3774,120 @@ function Settings({
       {/* ✈️ TELEGRAM BOT USERNAME LINK */}
       <Card style={{ border: `1px solid ${C.teal}44` }}>
         <SectionTitle>Telegram Account Synchronization</SectionTitle>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
-          Link your public Telegram handle to enable conversational AI transaction logging. 
-          Do not include the <code>@</code> symbol.
-        </p>
+        
+        {(() => {
+          // Check if there is an existing username stored anywhere in the settings/profile data state
+          const linkedHandle = (s.telegramUsername || s.telegram_username || '').trim();
+          const hasLinked = linkedHandle.length > 0;
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <Label>Your Personal Telegram Username</Label>
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <Inp
-                placeholder="e.g. goku_ops"
-                value={s.telegramUsername || s.telegram_username || ''}
-                onChange={(e: any) =>
-                  setS((x: any) => ({ ...x, telegramUsername: e.target.value.replace(/@/g, '').trim() }))
-                }
-                style={{ fontFamily: 'monospace' }}
-              />
-              <Btn
-                variant="ghost"
-                onClick={async () => {
-                  const handle = s.telegramUsername;
-                  if (!handle) {
-                    alert('Please input a valid username handle first.');
-                    return;
-                  }
-                  
-                  // Fire an explicit on-demand single database column update patch
-                  const { error } = await supabase
-                    .from('profiles')
-                    .update({ telegram_username: handle })
-                    .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
+          return (
+            <>
+              <p style={{ color: C.text1, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+                {hasLinked ? (
+                  <span>
+                    Your account is securely connected to the conversational AI tracking bot. Text the bot directly to log expenses on the go.
+                  </span>
+                ) : (
+                  <span>
+                    Link your public Telegram handle to enable conversational AI transaction logging. 
+                    Do not include the <code>@</code> symbol.
+                  </span>
+                )}
+              </p>
 
-                  if (error) {
-                    alert('Failed to link Telegram username: ' + error.message);
-                  } else {
-                    alert(`Successfully linked @${handle} to your ledger profile!`);
-                  }
-                }}
-              >
-                🔐 Link Handle
-              </Btn>
-            </div>
-          </div>
-        </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <Label>Telegram Username Status</Label>
+                    {hasLinked && (
+                      <Badge color={C.green} style={{ fontSize: 10, padding: '1px 6px' }}>
+                        ✓ Bound & Active
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <input
+                      type="text"
+                      disabled={hasLinked} // Locks the field if already configured
+                      placeholder={hasLinked ? `@${linkedHandle}` : "e.g. goku_ops"}
+                      value={hasLinked ? `@${linkedHandle}` : (s.telegramUsername || '')}
+                      onChange={(e: any) =>
+                        setS((x: any) => ({ ...x, telegramUsername: e.target.value.replace(/@/g, '').trim() }))
+                      }
+                      style={{
+                        background: hasLinked ? `${C.bg}80` : C.bg,
+                        border: `1px solid ${hasLinked ? C.border : C.teal}`,
+                        color: hasLinked ? C.text2 : C.textW,
+                        borderRadius: 8,
+                        padding: '10px 14px',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        outline: 'none',
+                        fontFamily: 'monospace',
+                        opacity: hasLinked ? 0.7 : 1,
+                        cursor: hasLinked ? 'not-allowed' : 'text'
+                      }}
+                    />
+                    
+                    {hasLinked ? (
+                      <Btn
+                        variant="danger"
+                        style={{ padding: '10px 14px', fontSize: 13, whiteSpace: 'nowrap' }}
+                        onClick={async () => {
+                          if (confirm('Are you sure you want to disconnect this Telegram account? The AI bot will no longer recognize your messages.')) {
+                            // Clear out from Supabase profiles table
+                            const { error } = await supabase
+                              .from('profiles')
+                              .update({ telegram_username: null })
+                              .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
+
+                            if (error) {
+                              alert('Failed to sever link: ' + error.message);
+                            } else {
+                              // Clear out local configuration state reactively
+                              setS((x: any) => ({ ...x, telegramUsername: '' }));
+                              alert('Telegram link successfully severed!');
+                              window.location.reload();
+                            }
+                          }
+                        }}
+                      >
+                        Disconnect
+                      </Btn>
+                    ) : (
+                      <Btn
+                        variant="primary"
+                        style={{ background: `linear-gradient(135deg, ${C.teal}, #0284c7)`, color: C.bg, fontWeight: 700 }}
+                        onClick={async () => {
+                          const handle = s.telegramUsername;
+                          if (!handle) {
+                            alert('Please input a valid username handle first.');
+                            return;
+                          }
+                          
+                          const { error } = await supabase
+                            .from('profiles')
+                              .update({ telegram_username: handle })
+                              .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
+
+                          if (error) {
+                            alert('Failed to link Telegram username: ' + error.message);
+                          } else {
+                            alert(`Successfully linked @${handle} to your ledger profile!`);
+                            window.location.reload(); // Refresh to broadcast settings tree updates
+                          }
+                        }}
+                      >
+                        Link Handle
+                      </Btn>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          );
+        })()}
       </Card>
 
 
