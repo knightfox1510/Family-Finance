@@ -215,12 +215,16 @@ export async function POST(request: Request) {
         querySql = querySql.replace(/```sql/gi, '').replace(/```/g, '').trim();
 
         // Fire query directly to our secure readout database function
-        const { data: sqlOutput, error: rpcError } = await supabase.rpc('execute_read_only_query', { query_text: querySql });
+const { data: sqlOutput, error: rpcError } = await supabase.rpc('execute_read_only_query', { query_text: querySql });
 
-        if (rpcError || (sqlOutput && sqlOutput.error)) {
-          await sendTelegramMessage(chatId, `⚠️ <b>Database metrics mapping boundary failed.</b> Please try rephrasing your analysis statement question.`);
-          return NextResponse.json({ ok: true });
-        }
+// 💥 DIAGNOSTIC PASS: Echoes the exact failure vector back to your chat window
+if (rpcError || (sqlOutput && sqlOutput.error)) {
+  const detailedError = rpcError?.message || sqlOutput?.error || "Unknown compilation exception.";
+  const errorReport = `⚠️ <b>SQL Execution Failed</b>\n\n<b>Generated SQL:</b>\n<code>${querySql}</code>\n\n<b>Database Error:</b>\n<code>${detailedError}</code>`;
+  
+  await sendTelegramMessage(chatId, errorReport);
+  return NextResponse.json({ ok: true });
+}
 
         // Humanize the tabular database numbers back into conversational phrases
         const summaryPrompt = `You are a helpful personal finance copilot. Translate this raw JSON database data result into a beautifully clear, conversational, and direct bulletproof HTML summary message to answer the user's question.
