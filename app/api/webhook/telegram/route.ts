@@ -329,22 +329,27 @@ export async function POST(request: Request) {
     - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
       
       ACCOUNT SELECTION: "Joint" if text says joint/joint account/wallet. "Partner A" if mentions Gaurav. "Partner B" if mentions Karishma. Else default to "${senderIdentity}".
-      
-      SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled", "needs settlement". Else false.
-      
-      TYPE: "income" if text contains salary/bonus/credited/refund/interest earned. Else "expense".
+      SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
+      TYPE: "income" if text contains salary/bonus/credited/refund. Else "expense".
 
       CRUCIAL RULES:
-      1. Your output must be a clean, valid raw JSON array of objects ONLY. Do not wrap it in markdown code blocks.
-      2. Process single items as an array with one object: [{"amount": 100, ...}]
-      3. Split composite items into individual objects. "500 swiggy and 200 cab" becomes two objects.
-      4. CLEAN NOTE TEXT: The "note" field must contain ONLY the actual description of the item or place (e.g., "Savana", "Swiggy", "Fuel"). Strikingly remove operational tracking keywords like account names ("Gaurav", "Karishma", "Joint") or settlement phrases ("to settle", "to be settled", "tosettle") entirely from the final note string.
+      1. Output a JSON array of transaction objects matching the requested format.
+      2. Process single items as an array containing exactly one object.
+      3. Split composite compound items into individual distinct objects.
+      4. CLEAN NOTE TEXT: The "note" field must contain ONLY the physical item description or store merchant name (e.g., "Savana", "Swiggy", "Fuel"). Strikingly strip out user tracking identifiers ("Gaurav", "Karishma") or operational terms ("to settle") from the note text completely.`;
 
-      Example Output format:
-      [
-        {"amount": 500, "category": "Online Food Orders", "note": "Swiggy", "type": "expense", "account": "Joint", "toSettle": false},
-        {"amount": 222, "category": "Miscellaneous", "note": "Savana", "type": "expense", "account": "Partner B", "toSettle": true}
-      ]`;
+      // UPGRADED FETCH TO NATIVE STRUCTURAL JSON GENERATION
+      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input: "${rawText}"` }] }],
+          // ─── FORCE NATIVE STRUCTURAL GENERATION PARAMETERS ──────────────────
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+      });
       
       const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -353,7 +358,23 @@ export async function POST(request: Request) {
 
       const geminiData = await geminiRes.json();
       let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      
+      // Fallback fallback cleaning if string containers present markdown markers
+      if (rawJsonText.includes('```')) {
+        rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      } else {
+        rawJsonText = rawJsonText.trim();
+      }
+
+      // Check if the payload returned is completely blank before parsing to protect from crashing
+      if (!rawJsonText) {
+        console.error("Gemini returned an empty response text context body string.");
+        await sendTelegramMessage(chatId, "⚠️ AI configuration failed to map this sentence layout clearly. Please use short syntax elements.");
+        return NextResponse.json({ ok: true });
+      }
+      
+      // Parse the JSON payload safely as a robust Array list container
+      const parsedTransactionsArray = JSON.parse(rawJsonText);
       
       const parsedTransactionsArray = JSON.parse(rawJsonText);
       
@@ -423,6 +444,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('Core Webhook Route Operations Error Failure:', err);
+    
+    // ─── SAFELY ALERT THE USER VIA TELEGRAM ON CRITICAL RUNTIME CRASHES ───
+    try {
+      // Extract the chatId from either message payload branch dynamically
+      const requestPayload = JSON.parse(await request.clone().text()).catch(() => ({}));
+      const chatId = requestPayload?.message?.chat?.id || requestPayload?.callback_query?.message?.chat?.id;
+      
+      if (chatId) {
+        // Human-friendly debugging string matching your theme accents
+        const failureAlert = `❌ <b>Transaction Logging Failed</b>\n\n⚠️ Your entry could not be processed automatically.\n\n🧐 <b>Error Context:</b> <code>${err?.message || 'Unknown Runtime Exception'}</code>\n\n<i>Please check your balance values or re-verify the text formatting structures.</i>`;
+        
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: failureAlert, parse_mode: 'HTML' }),
+        });
+      }
+    } catch (nestedNotificationError) {
+      console.error('Failed to dispatch error alert callback payload back to Telegram:', nestedNotificationError);
+    }
+
+    // Always keep returning 200 OK to Telegram so it doesn't jam up your webhook queues
     return NextResponse.json({ ok: true }); 
   }
 }
