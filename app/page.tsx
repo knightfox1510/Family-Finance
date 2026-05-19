@@ -3801,7 +3801,9 @@ function Settings({
             <>
               {/* 👥 SYSTEM IDENTITY SWITCHER SECTION */}
               <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${C.border}` }}>
-                <Label style={{ marginBottom: 4 }}>System Household Profile Role</Label>
+                <div style={{ marginBottom: 4 }}>
+                  <Label>System Household Profile Role</Label>
+                </div>
                 <p style={{ color: C.muted, fontSize: 12, margin: '0 0 10px' }}>
                   Your device is registered as <b>{currentCloudRole === 'Partner A' ? data.settings.partnerAName : data.settings.partnerBName}</b> ({currentCloudRole}) in the cloud ledger databases.
                 </p>
