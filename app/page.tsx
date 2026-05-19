@@ -717,7 +717,6 @@ function parseImport(file: any, callback: any) {
           type: rawType === 'income' ? 'income' : 'expense',
           category: row.category || 'Other',
           amount: Number(row.amount) || 0,
-          // ─── MAP THIS TO USE OUR CLEAN FORMATTED VARIABLE ────────────────
           account: formattedAccount,
           addedBy: row.addedby || 'Partner A',
           note: row.note || '',
@@ -725,6 +724,7 @@ function parseImport(file: any, callback: any) {
           settled: row.settled === 'Yes' || row.settled === 'true' || row.settled === true,
           settledFor: row.settledfor || null,
         };
+      }); 
 
       const contribs = getSheet('Contributions').map((r: any) => {
         const row: Record<string, any> = {};
@@ -744,6 +744,7 @@ function parseImport(file: any, callback: any) {
       callback(null, 'Failed to parse file: ' + err.message);
     }
   };
+  
   reader.readAsArrayBuffer(file);
 }
 
