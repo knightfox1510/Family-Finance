@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const payload = await request.json();
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH A: HANDLE INTERACTIVE BUTTON CLICKS (CALLBACK QUERIES)
+    // BRANCH A: INTERACTIVE BUTTON PRESSURE SYSTEM (CALLBACK QUERIES)
     // ────────────────────────────────────────────────────────────────────────
     if (payload.callback_query) {
       const callbackQuery = payload.callback_query;
@@ -32,26 +32,25 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // Action 1: User clicked "Change Category" -> Show Compact Grid
+      // Action A1: Reveal Quick Category Modification Grid
       if (dataStr.startsWith('s_')) {
         const txId = dataStr.split('s_')[1];
         
         const inlineKeyboard: any[] = [];
         for (let i = 0; i < QUICK_CATEGORIES.length; i += 2) {
           inlineKeyboard.push([
-            // Ultra-short prefix 'c_' keeps total payload size well under 64 bytes
             { text: QUICK_CATEGORIES[i], callback_data: `c_${txId}_${i}` },
             { text: QUICK_CATEGORIES[i+1], callback_data: `c_${txId}_${i+1}` }
           ]);
         }
-        inlineKeyboard.push([{ text: "◀ Cancel & Keep", callback_data: `k_${txId}` }]);
+        inlineKeyboard.push([{ text: "◀ Cancel & Keep Original", callback_data: `k_${txId}` }]);
 
         await editTelegramMessageInline(chatId, messageId, "✏️ <b>Select the correct category below:</b>", inlineKeyboard);
         await answerCallbackQuery(callbackQuery.id);
         return NextResponse.json({ ok: true });
       }
 
-      // Action 2: User selected a replacement category from the grid
+      // Action A2: Execute Database Update Sequence
       if (dataStr.startsWith('c_')) {
         const [_, txId, indexStr] = dataStr.split('_');
         const targetCategory = QUICK_CATEGORIES[parseInt(indexStr, 10)];
@@ -75,7 +74,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // Action 3: Clear row from database instantly
+      // Action A3: Purge Row From Cloud Database Disk
       if (dataStr.startsWith('d_')) {
         const txId = dataStr.split('d_')[1];
 
@@ -94,7 +93,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // Action 4: Cancel and restore basic options
+      // Action A4: Discard Edits & Return to Primary Controls
       if (dataStr.startsWith('k_')) {
         const txId = dataStr.split('k_')[1];
         const defaultKeyboard = [[
@@ -110,31 +109,28 @@ export async function POST(request: Request) {
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH B: HANDLE STANDARD INCOMING TEXT MESSAGES
+    // BRANCH B: STANDARD NATURAL TEXT DISPATCH HOOKS
     // ────────────────────────────────────────────────────────────────────────
-    if (!payload.message || !payload.message.text) {
-      return NextResponse.json({ ok: true });
-    }
+    if (payload.message && payload.message.text) {
+      const chatId = payload.message.chat.id;
+      const tgUser = payload.message.from.username || '';
+      const rawText = payload.message.text;
 
-    const chatId = payload.message.chat.id;
-    const tgUser = payload.message.from.username || '';
-    const rawText = payload.message.text;
+      const allowedUsers = (process.env.TELEGRAM_ALLOWED_USER_NAMES || '').toLowerCase().split(',');
+      if (!allowedUsers.includes(tgUser.toLowerCase())) {
+        await sendTelegramMessage(chatId, "🚫 Access Denied: Unauthorized profile.");
+        return NextResponse.json({ ok: true });
+      }
 
-    const allowedUsers = (process.env.TELEGRAM_ALLOWED_USER_NAMES || '').toLowerCase().split(',');
-    if (!allowedUsers.includes(tgUser.toLowerCase())) {
-      await sendTelegramMessage(chatId, "🚫 Access Denied: Unauthorized profile.");
-      return NextResponse.json({ ok: true });
-    }
+      if (rawText.startsWith('/start')) {
+        await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the control panel buttons to alter metrics on the fly.");
+        return NextResponse.json({ ok: true });
+      }
 
-    if (rawText.startsWith('/start')) {
-      await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the buttons beneath confirmations to modify or delete logs dynamically.");
-      return NextResponse.json({ ok: true });
-    }
-
-    const householdId = process.env.TELEGRAM_DEFAULT_HOUSEHOLD_ID;
-    const geminiKey = process.env.GEMINI_API_KEY;
-    const isPartnerA = tgUser.toLowerCase().includes('goku');
-    const senderIdentity = isPartnerA ? 'Partner A' : 'Partner B';
+      const householdId = process.env.TELEGRAM_DEFAULT_HOUSEHOLD_ID;
+      const geminiKey = process.env.GEMINI_API_KEY;
+      const isPartnerA = tgUser.toLowerCase().includes('goku');
+      const senderIdentity = isPartnerA ? 'Partner A' : 'Partner B';
     
     // ─── FULL MATRIX SYSTEM PROMPT (HIGH GRANULARITY) ───────────────────────
     const systemPrompt = `You are an expert personal finance data-entry clerk processing raw text and banking SMS strings for a household ledger in India.
@@ -200,60 +196,60 @@ export async function POST(request: Request) {
     {"amount": 1200, "category": "Online Groceries", "note": "Weekly Zepto run", "type": "expense", "account": "Joint", "toSettle": false}`;
 
     // Fire text payload directly to Gemini API
-   const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input text to process: "${rawText}"` }] }],
-        }),
-      }
-    );
+  const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input text to process: "${rawText}"` }] }],
+          }),
+        }
+      );
 
-    const geminiData = await geminiRes.json();
-    let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-    const parsedTx = JSON.parse(rawJsonText);
+      const geminiData = await geminiRes.json();
+      let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      
+      rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const parsedTx = JSON.parse(rawJsonText);
 
-    const insertPayload = {
-      household_id: householdId,
-      date: new Date().toISOString().slice(0, 10),
-      amount: Number(parsedTx.amount || 0),
-      category: parsedTx.category || 'Miscellaneous',
-      type: parsedTx.type || 'expense',
-      account_used: parsedTx.account,
-      added_by: senderIdentity,
-      note: parsedTx.note || 'Telegram automated entry',
-      to_settle: Boolean(parsedTx.toSettle),
-      settled: false,
-      settled_with: null
-    };
+      const insertPayload = {
+        household_id: householdId,
+        date: new Date().toISOString().slice(0, 10),
+        amount: Number(parsedTx.amount || 0),
+        category: parsedTx.category || 'Miscellaneous',
+        type: parsedTx.type || 'expense',
+        account_used: parsedTx.account,
+        added_by: senderIdentity,
+        note: parsedTx.note || 'Telegram automated entry',
+        to_settle: Boolean(parsedTx.toSettle),
+        settled: false,
+        settled_with: null
+      };
 
-    if (insertPayload.amount <= 0) throw new Error("Parsed amount resolved invalid.");
+      if (insertPayload.amount <= 0) throw new Error("Parsed amount resolved invalid.");
 
-    const { data: databaseResultRows, error: dbError } = await supabase
-      .from('transactions')
-      .insert([insertPayload])
-      .select();
+      const { data: databaseResultRows, error: dbError } = await supabase
+        .from('transactions')
+        .insert([insertPayload])
+        .select();
 
-    if (dbError) throw dbError;
-    if (!databaseResultRows || databaseResultRows.length === 0) throw new Error("Supabase insert empty response.");
+      if (dbError) throw dbError;
+      if (!databaseResultRows || databaseResultRows.length === 0) throw new Error("Supabase insert empty response.");
 
-    const realTx = databaseResultRows[0];
-    const actualDatabaseId = realTx.id;
+      const realTx = databaseResultRows[0];
+      const actualDatabaseId = realTx.id;
 
-    // 📡 MAXIMUM ISOLATION: Clean, basic HTML text to bypass any text rendering landmines
-    const responseMsg = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n📝 <b>Note:</b> ${realTx.note || 'None'}`;
-    
-    // ⚡ SINGLE CHAR KEYS: 's_' and 'd_' keep total data lengths perfectly minimal
-    const inlineKeyboard = [[
-      { text: "✏️ Change Category", callback_data: `s_${actualDatabaseId}` },
-      { text: "🗑️ Delete Entry", callback_data: `d_${actualDatabaseId}` }
-    ]];
+      const responseMsg = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n📝 <b>Note:</b> ${realTx.note || 'None'}`;
+      
+      const inlineKeyboard = [[
+        { text: "✏️ Change Category", callback_data: `s_${actualDatabaseId}` },
+        { text: "🗑️ Delete Entry", callback_data: `d_${actualDatabaseId}` }
+      ]];
 
-    await sendTelegramMessageInline(chatId, responseMsg, inlineKeyboard);
+      await sendTelegramMessageInline(chatId, responseMsg, inlineKeyboard);
+      return NextResponse.json({ ok: true });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
@@ -263,7 +259,7 @@ export async function POST(request: Request) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// TELEGRAM RUNTIME CORE TRANSMISSION DOCKS
+// TELEGRAM CORE API ROUTING ENGINE
 // ────────────────────────────────────────────────────────────────────────
 async function sendTelegramMessage(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -314,4 +310,5 @@ async function answerCallbackQuery(callbackQueryId: string, alertText?: string) 
       show_alert: false
     }),
   });
+}
 }
