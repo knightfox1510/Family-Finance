@@ -376,8 +376,6 @@ export async function POST(request: Request) {
       // Parse the JSON payload safely as a robust Array list container
       const parsedTransactionsArray = JSON.parse(rawJsonText);
       
-      const parsedTransactionsArray = JSON.parse(rawJsonText);
-      
       if (!Array.isArray(parsedTransactionsArray)) {
         throw new Error("Gemini compile failure: Output did not resolve to an array matrix.");
       }
