@@ -89,19 +89,27 @@ export default function Auth() {
           targetHouseholdId = inviteCode.trim();
         }
 
-        // 3. Bind the user profile directly to the validated household container row
+        // 3. 🎯 THE UPDATED PROFILE INSERTION PAYLOAD
+        // Automatically flags creators as Partner A and joiners as Partner B
+        const assignedRole = onboardingChoice === 'create' ? 'Partner A' : 'Partner B';
+
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
             id: userId,
-            household_id: targetHouseholdId
+            household_id: targetHouseholdId,
+            email: email.toLowerCase().trim(), // Stores the email address cleanly
+            display_name: assignedRole         // Stores their systemic household role
           });
         if (profileError) throw profileError;
 
-        // Automatically configure a temporary role fallback for their device
+        // Configure a temporary role fallback for their device local storage
         if (typeof window !== 'undefined') {
-          localStorage.setItem('active_partner_role', onboardingChoice === 'create' ? 'Partner A' : 'Partner B');
+          localStorage.setItem('active_partner_role', assignedRole);
         }
+
+        alert('Success! Your account and ledger maps are synced. Welcome aboard!');
+      }
 
         alert('Success! Your account and ledger maps are synced. Welcome aboard!');
       } else {
