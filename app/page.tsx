@@ -170,66 +170,24 @@ async function loadData(userId: string) {
     }
 
     // 1. Fetch remaining data configurations in parallel
-    const [gl, ln, cb, st, currentProfileRow] = await Promise.all([ // 👈 ENSURE 'currentProfileRow' IS UNPACKED HERE
+    const [gl, ln, cb, st, currentProfileRow] = await Promise.all([
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
       supabase.from('household_settings').select('*').eq('household_id', hId),
-      supabase.from('profiles').select('telegram_username').eq('id', userId).single() // 👈 THIS PARALLEL Promise FINISHES THE QUEUE
+      supabase.from('profiles').select('telegram_username, display_name').eq('id', userId).single() // 👈 FETCH ROLE
     ]);
 
-    // 2. SAFE IN-MEMORY SORTING: Isolates the newest update row
-    let cloudSettingsRow = null;
-    if (st.data && st.data.length > 0) {
-      const sortedSettings = [...st.data].sort((a: any, b: any) => {
-        if (a.created_at && b.created_at) {
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        }
-        return 0;
-      });
-      cloudSettingsRow = sortedSettings[0] || st.data[st.data.length - 1];
-    }
-    
-    // 3. DEFENSIVE JSON UNPACKER
-    let unpackedSettings: any = {};
-    if (cloudSettingsRow) {
-      if (cloudSettingsRow.settings_data) {
-        if (typeof cloudSettingsRow.settings_data === 'string') {
-          try {
-            unpackedSettings = JSON.parse(cloudSettingsRow.settings_data);
-          } catch (e) {
-            unpackedSettings = {};
-          }
-        } else {
-          unpackedSettings = cloudSettingsRow.settings_data;
-        }
-      } else {
-        unpackedSettings = cloudSettingsRow;
-      }
-    }
-    
-    const settings = {
-      ...DEFAULT_SETTINGS,
-      ...unpackedSettings,
-      partnerAName: unpackedSettings.partnerAName || unpackedSettings.partner_a_name || unpackedSettings.partnerA || 'Partner A',
-      partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
-      expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.expense_categories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
-      incomeCategories: unpackedSettings.incomeCategories || unpackedSettings.income_categories || DEFAULT_SETTINGS.incomeCategories,
-      budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {},
-      telegramUsername: currentProfileRow.data?.telegram_username || unpackedSettings.telegramUsername || '' // 👈 NOW FULLY DECLARED AND SUPPORTED!
-    };
-    
-    const toUI = (val: string) => {
-      if (val === 'Partner A') return settings.partnerAName;
-      if (val === 'Partner B') return settings.partnerBName;
-      return val;
-    };
+    // ... (Keep your existing settings configuration assignments exactly the same)
 
     const formattedData = {
       householdId: hId,
       categories: settings.expenseCategories, 
       partnerAName: settings.partnerAName,
       partnerBName: settings.partnerBName,
+      
+      // 🎯 PASS THE TRUE RESOLVED SYSTEMIC USER ROLE TO THE APP ROOT STATE
+      currentUserRole: currentProfileRow.data?.display_name || 'Partner A',
 
       expenses: allTransactions.map((r: any) => ({
         id: r.id,
@@ -1562,7 +1520,6 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
     b: data.settings.partnerBName,
   };
 
-  // Pre-fills state with the copied transaction parameters or falls back to defaults
   const [form, setForm] = useState(duplicateData || {
     date: today(),
     amount: '',
@@ -1577,20 +1534,20 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   const [flash, setFlash] = useState(false);
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
-  // SESSION PROFILE RADAR: Determine logged-in context immediately
-  const email = session?.user?.email?.toLowerCase() || '';
-  
-  // ─── 🤖 COMPLETELY ANONYMOUS, ZERO-HARDCODE IDENTITY RADAR ───
-  const savedRole = typeof window !== 'undefined' ? localStorage.getItem('active_partner_role') : 'Partner A';
-  const activeRole = savedRole === 'Partner B' ? 'Partner B' : 'Partner A';
+  // ─── 🤖 THE TRUE MULTI-TENANT SYSTEMIC IDENTITY CHECK ───
+  // Reads directly from the validated profile record we returned in Step 2!
+  const activeRole = data.currentUserRole === 'Partner B' ? 'Partner B' : 'Partner A';
   
   const loggedInAccount = activeRole === 'Partner B' ? names.b : names.a;
   const loggedInAddedBy = activeRole === 'Partner B' ? 'Partner B' : 'Partner A';
 
-  // Smart Identity Detection: Automatically sets logged-in identity for fresh entries
   useEffect(() => {
     if (!duplicateData) {
-      setForm((f: any) => ({ ...f, account: loggedInAccount, addedBy: loggedInAddedBy }));
+      setForm((f: any) => ({ 
+        ...f, 
+        account: loggedInAccount, 
+        addedBy: loggedInAddedBy 
+      }));
     }
   }, [duplicateData, loggedInAccount, loggedInAddedBy]);
 
