@@ -13,13 +13,13 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 // The top 10 predicted categories for the quick-add wizard grid
 const MASTER_PREDICTIONS = [
   "Groceries", "Dining Out", "Online Groceries", "Online Food Orders",
-  "Cab Services", "Personal Transportation", "Utilities", "Miscellaneous",
+  "Cab Services", "Personal Transportation", "Online Shopping", "Miscellaneous",
   "Entertainment", "Subscriptions"
 ];
 
 const QUICK_CATEGORIES = [
   "Dining Out", "Online Food Orders", "Online Groceries", "Groceries",
-  "Cab Services", "Personal Transportation", "Utilities", "Miscellaneous"
+  "Cab Services", "Personal Transportation", "Online Shopping", "Miscellaneous"
 ];
 
 export async function POST(request: Request) {
@@ -42,26 +42,20 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // ─── WIZARD STEP 2: MULTI-TENANT GENERIC NAME LOOKUP ───
+      // ─── WIZARD STEP 2: CATEGORY SELECTED -> CHOOSE ACCOUNT ───
       if (dataStr.startsWith('w_cat_')) {
         const [_, __, txId, catIndex] = dataStr.split('_');
         const chosenCategory = MASTER_PREDICTIONS[parseInt(catIndex, 10)];
 
         await supabase.from('transactions').update({ category: chosenCategory }).eq('id', txId);
 
-        // Fetch the transaction details to find the household context
         const { data: tx } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
-        
-        // Generic defaults for multi-user scaling
         let nameA = "Partner A"; 
         let nameB = "Partner B";
-
         if (tx?.household_id) {
-          // Read the dynamic configurations from the settings table
           const { data: st } = await supabase.from('household_settings').select('settings_data').eq('household_id', tx.household_id).single();
           if (st?.settings_data) {
             const settings = typeof st.settings_data === 'string' ? JSON.parse(st.settings_data) : st.settings_data;
-            // Support both standard camelCase or snake_case dynamic keys configuration pairs
             nameA = settings.partnerAName || settings.partner_a_name || nameA;
             nameB = settings.partnerBName || settings.partner_b_name || nameB;
           }
@@ -72,7 +66,7 @@ export async function POST(request: Request) {
             { text: `👤 ${nameA}`, callback_data: `w_acc_${txId}_PartnerA` },
             { text: `👤 ${nameB}`, callback_data: `w_acc_${txId}_PartnerB` }
           ],
-          [{ text: "💳 Joint Wallet", callback_data: `w_acc_${txId}_Joint` }]
+          [{ text: "💳 Joint Account", callback_data: `w_acc_${txId}_Joint` }]
         ];
 
         await editTelegramMessageInline(chatId, messageId, `📦 <b>Category Set:</b> ${chosenCategory}\n\n🏧 <b>Next, choose the funding account used:</b>`, accountKeyboard);
@@ -135,8 +129,8 @@ export async function POST(request: Request) {
         const txId = dataStr.split('s_acc_')[1];
         const { data: txRow } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
         
-        let nameA = "Gaurav";
-        let nameB = "Karishma";
+        let nameA = "Partner A";
+        let nameB = "Partner B";
         if (txRow?.household_id) {
           const { data: settingsRow } = await supabase.from('household_settings').select('settings_data').eq('household_id', txRow.household_id).single();
           if (settingsRow?.settings_data) {
@@ -151,7 +145,7 @@ export async function POST(request: Request) {
             { text: `👤 ${nameA}`, callback_data: `v_acc_${txId}_PartnerA` },
             { text: `👤 ${nameB}`, callback_data: `v_acc_${txId}_PartnerB` }
           ],
-          [{ text: "💳 Joint Wallet", callback_data: `v_acc_${txId}_Joint` }],
+          [{ text: "💳 Joint Account", callback_data: `v_acc_${txId}_Joint` }],
           [{ text: "◀ Return to Menu", callback_data: `menu_${txId}` }]
         ];
         
@@ -268,7 +262,6 @@ export async function POST(request: Request) {
       if (!isNaN(cleanNumericAmount) && cleanNumericAmount > 0) {
         const secureUuidFallback = crypto.randomUUID();
 
-        // Write initial baseline rows directly to your table disk
         const skeletonPayload = {
           id: secureUuidFallback,
           household_id: householdId,
@@ -285,7 +278,6 @@ export async function POST(request: Request) {
 
         await supabase.from('transactions').insert([skeletonPayload]);
 
-        // Generate the 10 prediction grid matrix choices
         const categoryKeyboard: any[] = [];
         for (let i = 0; i < MASTER_PREDICTIONS.length; i += 2) {
           categoryKeyboard.push([
@@ -299,12 +291,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // ─── 🤖 PATH 2: STANDARD NATURAL LANGUAGE PARSER PIPELINE ───
+      // ─── 🤖 PATH 2: MULTI-ROW NATURAL LANGUAGE PARSER PIPELINE ───
       const systemPrompt = `You are an expert personal finance clerk parsing ledger lines. 
       Analyze the text input and extract EVERY individual transaction item mentioned. 
       Map the entries into a valid JSON array of objects.
-      
-            VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
+
+      VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
     - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, whiskey, gin, vodka, specific alcohol logs)
     - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, food at JP, JP food, physically eating out at a venue)
     - "Education"           (Course fees, certifications, books, training programs, upskilling materials)
@@ -335,8 +327,7 @@ export async function POST(request: Request) {
     - "Interest Earned"     (Bank savings account quarterly interest payouts, fixed deposit (FD) interest pay-ins)
     - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
     - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
-    
-      ACCOUNT SELECTION: "Joint" if text says joint/joint account/wallet. "Partner A" if mentions Gaurav. "Partner B" if mentions Karishma. Else default to "${senderIdentity}".
+      ACCOUNT SELECTION: "Joint" if text says joint/joint account/wallet. "Partner A" if mentions Gaurav or Goku. "Partner B" if mentions Karishma or Kari. Else default to "${senderIdentity}".
       SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
       TYPE: "income" if text contains salary/bonus/credited/refund. Else "expense".
 
@@ -360,14 +351,12 @@ export async function POST(request: Request) {
       let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
       rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
       
-      // Parse the JSON payload safely as a robust Array list container
       const parsedTransactionsArray = JSON.parse(rawJsonText);
       
       if (!Array.isArray(parsedTransactionsArray)) {
         throw new Error("Gemini compile failure: Output did not resolve to an array matrix.");
       }
 
-      // 🔄 Loop through and write each individual item out sequentially
       for (const parsedTx of parsedTransactionsArray) {
         const secureUuidFallback = crypto.randomUUID();
         const insertPayload = {
@@ -385,13 +374,12 @@ export async function POST(request: Request) {
           settled_with: null
         };
 
-        if (insertPayload.amount <= 0) continue; // Safely skip invalid entries
+        if (insertPayload.amount <= 0) continue; 
 
         const { data: dbRows } = await supabase.from('transactions').insert([insertPayload]).select();
         const realTx = dbRows && dbRows[0] ? dbRows[0] : insertPayload;
         const activeId = realTx.id;
 
-        // Pull the dynamic multi-tenant user naming values matching this household context
         let nameA = "Partner A";
         let nameB = "Partner B";
         if (householdId) {
@@ -403,7 +391,7 @@ export async function POST(request: Request) {
           }
         }
 
-        let accountDisplay = '💳 Joint Wallet';
+        let accountDisplay = '💳 Joint Account';
         if (realTx.account_used === 'Partner A') accountDisplay = `👤 ${nameA}`;
         if (realTx.account_used === 'Partner B') accountDisplay = `👤 ${nameB}`;
 
@@ -426,6 +414,9 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json({ ok: true });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('Core Webhook Route Operations Error Failure:', err);
     return NextResponse.json({ ok: true }); 
@@ -440,7 +431,6 @@ async function handleReturnToMenu(chatId: number, messageId: number, txId: strin
   if (txRows && txRows[0]) {
     const tx = txRows[0];
     
-    // Multi-tenant generic baseline defaults
     let nameA = "Partner A";
     let nameB = "Partner B";
     
@@ -457,8 +447,7 @@ async function handleReturnToMenu(chatId: number, messageId: number, txId: strin
       }
     }
 
-    // Assign text display strings dynamically based on tenant variables
-    let accountDisplay = '💳 Joint Wallet';
+    let accountDisplay = '💳 Joint Account';
     if (tx.account_used === 'Partner A') accountDisplay = `👤 ${nameA}`;
     if (tx.account_used === 'Partner B') accountDisplay = `👤 ${nameB}`;
 
