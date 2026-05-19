@@ -80,7 +80,15 @@ const DEFAULT_SETTINGS = {
   currency: 'INR',
 };
 
+// 🔥 PRIVACY MATRIX: Application-wide tracking token
+let GLOBAL_PRIVACY_MASK = false;
+
 function fmt(n: number, currency: string = 'INR') {  
+  // ⚡ If privacy mode is flipped, hide the actual values behind secure dots
+  if (GLOBAL_PRIVACY_MASK) {
+    return currency === 'INR' ? '₹ ••••' : '••••';
+  }
+
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
@@ -4022,7 +4030,12 @@ function Settings({
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [data, setData] = useState<any>(null);
-  
+
+  const [privacyMode, setPrivacyMode] = useState(false);
+  const togglePrivacy = () => {
+    GLOBAL_PRIVACY_MASK = !GLOBAL_PRIVACY_MASK;
+    setPrivacyMode(GLOBAL_PRIVACY_MASK); // Forces React to instantly re-render every tab on screen
+  };
 
   const [view, setView] = useState('dashboard');
   const [prevView, setPrevView] = useState('dashboard'); 
@@ -4602,19 +4615,40 @@ importData: async ({ expenses, contributions }: any) => {
                 </span>
               </div>
             )}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: C.text1,
-                cursor: 'pointer',
-                fontSize: 20,
-                padding: 4,
-              }}
-            >
-              {sidebarOpen ? '◀' : '☰'}
-            </button>
+            
+            {/* ⚡ PRIVACY EYE + SIDEBAR TRIGGER CONTROL HUB */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                onClick={togglePrivacy}
+                title={privacyMode ? "Reveal Financial Data" : "Mask Private Data"}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: C.text1,
+                  cursor: 'pointer',
+                  fontSize: 18,
+                  padding: 4,
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                {privacyMode ? '🙈' : '👁️'}
+              </button>
+
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: C.text1,
+                  cursor: 'pointer',
+                  fontSize: 20,
+                  padding: 4,
+                }}
+              >
+                {sidebarOpen ? '◀' : '☰'}
+              </button>
+            </div>
           </div>
 
           <div
@@ -4699,46 +4733,67 @@ importData: async ({ expenses, contributions }: any) => {
           overflowY: 'auto',
         }}
       >
+        
+        
         {/* MOBILE TOP HEADER */}
-        {/* MOBILE TOP HEADER */}
-{isMobile && (
-  <div
-    style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '16px 20px',
-      borderBottom: `1px solid ${C.border}`,
-      background: C.surface,
-      position: 'sticky',
-      top: 0,
-      zIndex: 50,
-    }}
-  >
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 22 }}>💰</span>
-      <span style={{ color: C.amber, fontWeight: 900, fontSize: 16 }}>
-        FamilyFinance
-      </span>
-    </div>
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-      <span style={{ fontSize: 10, color: C.text2, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.user.email}</span>
-      <button
-        onClick={() => supabase.auth.signOut()}
-        style={{
-          background: 'transparent',
-          border: `1px solid ${C.border}`,
-          color: C.text2,
-          borderRadius: 6,
-          padding: '2px 6px',
-          fontSize: 10,
-        }}
-      >
-        Log Out
-      </button>
-    </div>
-  </div>
-)}
+        {isMobile && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 20px',
+              borderBottom: `1px solid ${C.border}`,
+              background: C.surface,
+              position: 'sticky',
+              top: 0,
+              zIndex: 50,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 22 }}>💰</span>
+              <span style={{ color: C.amber, fontWeight: 900, fontSize: 16 }}>
+                FamilyFinance
+              </span>
+            </div>
+            
+            {/* ⚡ MOBILE PROFILE + PRIVACY CONTROL ACTIONS PANEL */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+              <span style={{ fontSize: 10, color: C.text2, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {session.user.email}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <button
+                  onClick={togglePrivacy}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    padding: '2px 4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  {privacyMode ? '🙈' : '👁️'}
+                </button>
+                <button
+                  onClick={() => supabase.auth.signOut()}
+                  style={{
+                    background: 'transparent',
+                    border: `1px solid ${C.border}`,
+                    color: C.text2,
+                    borderRadius: 6,
+                    padding: '2px 6px',
+                    fontSize: 10,
+                  }}
+                >
+                  Log Out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div
           style={{
