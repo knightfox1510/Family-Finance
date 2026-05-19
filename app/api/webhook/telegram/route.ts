@@ -340,22 +340,22 @@ export async function POST(request: Request) {
       Map the entries into a valid JSON array of objects.
       
       VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
-      - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, whiskey, gin, vodka, specific alcohol logs)
+      - "Alcohol"              (Wine shops, Living Liquidz, pub/bar drinks, beer, whiskey, gin, vodka, specific alcohol logs)
       - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, food at JP, JP food, physically eating out at a venue)
       - "Education"           (Course fees, certifications, books, training programs, upskilling materials)
       - "Entertainment"       (Movie tickets, Movie names, BookMyShow, gaming arcades, bowling alleys, concerts, events, fun outings)
       - "Groceries"           (Offline local kirana stores, Metro, Fruits, Grocery, physical vegetable/fruit markets, cash grocery purchases)
       - "Healthcare"          (Pharmacies, Medical, medical stores like Apollo, doctor, checkups, lab tests, dental treatments, medicines)
-      - "Gifting"             (Buying gifts for friends, family members, relatives; shagun/cash envelopes for weddings or birthdays)
-      - "Housing"             (Monthly house rent, society maintenance bills, Home loan EMI)
+      - "Gifting"              (Buying gifts for friends, family members, relatives; shagun/cash envelopes for weddings or birthdays)
+      - "Housing"              (Monthly house rent, society maintenance bills, Home loan EMI)
       - "Insurance"           (Health insurance premiums, car/bike motor insurance renewals, term life insurance policies)
-      - "Investments"         (Mutual fund allocations, monthly SIPs, Smallcase, Zerodha, Gold coin, US stocks, IND Money, NJ E-wealth, SIP, direct stocks buying, gold purchases, PPF deposits, Index funds)
+      - "Investments"          (Mutual fund allocations, monthly SIPs, Smallcase, Zerodha, Gold coin, US stocks, IND Money, NJ E-wealth, SIP, direct stocks buying, gold purchases, PPF deposits, Index funds)
       - "Miscellaneous"       (Unexpected or unclassifiable payments, ATM cash withdrawals, random one-off pocket cash items)
       - "Offline Shopping"    (Physical retail checkout counters, apparel or footwear bought at a mall/store, lifestyle physical shopping)
       - "Online Shopping"     (Amazon, Flipkart, Myntra, Ajio, Tata CLiQ, non-grocery online courier packages, retail websites)
       - "Personal Care"       (Salon visits, haircuts, beauty parlour sessions, grooming products, spa, cosmetics, skincare items)
       - "Personal Transportation" (Petrol, Bike EMI, Helmet, car or motorcycle service/repairs, toll payments, fastag recharges, parking fees)
-      - "Savings"             (Manual transfers to long-term cash reserves, emergency savings funds, specific sinking fund transfers)
+      - "Savings"              (Manual transfers to long-term cash reserves, emergency savings funds, specific sinking fund transfers)
       - "Subscriptions"       (Netflix, Amazon Prime, Google API, Spotify, iCloud storage, YouTube Premium, gym memberships, recurring software apps/services)
       - "Health & Fitness"    (Protein powder, gym supplements, Yoga classes, workout fitness gear, tracking straps, organic health food products)
       - "Taxes"               (Income tax filings, property tax payments, municipal or government duty filings)
@@ -364,20 +364,25 @@ export async function POST(request: Request) {
       - "Utilities"           (Mobile recharges like Jio/Airtel/VI, home broadband Wi-Fi bills, electricity bills, piped gas, Laundry, Maid salary, Cook Salary)
       - "Online Food Orders"  (Zomato, Swiggy food, EatClub, Domino's, pizza/burger drops, cloud kitchen orders)
       - "Household Items"     (Household items, Kitchen items, Cleaning liquids, laundry/washing detergents, garbage bags, trash cans, mop replacements, house decor, bedsheets, Amazon orders)
-      - "Cab Services"        (Uber rides, Ola bookings, Rapido, InDrive, auto, rickshaw, cab)
-      - "Hosting Day"         (Ordering bulk food/alcohol/snacks specifically when friends, family, or guests are visiting the house for a social gathering)
+      - "Cab Services"         (Uber rides, Ola bookings, Rapido, InDrive, auto, rickshaw, cab)
+      - "Hosting Day"          (Ordering bulk food/alcohol/snacks specifically when friends, family, or guests are visiting the house for a social gathering)
       - "Online Groceries"    (Zepto orders, Blinkit orders, Swiggy Instamart delivery, BigBasket, daily milk/produce apps)
       - "Interest Earned"     (Bank savings account quarterly interest payouts, fixed deposit (FD) interest pay-ins)
       - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
-      - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
+      - "Family payments"      (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
       
-      ACCOUNT SELECTION RULES:
+      ACCOUNT SELECTION & IDENTITY RULES:
       - Map to "Partner A" if text mentions or explicitly implies ${nameA}.
       - Map to "Partner B" if text mentions or explicitly implies ${nameB}.
       - Map to "Joint" if text says joint/joint account/wallet.
       - Default to "${senderIdentity}" if no distinct profile entity matching can be inferred from the text.
 
-      SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
+      ⚠️ LIVE USER SESSION CONTEXT:
+      - The person physically writing this chat message right now is: ${senderIdentity}.
+      - ADDED_BY FIELD: Always populate the "added_by" tracking field exactly as "${senderIdentity}".
+      - SETTLEMENT MAPPING: "to_settle" is true if the text contains "to settle", "tosettle", "to be settled", "split", or "half". Otherwise false.
+      - If "to_settle" is true, it explicitly means that ${senderIdentity} paid for this entire item out-of-pocket and the OTHER partner owes them their split share. Mark "account_used" as "${senderIdentity}".
+
       TYPE: "income" if text contains salary/bonus/credited/refund. Else "expense".
 
       CRUCIAL CLEANING RULE: The "note" field must contain ONLY the physical item description or store merchant name (e.g., "Savana", "Zepto", "Fuel"). Strikingly remove dynamic tracking names like "${nameA}", "${nameB}", "Joint" or settlement phrases from the final note string entirely. Do not put the category name inside the note, unless there is no other way to do it.`;
