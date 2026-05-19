@@ -10,9 +10,16 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: { persistSession: false, autoRefreshToken: false }
 });
 
+// The top 10 predicted categories for the quick-add wizard grid
+const MASTER_PREDICTIONS = [
+  "Groceries", "Dining Out", "Online Groceries", "Online Food Orders",
+  "Cab Services", "Personal Transportation", "Utilities", "Miscellaneous",
+  "Entertainment", "Subscriptions"
+];
+
 const QUICK_CATEGORIES = [
   "Dining Out", "Online Food Orders", "Online Groceries", "Groceries",
-  "Cab Services", "Personal Transportation", "Online Shopping", "Miscellaneous"
+  "Cab Services", "Personal Transportation", "Utilities", "Miscellaneous"
 ];
 
 export async function POST(request: Request) {
@@ -20,7 +27,7 @@ export async function POST(request: Request) {
     const payload = await request.json();
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH A: THE WORKING INTERACTIVE CONTROL CONSOLE (CALLBACK QUERIES)
+    // BRANCH A: INTERACTIVE CONTROL CONSOLE DISPATCH (CALLBACK QUERIES)
     // ────────────────────────────────────────────────────────────────────────
     if (payload.callback_query) {
       const callbackQuery = payload.callback_query;
@@ -35,7 +42,73 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // --- SUB-MENU: SHOW CATEGORY GRID ---
+      // ─── WIZARD STEP 2: CATEGORY SELECTED -> CHOOSE ACCOUNT ───
+      if (dataStr.startsWith('w_cat_')) {
+        const [_, __, txId, catIndex] = dataStr.split('_');
+        const chosenCategory = MASTER_PREDICTIONS[parseInt(catIndex, 10)];
+
+        await supabase.from('transactions').update({ category: chosenCategory }).eq('id', txId);
+
+        const { data: tx } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
+        let nameA = "Gaurav"; 
+        let nameB = "Karishma";
+        if (tx?.household_id) {
+          const { data: st } = await supabase.from('household_settings').select('settings_data').eq('household_id', tx.household_id).single();
+          if (st?.settings_data) {
+            const settings = typeof st.settings_data === 'string' ? JSON.parse(st.settings_data) : st.settings_data;
+            nameA = settings.partnerAName || nameA;
+            nameB = settings.partnerBName || nameB;
+          }
+        }
+
+        const accountKeyboard = [
+          [
+            { text: `👤 ${nameA}`, callback_data: `w_acc_${txId}_PartnerA` },
+            { text: `👤 ${nameB}`, callback_data: `w_acc_${txId}_PartnerB` }
+          ],
+          [{ text: "💳 Joint Wallet", callback_data: `w_acc_${txId}_Joint` }]
+        ];
+
+        await editTelegramMessageInline(chatId, messageId, `📦 <b>Category Set:</b> ${chosenCategory}\n\n🏧 <b>Next, choose the funding account used:</b>`, accountKeyboard);
+        await answerCallbackQuery(callbackQuery.id);
+        return NextResponse.json({ ok: true });
+      }
+
+      // ─── WIZARD STEP 3: ACCOUNT SELECTED -> CHOOSE SETTLEMENT ───
+      if (dataStr.startsWith('w_acc_')) {
+        const [_, __, txId, rawAccount] = dataStr.split('_');
+        const normalizedAccount = rawAccount === 'PartnerA' ? 'Partner A' : rawAccount === 'PartnerB' ? 'Partner B' : 'Joint';
+
+        await supabase.from('transactions').update({ account_used: normalizedAccount }).eq('id', txId);
+
+        if (normalizedAccount === 'Joint') {
+          await answerCallbackQuery(callbackQuery.id, "✅ Wizard Entry Finished!");
+          return handleReturnToMenu(chatId, messageId, txId);
+        }
+
+        const settleKeyboard = [
+          [
+            { text: "⚠️ Yes, Split 50/50", callback_data: `w_fin_${txId}_true` },
+            { text: "✅ No, Personal Expense", callback_data: `w_fin_${txId}_false` }
+          ]
+        ];
+
+        await editTelegramMessageInline(chatId, messageId, `🏧 <b>Account Set:</b> ${normalizedAccount}\n\n⚖️ <b>Should this out-of-pocket cost be settled by the joint pool?</b>`, settleKeyboard);
+        await answerCallbackQuery(callbackQuery.id);
+        return NextResponse.json({ ok: true });
+      }
+
+      // ─── WIZARD STEP 4: SETTLEMENT SET -> CONCLUDE AND SHOW MAIN DOCK ───
+      if (dataStr.startsWith('w_fin_')) {
+        const [_, __, txId, settleFlag] = dataStr.split('_');
+        const toSettleValue = settleFlag === 'true';
+
+        await supabase.from('transactions').update({ to_settle: toSettleValue }).eq('id', txId);
+        await answerCallbackQuery(callbackQuery.id, "🎉 Entry Successfully Compiled!");
+        return handleReturnToMenu(chatId, messageId, txId);
+      }
+
+      // --- STANDARD SUB-MENU: SHOW CATEGORY GRID ---
       if (dataStr.startsWith('s_cat_')) {
         const txId = dataStr.split('s_cat_')[1];
         const inlineKeyboard: any[] = [];
@@ -51,19 +124,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // --- SUB-MENU: SHOW ACCOUNT SELECTION ---
-      // --- SUB-MENU: SHOW ACCOUNT SELECTION WITH DYNAMIC NAMES ---
+      // --- STANDARD SUB-MENU: SHOW ACCOUNT SELECTION WITH DYNAMIC NAMES ---
       if (dataStr.startsWith('s_acc_')) {
         const txId = dataStr.split('s_acc_')[1];
-        
-        // 1. Fetch this transaction's household_id so we can look up its unique settings
         const { data: txRow } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
         
-        let nameA = "Partner A";
-        let nameB = "Partner B";
-        
+        let nameA = "Gaurav";
+        let nameB = "Karishma";
         if (txRow?.household_id) {
-          // 2. Pull the names directly from your household_settings table
           const { data: settingsRow } = await supabase.from('household_settings').select('settings_data').eq('household_id', txRow.household_id).single();
           if (settingsRow?.settings_data) {
             const settings = typeof settingsRow.settings_data === 'string' ? JSON.parse(settingsRow.settings_data) : settingsRow.settings_data;
@@ -72,7 +140,6 @@ export async function POST(request: Request) {
           }
         }
 
-        // 3. Render the buttons using your customized names
         const inlineKeyboard = [
           [
             { text: `👤 ${nameA}`, callback_data: `v_acc_${txId}_PartnerA` },
@@ -87,7 +154,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // --- ACTION: PROMPT USER FOR NOTE TEXT ---
+      // --- STANDARD ACTION: PROMPT USER FOR NOTE TEXT ---
       if (dataStr.startsWith('s_not_')) {
         const txId = dataStr.split('s_not_')[1];
         const promptMsg = `📝 <b>Editing Note for transaction reference:</b>\n<code>${txId}</code>\n\nPlease reply directly to this message block with your new custom note content.`;
@@ -96,7 +163,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // --- DIRECT TOGGLE ACTION: SETTLEMENT STATUS SWITCH ---
+      // --- STANDARD TOGGLE ACTION: SETTLEMENT STATUS SWITCH ---
       if (dataStr.startsWith('t_set_')) {
         const txId = dataStr.split('t_set_')[1];
         const { data: current } = await supabase.from('transactions').select('to_settle').eq('id', txId).single();
@@ -108,7 +175,7 @@ export async function POST(request: Request) {
         return handleReturnToMenu(chatId, messageId, txId);
       }
 
-      // --- DIRECT TOGGLE ACTION: EXPENSE ⇄ INCOME SWITCH ---
+      // --- STANDARD TOGGLE ACTION: EXPENSE ⇄ INCOME SWITCH ---
       if (dataStr.startsWith('t_typ_')) {
         const txId = dataStr.split('t_typ_')[1];
         const { data: current } = await supabase.from('transactions').select('type').eq('id', txId).single();
@@ -120,7 +187,7 @@ export async function POST(request: Request) {
         return handleReturnToMenu(chatId, messageId, txId);
       }
 
-      // --- VALUE EXECUTION RESOLUTIONS ---
+      // --- STANDARD VALUE EXECUTION RESOLUTIONS ---
       if (dataStr.startsWith('v_cat_')) {
         const [_, __, txId, indexStr] = dataStr.split('_');
         const targetCategory = QUICK_CATEGORIES[parseInt(indexStr, 10)];
@@ -159,7 +226,7 @@ export async function POST(request: Request) {
     if (payload.message) {
       const chatId = payload.message.chat.id;
       const tgUser = payload.message.from.username || '';
-      const rawText = payload.message.text || '';
+      const rawText = (payload.message.text || '').trim();
       
       const allowedUsers = (process.env.TELEGRAM_ALLOWED_USER_NAMES || '').toLowerCase().split(',');
       if (!allowedUsers.includes(tgUser.toLowerCase())) {
@@ -181,7 +248,7 @@ export async function POST(request: Request) {
       }
 
       if (rawText.startsWith('/start')) {
-        await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the dashboard controls to adjust any field dynamically.");
+        await sendTelegramMessage(chatId, "👋 Welcome! Send a plain number (e.g., <code>500</code>) to trigger the interactive Wizard, or send a natural text description sentence to log automatically via AI.");
         return NextResponse.json({ ok: true });
       }
 
@@ -190,6 +257,43 @@ export async function POST(request: Request) {
       const isPartnerA = tgUser.toLowerCase().includes('goku');
       const senderIdentity = isPartnerA ? 'Partner A' : 'Partner B';
 
+      // ─── 💥 PATH 1: THE ZERO-COST INTERACTIVE WIZARD TRIGGER ───
+      const cleanNumericAmount = Number(rawText);
+      if (!isNaN(cleanNumericAmount) && cleanNumericAmount > 0) {
+        const secureUuidFallback = crypto.randomUUID();
+
+        // Write initial baseline rows directly to your table disk
+        const skeletonPayload = {
+          id: secureUuidFallback,
+          household_id: householdId,
+          date: new Date().toISOString().slice(0, 10),
+          amount: cleanNumericAmount,
+          category: 'Miscellaneous', 
+          type: 'expense',
+          account_used: 'Joint',     
+          added_by: senderIdentity,
+          note: 'Quick Wizard Log',
+          to_settle: false,
+          settled: false
+        };
+
+        await supabase.from('transactions').insert([skeletonPayload]);
+
+        // Generate the 10 prediction grid matrix choices
+        const categoryKeyboard: any[] = [];
+        for (let i = 0; i < MASTER_PREDICTIONS.length; i += 2) {
+          categoryKeyboard.push([
+            { text: MASTER_PREDICTIONS[i], callback_data: `w_cat_${secureUuidFallback}_${i}` },
+            { text: MASTER_PREDICTIONS[i+1], callback_data: `w_cat_${secureUuidFallback}_${i+1}` }
+          ]);
+        }
+
+        const greetingHeader = `🔢 <b>Amount Logged:</b> ₹${cleanNumericAmount}\n\n📦 <b>Select a category below to compile entry data:</b>`;
+        await sendTelegramMessageInline(chatId, greetingHeader, categoryKeyboard);
+        return NextResponse.json({ ok: true });
+      }
+
+      // ─── 🤖 PATH 2: STANDARD NATURAL LANGUAGE PARSER PIPELINE ───
       const systemPrompt = `You are an expert personal finance clerk processing raw ledger data. Map text input to valid JSON.
             VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
     - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, specific alcohol logs)
@@ -223,7 +327,7 @@ export async function POST(request: Request) {
     - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
     - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
     
-      ACCOUNT SELECTION: "Joint" if text says joint/joint account/joint wallet. "Partner A" if mentions Gaurav or Goku. "Partner B" if mentions Karishma or Kari. Else default to "${senderIdentity}".
+      ACCOUNT SELECTION: "Joint" if text says joint/joint account/joint wallet. "Partner A" if mentions Gaurav. "Partner B" if mentions Karishma. Else default to "${senderIdentity}".
       SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
       TYPE: "income" if text contains salary/bonus/interest credited/refund. Else "expense".
 
@@ -290,27 +394,24 @@ export async function POST(request: Request) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// TELEGRAM ENGINE TRANSMISSION PIPELINES
+// TELEGRAM CORE FRAMEWORK API PIPELINES
 // ────────────────────────────────────────────────────────────────────────
 async function handleReturnToMenu(chatId: number, messageId: number, txId: string) {
   const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
   if (txRows && txRows[0]) {
     const tx = txRows[0];
     
-    let nameA = "Partner A";
-    let nameB = "Partner B";
-    
-    // Fetch settings to display real custom names in the text printout
+    let nameA = "Gaurav";
+    let nameB = "Karishma";
     if (tx.household_id) {
       const { data: settingsRow } = await supabase.from('household_settings').select('settings_data').eq('household_id', tx.household_id).single();
       if (settingsRow?.settings_data) {
         const settings = typeof settingsRow.settings_data === 'string' ? JSON.parse(settingsRow.settings_data) : settingsRow.settings_data;
-        nameA = settings.partnerAName || settings.partner_a_name || nameA;
-        nameB = settings.partnerBName || settings.partner_b_name || nameB;
+        nameA = settings.partnerAName || nameA;
+        nameB = settings.partnerBName || nameB;
       }
     }
 
-    // Resolve the display name string cleanly
     let accountDisplay = '💳 Joint Wallet';
     if (tx.account_used === 'Partner A') accountDisplay = `👤 ${nameA}`;
     if (tx.account_used === 'Partner B') accountDisplay = `👤 ${nameB}`;
@@ -370,10 +471,6 @@ async function answerCallbackQuery(callbackQueryId: string, alertText?: string) 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      callback_query_id: callbackQueryId,
-      text: alertText || "",
-      show_alert: false
-    }),
+    body: JSON.stringify({ callback_query_id: callbackQueryId, text: alertText || "", show_alert: false }),
   });
 }
