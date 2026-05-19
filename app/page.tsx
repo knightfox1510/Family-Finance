@@ -169,15 +169,16 @@ async function loadData(userId: string) {
       }
     }
 
-    // Fetch remaining data configurations in parallel
-    const [gl, ln, cb, st] = await Promise.all([
+    // 1. Fetch remaining data configurations in parallel
+    const [gl, ln, cb, st, currentProfileRow] = await Promise.all([ // 👈 ENSURE 'currentProfileRow' IS UNPACKED HERE
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
-      supabase.from('household_settings').select('*').eq('household_id', hId) // Removed database sorting to prevent column crashes
+      supabase.from('household_settings').select('*').eq('household_id', hId),
+      supabase.from('profiles').select('telegram_username').eq('id', userId).single() // 👈 THIS PARALLEL Promise FINISHES THE QUEUE
     ]);
 
-    // ⚡ SAFE IN-MEMORY SORTING: Isolates the newest update row even if created_at column doesn't exist
+    // 2. SAFE IN-MEMORY SORTING: Isolates the newest update row
     let cloudSettingsRow = null;
     if (st.data && st.data.length > 0) {
       const sortedSettings = [...st.data].sort((a: any, b: any) => {
@@ -189,7 +190,7 @@ async function loadData(userId: string) {
       cloudSettingsRow = sortedSettings[0] || st.data[st.data.length - 1];
     }
     
-    // ⚡ DEFENSIVE JSON UNPACKER: Smoothly parses raw strings or reads standard objects
+    // 3. DEFENSIVE JSON UNPACKER
     let unpackedSettings: any = {};
     if (cloudSettingsRow) {
       if (cloudSettingsRow.settings_data) {
@@ -215,7 +216,7 @@ async function loadData(userId: string) {
       expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.expense_categories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
       incomeCategories: unpackedSettings.incomeCategories || unpackedSettings.income_categories || DEFAULT_SETTINGS.incomeCategories,
       budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {},
-      telegramUsername: currentProfileRow.data?.telegram_username || unpackedSettings.telegramUsername || ''
+      telegramUsername: currentProfileRow.data?.telegram_username || unpackedSettings.telegramUsername || '' // 👈 NOW FULLY DECLARED AND SUPPORTED!
     };
     
     const toUI = (val: string) => {
