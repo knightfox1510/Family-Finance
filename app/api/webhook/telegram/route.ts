@@ -350,11 +350,6 @@ export async function POST(request: Request) {
           }
         })
       });
-      
-      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input: "${rawText}"` }] }] })
-      });
 
       const geminiData = await geminiRes.json();
       let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
