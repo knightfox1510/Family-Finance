@@ -2104,7 +2104,7 @@ function ExpenseList({
 
             <Btn 
               variant="ghost" 
-              style={{ fontSize: 12, padding: '6px 12px', border: `1px solid ${C.emerald}`, color: C.emerald }} 
+              style={{ fontSize: 12, padding: '6px 12px', border: `1px solid ${C.green}`, color: C.green }} 
               onClick={() => {
                 const ids: string[] = [];
                 selectedIds.forEach((id: string) => ids.push(id));
