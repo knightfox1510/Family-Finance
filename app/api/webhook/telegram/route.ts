@@ -52,16 +52,36 @@ export async function POST(request: Request) {
       }
 
       // --- SUB-MENU: SHOW ACCOUNT SELECTION ---
+      // --- SUB-MENU: SHOW ACCOUNT SELECTION WITH DYNAMIC NAMES ---
       if (dataStr.startsWith('s_acc_')) {
         const txId = dataStr.split('s_acc_')[1];
+        
+        // 1. Fetch this transaction's household_id so we can look up its unique settings
+        const { data: txRow } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
+        
+        let nameA = "Partner A";
+        let nameB = "Partner B";
+        
+        if (txRow?.household_id) {
+          // 2. Pull the names directly from your household_settings table
+          const { data: settingsRow } = await supabase.from('household_settings').select('settings_data').eq('household_id', txRow.household_id).single();
+          if (settingsRow?.settings_data) {
+            const settings = typeof settingsRow.settings_data === 'string' ? JSON.parse(settingsRow.settings_data) : settingsRow.settings_data;
+            nameA = settings.partnerAName || settings.partner_a_name || nameA;
+            nameB = settings.partnerBName || settings.partner_b_name || nameB;
+          }
+        }
+
+        // 3. Render the buttons using your customized names
         const inlineKeyboard = [
           [
-            { text: "👤 Partner A", callback_data: `v_acc_${txId}_PartnerA` },
-            { text: "👤 Partner B", callback_data: `v_acc_${txId}_PartnerB` }
+            { text: `👤 ${nameA}`, callback_data: `v_acc_${txId}_PartnerA` },
+            { text: `👤 ${nameB}`, callback_data: `v_acc_${txId}_PartnerB` }
           ],
           [{ text: "💳 Joint Wallet", callback_data: `v_acc_${txId}_Joint` }],
           [{ text: "◀ Return to Menu", callback_data: `menu_${txId}` }]
         ];
+        
         await editTelegramMessageInline(chatId, messageId, "🏧 <b>Select the correct target funding account:</b>", inlineKeyboard);
         await answerCallbackQuery(callbackQuery.id);
         return NextResponse.json({ ok: true });
@@ -276,7 +296,26 @@ async function handleReturnToMenu(chatId: number, messageId: number, txId: strin
   const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
   if (txRows && txRows[0]) {
     const tx = txRows[0];
-    const baseBanner = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category}\n🏧 <b>Account:</b> ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 ' + tx.account_used}\n⚖️ <b>To Settle:</b> ${tx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${tx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${tx.note}`;
+    
+    let nameA = "Partner A";
+    let nameB = "Partner B";
+    
+    // Fetch settings to display real custom names in the text printout
+    if (tx.household_id) {
+      const { data: settingsRow } = await supabase.from('household_settings').select('settings_data').eq('household_id', tx.household_id).single();
+      if (settingsRow?.settings_data) {
+        const settings = typeof settingsRow.settings_data === 'string' ? JSON.parse(settingsRow.settings_data) : settingsRow.settings_data;
+        nameA = settings.partnerAName || settings.partner_a_name || nameA;
+        nameB = settings.partnerBName || settings.partner_b_name || nameB;
+      }
+    }
+
+    // Resolve the display name string cleanly
+    let accountDisplay = '💳 Joint Wallet';
+    if (tx.account_used === 'Partner A') accountDisplay = `👤 ${nameA}`;
+    if (tx.account_used === 'Partner B') accountDisplay = `👤 ${nameB}`;
+
+    const baseBanner = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category}\n🏧 <b>Account:</b> ${accountDisplay}\n⚖️ <b>To Settle:</b> ${tx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${tx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${tx.note}`;
     
     const inlineKeyboard = [
       [
