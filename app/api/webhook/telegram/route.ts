@@ -295,7 +295,7 @@ export async function POST(request: Request) {
       const systemPrompt = `You are an expert personal finance clerk parsing ledger lines. 
       Analyze the text input and extract EVERY individual transaction item mentioned. 
       Map the entries into a valid JSON array of objects.
-
+      
       VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
     - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, whiskey, gin, vodka, specific alcohol logs)
     - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, food at JP, JP food, physically eating out at a venue)
@@ -327,21 +327,25 @@ export async function POST(request: Request) {
     - "Interest Earned"     (Bank savings account quarterly interest payouts, fixed deposit (FD) interest pay-ins)
     - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
     - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
-      ACCOUNT SELECTION: "Joint" if text says joint/joint account/wallet. "Partner A" if mentions Gaurav or Goku. "Partner B" if mentions Karishma or Kari. Else default to "${senderIdentity}".
-      SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
-      TYPE: "income" if text contains salary/bonus/credited/refund. Else "expense".
+      
+      ACCOUNT SELECTION: "Joint" if text says joint/joint account/wallet. "Partner A" if mentions Gaurav. "Partner B" if mentions Karishma. Else default to "${senderIdentity}".
+      
+      SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled", "needs settlement". Else false.
+      
+      TYPE: "income" if text contains salary/bonus/credited/refund/interest earned. Else "expense".
 
       CRUCIAL RULES:
       1. Your output must be a clean, valid raw JSON array of objects ONLY. Do not wrap it in markdown code blocks.
       2. Process single items as an array with one object: [{"amount": 100, ...}]
       3. Split composite items into individual objects. "500 swiggy and 200 cab" becomes two objects.
+      4. CLEAN NOTE TEXT: The "note" field must contain ONLY the actual description of the item or place (e.g., "Savana", "Swiggy", "Fuel"). Strikingly remove operational tracking keywords like account names ("Gaurav", "Karishma", "Joint") or settlement phrases ("to settle", "to be settled", "tosettle") entirely from the final note string.
 
       Example Output format:
       [
         {"amount": 500, "category": "Online Food Orders", "note": "Swiggy", "type": "expense", "account": "Joint", "toSettle": false},
-        {"amount": 200, "category": "Cab Services", "note": "Cab", "type": "expense", "account": "Joint", "toSettle": false}
+        {"amount": 222, "category": "Miscellaneous", "note": "Savana", "type": "expense", "account": "Partner B", "toSettle": true}
       ]`;
-
+      
       const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input: "${rawText}"` }] }] })
