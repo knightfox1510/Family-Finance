@@ -86,7 +86,7 @@ export async function POST(request: Request) {
         let nameA = "Partner A"; 
         let nameB = "Partner B";
         if (tx?.household_id) {
-          const { data: st } = await supabase.from('household_settings').select('settings_data').eq('household_id', tx.household_id).single();
+          const { data: st = null } = await supabase.from('household_settings').select('settings_data').eq('household_id', tx.household_id).single();
           if (st?.settings_data) {
             const settings = typeof st.settings_data === 'string' ? JSON.parse(st.settings_data) : st.settings_data;
             nameA = settings.partnerAName || settings.partner_a_name || nameA;
@@ -304,7 +304,7 @@ export async function POST(request: Request) {
 
         const skeletonPayload = {
           id: secureUuidFallback,
-          household_id: householdId,
+          household_id: householdId, // Bound strictly to dynamic context
           date: new Date().toISOString().slice(0, 10),
           amount: cleanNumericAmount,
           category: 'Miscellaneous', 
