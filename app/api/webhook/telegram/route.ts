@@ -1,132 +1,318 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize a privileged server-side Supabase client using secret keys
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
-
-// ⚡ FALLBACK IMPLEMENTATION: Passes compilation checks even when hidden keys aren't exposed to the compiler yet
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-service-role-key-for-build-phase'; 
-
 const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false
-  }
+  auth: { persistSession: false, autoRefreshToken: false }
 });
+
+const QUICK_CATEGORIES = [
+  "Dining Out", "Online Food Orders", "Online Groceries", "Groceries",
+  "Cab Services", "Personal Transportation", "Online Shopping", "Miscellaneous"
+];
 
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
+
+    // ────────────────────────────────────────────────────────────────────────
+    // BRANCH A: HANDLE INTERACTIVE BUTTON CLICKS (CALLBACK QUERIES)
+    // ────────────────────────────────────────────────────────────────────────
+    if (payload.callback_query) {
+      const callbackQuery = payload.callback_query;
+      const chatId = callbackQuery.message.chat.id;
+      const messageId = callbackQuery.message.message_id;
+      const dataStr = callbackQuery.data || '';
+      const tgUser = callbackQuery.from.username || '';
+
+      const allowedUsers = (process.env.TELEGRAM_ALLOWED_USER_NAMES || '').toLowerCase().split(',');
+      if (!allowedUsers.includes(tgUser.toLowerCase())) {
+        await answerCallbackQuery(callbackQuery.id, "🚫 Unauthorized identity interaction.");
+        return NextResponse.json({ ok: true });
+      }
+
+      // ACTION 1: User clicked "Change Category" -> Reveal Grid Matrix
+      if (dataStr.startsWith('show_')) {
+        const txId = dataStr.split('show_')[1];
+        
+        const inlineKeyboard: any[] = [];
+        for (let i = 0; i < QUICK_CATEGORIES.length; i += 2) {
+          inlineKeyboard.push([
+            { text: QUICK_CATEGORIES[i], callback_data: `cat_${txId}_${i}` },
+            { text: QUICK_CATEGORIES[i+1], callback_data: `cat_${txId}_${i+1}` }
+          ]);
+        }
+        inlineKeyboard.push([{ text: "◀ Cancel & Keep Original", callback_data: `keep_${txId}` }]);
+
+        await editTelegramMessageInline(chatId, messageId, "✏️ **Select the correct category below:**", inlineKeyboard);
+        await answerCallbackQuery(callbackQuery.id);
+        return NextResponse.json({ ok: true });
+      }
+
+      // ACTION 2: User selected a replacement category button
+      if (dataStr.startsWith('cat_')) {
+        const [_, txId, indexStr] = dataStr.split('_');
+        const targetCategory = QUICK_CATEGORIES[parseInt(indexStr, 10)];
+
+        const { data: updatedRows, error: updateError } = await supabase
+          .from('transactions')
+          .update({ category: targetCategory })
+          .eq('id', txId)
+          .select();
+
+        if (updateError) {
+          await answerCallbackQuery(callbackQuery.id, "❌ Database rejection update aborted.");
+          return NextResponse.json({ ok: true });
+        }
+
+        const tx = updatedRows?.[0] || {};
+        const freshBanner = `🔄 **Category Corrected Successfully!**\n\n💰 **Amount:** ₹${tx.amount}\n📦 **Category:** ${tx.category} ✨\n📝 **Note:** ${tx.note}\n🏧 **Account:** ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n👤 **Updated By:** @${tgUser}`;
+        
+        await editTelegramMessageInline(chatId, messageId, freshBanner, []);
+        await answerCallbackQuery(callbackQuery.id, `✅ Adjusted to ${targetCategory}`);
+        return NextResponse.json({ ok: true });
+      }
+
+      // ACTION 3: User clicked "Delete" -> Drop row from database instantly
+      if (dataStr.startsWith('del_')) {
+        const txId = dataStr.split('del_')[1];
+
+        const { error: deleteError } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('id', txId);
+
+        if (deleteError) {
+          await answerCallbackQuery(callbackQuery.id, "❌ Failed to clear row from cloud database.");
+          return NextResponse.json({ ok: true });
+        }
+
+        // Wipe the confirmation metrics from view entirely so it can't be modified later
+        const deletionBanner = `🗑️ **Transaction Permanently Deleted**\n\nThis entry has been securely cleared from your cloud profile database ledger.`;
+        await editTelegramMessageInline(chatId, messageId, deletionBanner, []);
+        await answerCallbackQuery(callbackQuery.id, "💥 Entry permanently purged.");
+        return NextResponse.json({ ok: true });
+      }
+
+      // ACTION 4: Discard modifications
+      if (dataStr.startsWith('keep_')) {
+        // Fetch original transaction data to restore standard display controls
+        const txId = dataStr.split('keep_')[1];
+        const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
+        
+        if (txRows && txRows[0]) {
+          const tx = txRows[0];
+          const standardBanner = `✅ **Logged Seamlessly!**\n\n💰 **Amount:** ₹${tx.amount}\n📦 **Category:** ${tx.category}\n📝 **Note:** ${tx.note}\n🏧 **Account:** ${tx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ **To Settle:** ${tx.to_settle ? '⚠️ Yes' : '✅ No'}`;
+          
+          const defaultKeyboard = [[
+            { text: "✏️ Change Category", callback_data: `show_${txId}` },
+            { text: "🗑️ Delete Entry", callback_data: `del_${txId}` }
+          ]];
+          await editTelegramMessageInline(chatId, messageId, standardBanner, defaultKeyboard);
+        }
+        await answerCallbackQuery(callbackQuery.id);
+        return NextResponse.json({ ok: true });
+      }
+
+      return NextResponse.json({ ok: true });
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
+    // BRANCH B: HANDLE STANDARD INCOMING NATURAL TEXT MESSAGES
+    // ────────────────────────────────────────────────────────────────────────
     if (!payload.message || !payload.message.text) {
-      return NextResponse.json({ ok: true }); // Gracefully handle non-text notifications
+      return NextResponse.json({ ok: true });
     }
 
     const chatId = payload.message.chat.id;
     const tgUser = payload.message.from.username || '';
     const rawText = payload.message.text;
 
-    // 1. Strict Identity Defense Check
     const allowedUsers = (process.env.TELEGRAM_ALLOWED_USER_NAMES || '').toLowerCase().split(',');
     if (!allowedUsers.includes(tgUser.toLowerCase())) {
-      await sendTelegramMessage(chatId, "🚫 Access Denied: Your identity is not authorized to log data here.");
+      await sendTelegramMessage(chatId, "🚫 Access Denied: Unauthorized profile.");
       return NextResponse.json({ ok: true });
     }
 
-    // Handle standard greeting commands
-    if (rawText.startsWith('/start') || rawText.startsWith('/help')) {
-      await sendTelegramMessage(chatId, "👋 Welcome to FamilyFinance Ledger Bot!\n\nSimply forward a bank debit SMS, or type a plain phrase like:\n`150 Dining Out dinner at beachside` or `40 Groceries milk eggs`.\n\nGemini will automatically parse, categorize, and log your transaction instantly!");
+    if (rawText.startsWith('/start')) {
+      await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the inline control buttons beneath confirmations to modify or delete logs dynamically.");
       return NextResponse.json({ ok: true });
     }
 
-    // Inform user processing has initiated
-    await sendTelegramMessage(chatId, "⚡ Processing transaction line...");
-
-    // 2. Compile Financial Context Matrix for Gemini Parsing Core
     const householdId = process.env.TELEGRAM_DEFAULT_HOUSEHOLD_ID;
     const geminiKey = process.env.GEMINI_API_KEY;
-
-    const systemPrompt = `You are a strict personal finance data-entry clerk processing input for a couple in India. 
-    Analyze the user's message text (which could be a plain natural sentence or a raw bank debit SMS string) and convert it into a precise JSON structure.
+    const isPartnerA = tgUser.toLowerCase().includes('goku');
+    const senderIdentity = isPartnerA ? 'Partner A' : 'Partner B';
     
-    You must classify the information into these exact fields:
-    - amount: a clean positive integer number representing the transaction value.
-    - category: look closely at the intent and match it strictly to one of these standard system choices: "Groceries", "Dining Out", "Coffee & Snacks", "Rent / Mortgage", "Electricity", "Water & Gas", "Internet", "Mobile Plans", "Streaming Services", "Insurance", "Medical / Health", "Gym & Fitness", "Clothing & Apparel", "Personal Care", "Home Maintenance", "Furniture & Decor", "Transport / Fuel", "Parking & Tolls", "Public Transport", "Flights & Hotels", "Education", "Entertainment", "Subscriptions", "Miscellaneous", "Other". If it is income, use "Salary" or "Other Income".
-    - note: a short descriptive text of what this expense was for.
-    - type: must be exactly "expense" or "income".
-    - account: must be exactly "Joint".
-    
-    Return ONLY a raw valid JSON object. Do not include markdown wraps like \`\`\`json. Output format example:
-    {"amount": 180, "category": "Groceries", "note": "UPI spend at Zepto", "type": "expense", "account": "Joint"}`;
+    // ─── FULL MATRIX SYSTEM PROMPT (HIGH GRANULARITY) ───────────────────────
+    const systemPrompt = `You are an expert personal finance data-entry clerk processing raw text and banking SMS strings for a household ledger in India.
+    Analyze the user text input and map it cleanly into a structured JSON payload that matches the exact database schema rules.
 
-    // 3. Connect to Gemini 2.5 Flash Engine
+    ---------------------------------------------------------------------------------------------------------
+    🌟 GOLDEN RULE #1: EXPLICIT CATEGORY OVERRIDE
+    If the text explicitly mentions ANY of the valid system categories listed below by name (case-insensitive), 
+    you MUST prioritize and select that category over any generic semantic or merchant mapping rules.
+    Example: "500 Zepto but log as Miscellaneous" -> MUST return "Miscellaneous" (overriding the Zepto -> Online Groceries rule).
+    ---------------------------------------------------------------------------------------------------------
+
+    VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
+    - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, specific alcohol logs)
+    - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, physically eating out at a venue)
+    - "Education"           (Course fees, certifications, books, training programs, upskilling materials)
+    - "Entertainment"       (Movie tickets, BookMyShow, gaming arcades, bowling alleys, concerts, events, fun outings)
+    - "Groceries"           (Offline local kirana stores, physical vegetable/fruit markets, cash grocery purchases)
+    - "Healthcare"          (Pharmacies, medical stores like Apollo, doctor checkups, lab tests, dental treatments, medicines)
+    - "Gifting"             (Buying gifts for friends, family members, relatives; shagun/cash envelopes for weddings or birthdays)
+    - "Housing"             (Monthly house rent, society maintenance bills)
+    - "Insurance"           (Health insurance premiums, car/bike motor insurance renewals, term life insurance policies)
+    - "Investments"         (Mutual fund allocations, monthly SIPs, direct stocks buying, gold purchases, PPF deposits, Index funds)
+    - "Miscellaneous"       (Unexpected or unclassifiable payments, ATM cash withdrawals, random one-off pocket cash items)
+    - "Offline Shopping"    (Physical retail checkout counters, apparel or footwear bought at a mall/store, lifestyle physical shopping)
+    - "Online Shopping"     (Amazon, Flipkart, Myntra, Ajio, Tata CLiQ, non-grocery online courier packages, retail websites)
+    - "Personal Care"       (Salon visits, haircuts, beauty parlour sessions, grooming products, spa, cosmetics, skincare items)
+    - "Personal Transportation" (Petrol/diesel pumps, car or motorcycle service/repairs, toll payments, fastag recharges, parking fees)
+    - "Savings"             (Manual transfers to long-term cash reserves, emergency savings funds, specific sinking fund transfers)
+    - "Subscriptions"       (Netflix, Spotify, iCloud storage, YouTube Premium, gym memberships, recurring software apps/services)
+    - "Health & Fitness"    (Protein powder, gym supplements, workout fitness gear, tracking straps, organic health food products)
+    - "Taxes"               (Income tax filings, property tax payments, municipal or government duty filings)
+    - "Technology"          (Software license keys, digital tools, cloud hosting packages, gadgets, computer/mobile electronic accessories)
+    - "Travel"              (Flight tickets, hotel bookings, Airbnb stays, IRCTC train tickets, vacation bookings, luggage travel luggage bags)
+    - "Utilities"           (Mobile recharges like Jio/Airtel/VI, home broadband Wi-Fi bills, electricity bills like MSEB/Adani, piped gas/piped water, Laundry, Maid salary, Cook Salary)
+    - "Online Food Orders"  (Zomato, Swiggy food delivery, EatClub, Domino's, pizza/burger drops, cloud kitchen orders)
+    - "Household Items"     (Cleaning liquids, laundry/washing detergents, garbage bags, trash cans, mop replacements, house decor, bedsheets, Amazon orders)
+    - "Cab Services"        (Uber rides, Ola bookings, Rapido bike taxis, InDrive, local auto rickshaw meter cash/UPI payments)
+    - "Hosting Day"         (Ordering bulk food/alcohol/snacks specifically when friends, family, or guests are visiting the house for a social gathering)
+    - "Online Groceries"    (Zepto orders, Blinkit orders, Swiggy Instamart delivery, BigBasket, daily milk/produce apps)
+    - "Interest Earned"     (Bank savings account quarterly interest payouts, fixed deposit (FD) interest pay-ins)
+    - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
+    - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
+
+    CRUCIAL ROUTING & ACCOUNTING LAWS:
+    1. ACCOUNT SELECTION LOGIC:
+       - If the user text explicitly includes the words "joint", "joint account", "joint wallet", or names the partner explicitly, set the "account" field to "Joint".
+       - DEFAULT RULE: If the text does NOT explicitly say "joint" or "joint account" AND does not mention a specific partner name, it is a personal expense of the person logging it. Set "account" to exactly "${senderIdentity}".
+    
+    2. SETTLEMENT TOGGLE VELOCITY CHECK ("to_settle"):
+       - If the text contains text fragments like "to be settled", "tosettle", or "to settle", set "toSettle" to true.
+       - DEFAULT RULE: If those exact strings are missing, set "toSettle" to false.
+    
+    3. TRANSACTION TYPE LOGIC ("type"):
+       - If the text or description includes words like "Salary", "Bonus", "Interest credited", "refund", or "rental income", set "type" to "income".
+       - DEFAULT RULE: For all standard debits, merchant payments, or retail transactions, set "type" to "expense".
+       
+    4. DATA FORMATTING DEFINITIONS:
+       - amount: Clean positive integer string representing the real value transaction text. Strip currency symbols.
+       - note: Extract a clean, natural descriptive summary phrase of the event context (e.g., "Zepto grocery run", "Starbucks coffee", "Salary credit"). Strip out bank account strings or transaction codes from SMS.
+
+    Return ONLY a raw valid JSON object. Do not enclose it in markdown blocks like \`\`\`json. Output format matching template pattern structure:
+    {"amount": 1200, "category": "Online Groceries", "note": "Weekly Zepto run", "type": "expense", "account": "Joint", "toSettle": false}`;
+
+    // Fire text payload directly to Gemini API
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [
-            { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input to Parse: "${rawText}"` }] }
-          ],
+          contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input text to process: "${rawText}"` }] }],
         }),
       }
     );
 
     const geminiData = await geminiRes.json();
     const rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    // Parse extracted tokens clean
     const parsedTx = JSON.parse(rawJsonText.trim());
 
-    // 4. Map Identity Routing Tags
-    // Checks the incoming Telegram handle to see who initialized the entry
-    const isUserB = tgUser.toLowerCase().includes('karishma');
-    const addedByValue = isUserB ? 'Partner B' : 'Partner A';
+    const transactionId = crypto.randomUUID();
 
-    // 5. Construct database payload row
     const newDbTx = {
+      id: transactionId,
       household_id: householdId,
-      date: new Date().toISOString().slice(0, 10), // Logs dynamic current date stamp
+      date: new Date().toISOString().slice(0, 10),
       amount: Number(parsedTx.amount || 0),
-      category: parsedTx.category || 'Other',
+      category: parsedTx.category || 'Miscellaneous',
       type: parsedTx.type || 'expense',
-      account_used: parsedTx.account || 'Joint',
-      added_by: addedByValue,
-      note: parsedTx.note || 'Telegram Entry',
-      to_settle: false,
+      account_used: parsedTx.account,
+      added_by: senderIdentity,
+      note: parsedTx.note || 'Telegram automated entry',
+      to_settle: Boolean(parsedTx.toSettle),
       settled: false,
       settled_with: null
     };
 
-    if (newDbTx.amount <= 0) {
-      throw new Error("Parsed amount resolved to 0. Please verify input text values.");
-    }
+    if (newDbTx.amount <= 0) throw new Error("Parsed amount resolved invalid.");
 
-    // 6. Transmit to Supabase
     const { error: dbError } = await supabase.from('transactions').insert([newDbTx]);
     if (dbError) throw dbError;
 
-    // 7. Fire confirmation feedback back to Telegram interface
-    const responseMsg = `✅ Logged Successfully!\n\n💰 Amount: ₹${newDbTx.amount}\n📦 Category: ${newDbTx.category}\n📝 Note: ${newDbTx.note}\n👤 Logged By: ${addedByValue === 'Partner A' ? 'Gaurav' : 'Karishma'}`;
-    await sendTelegramMessage(chatId, responseMsg);
+    const responseMsg = `✅ **Logged Seamlessly!**\n\n💰 **Amount:** ₹${newDbTx.amount}\n📦 **Category:** ${newDbTx.category}\n📝 **Note:** ${newDbTx.note}\n🏧 **Account:** ${newDbTx.account_used === 'Joint' ? '💳 Joint Wallet' : '👤 Personal'}\n⚖️ **To Settle:** ${newDbTx.to_settle ? '⚠️ Yes' : '✅ No'}`;
+    
+    // ⚡ DOUBLE ACTION SYSTEM DOCK ROW: Changes Category and adds Delete option
+    const inlineKeyboard = [[
+      { text: "✏️ Change Category", callback_data: `show_${transactionId}` },
+      { text: "🗑️ Delete Entry", callback_data: `del_${transactionId}` }
+    ]];
+
+    await sendTelegramMessageInline(chatId, responseMsg, inlineKeyboard);
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error('Telegram Webhook Route Error:', err);
-    return NextResponse.json({ ok: true }); // Return ok true to prevent Telegram from looping retries on code failure
+    console.error('Core Webhook Route Operations Error Failure:', err);
+    return NextResponse.json({ ok: true }); 
   }
 }
 
-// Low-level helper engine to fire raw API text blocks back to Telegram chat containers
+// ────────────────────────────────────────────────────────────────────────
+// TELEGRAM SYSTEM API COMMUNICATION PIPELINES
+// ────────────────────────────────────────────────────────────────────────
 async function sendTelegramMessage(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'Markdown' }),
-    });
-  } catch (e) {
-    console.error('Failed to post message feedback token back to Telegram API rails:', e);
-  }
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'Markdown' }),
+  });
+}
+
+async function sendTelegramMessageInline(chatId: number, text: string, keyboard: any[]) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: text,
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: keyboard }
+    }),
+  });
+}
+
+async function editTelegramMessageInline(chatId: number, messageId: number, text: string, keyboard: any[]) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      text: text,
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: keyboard }
+    }),
+  });
+}
+
+async function answerCallbackQuery(callbackQueryId: string, alertText?: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      callback_query_id: callbackQueryId,
+      text: alertText || "",
+      show_alert: false
+    }),
+  });
 }
