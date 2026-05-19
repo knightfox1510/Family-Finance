@@ -26,6 +26,33 @@ export async function POST(request: Request) {
   try {
     const payload = await request.json();
 
+    // ─── 🔑 SHARED DATABASE-DRIVEN SECURITY LOOKUP HELPER ───
+    const validateTelegramUser = async (tgUser: string) => {
+      const cleanHandle = tgUser.replace(/@/g, '').trim().toLowerCase();
+      if (!cleanHandle) return null;
+
+      const { data: allProfiles, error } = await supabase
+        .from('profiles')
+        .select('household_id, display_name, telegram_username');
+
+      if (error || !allProfiles) {
+        console.error("Database connection failure during Telegram routing:", error);
+        return null;
+      }
+
+      // Locate the row matching the clean handle match parameters using lowercase validation
+      const match = allProfiles.find(p => 
+        (p.telegram_username || '').replace(/@/g, '').trim().toLowerCase() === cleanHandle
+      );
+
+      if (!match) return null;
+
+      return {
+        householdId: match.household_id,
+        senderIdentity: match.display_name === 'Partner B' ? 'Partner B' : 'Partner A'
+      };
+    };
+
     // ────────────────────────────────────────────────────────────────────────
     // BRANCH A: INTERACTIVE CONTROL CONSOLE DISPATCH (CALLBACK QUERIES)
     // ────────────────────────────────────────────────────────────────────────
@@ -36,11 +63,17 @@ export async function POST(request: Request) {
       const dataStr = callbackQuery.data || '';
       const tgUser = callbackQuery.from.username || '';
 
-      const allowedUsers = (process.env.TELEGRAM_ALLOWED_USER_NAMES || '').toLowerCase().split(',');
-      if (!allowedUsers.includes(tgUser.toLowerCase())) {
-        await answerCallbackQuery(callbackQuery.id, "🚫 Unauthorized identity interaction.");
+      // Run our shared database check!
+      const userContext = await validateTelegramUser(tgUser);
+
+      if (!userContext) {
+        await answerCallbackQuery(callbackQuery.id, "🚫 Unauthorized identity interaction. Linked profile missing.");
         return NextResponse.json({ ok: true });
       }
+
+      // Success! Unpack your runtime identities dynamically from the cloud record match
+      const hId = userContext.householdId;
+      const senderIdentity = userContext.senderIdentity;
 
       // ─── WIZARD STEP 2: CATEGORY SELECTED -> CHOOSE ACCOUNT ───
       if (dataStr.startsWith('w_cat_')) {
@@ -228,11 +261,21 @@ export async function POST(request: Request) {
       const tgUser = payload.message.from.username || '';
       const rawText = (payload.message.text || '').trim();
       
-      const allowedUsers = (process.env.TELEGRAM_ALLOWED_USER_NAMES || '').toLowerCase().split(',');
-      if (!allowedUsers.includes(tgUser.toLowerCase())) {
-        await sendTelegramMessage(chatId, "🚫 Access Denied: Unauthorized profile.");
+      // Run our shared database profile validation check
+      const userContext = await validateTelegramUser(tgUser);
+      
+      if (!userContext) {
+        await sendTelegramMessage(chatId, 
+          `❌ <b>Access Denied</b>\n\n` +
+          `The handle <code>@${tgUser}</code> is not linked to any active ledger profiles.\n\n` +
+          `Please log into your web dashboard, go to Settings, and link your handle under the Sync card!`
+        );
         return NextResponse.json({ ok: true });
       }
+
+      // Success! Unpack your multi-tenant parameters instantly from the verified record match
+      const householdId = userContext.householdId;
+      const senderIdentity = userContext.senderIdentity;
 
       // --- INTERCEPT INLINE TEXT NOTE EDIT MODIFICATIONS ---
       if (payload.message.reply_to_message && payload.message.reply_to_message.text) {
@@ -253,30 +296,7 @@ export async function POST(request: Request) {
       }
 
       const geminiKey = process.env.GEMINI_API_KEY;
-      
-      // ─── 🤖 COMPLETELY MULTI-TENANT IDENTITY LOOKUP ENGINES ───
-      if (!tgUser) {
-        await sendTelegramMessage(chatId, "⚠️ Profile verification failed: Your Telegram account must have a public username configured in settings.");
-        return NextResponse.json({ ok: true });
-      }
 
-      // Query the database to find out exactly who this Telegram handle belongs to
-      const { data: userProfile, error: profileLookupError } = await supabase
-        .from('profiles')
-        .select('household_id, display_name')
-        .ilike('telegram_username', tgUser.trim()) // Case-insensitive matching
-        .maybeSingle();
-
-      if (profileLookupError || !userProfile) {
-        console.error("Telegram incoming route lookup warning:", profileLookupError);
-        await sendTelegramMessage(chatId, `🚫 <b>Profile Unlinked</b>\n\nPlease log into the web dashboard, go to Settings, and link your Telegram username: <code>@${tgUser}</code> to sync your ledger access.`);
-        return NextResponse.json({ ok: true });
-      }
-
-      // Extract their live multi-tenant parameters instantly from their profile record!
-      const householdId = userProfile.household_id;
-      const senderIdentity = userProfile.display_name === 'Partner B' ? 'Partner B' : 'Partner A';
-      
       // ─── 💥 PATH 1: THE ZERO-COST INTERACTIVE WIZARD TRIGGER ───
       const cleanNumericAmount = Number(rawText);
       if (!isNaN(cleanNumericAmount) && cleanNumericAmount > 0) {
@@ -312,8 +332,6 @@ export async function POST(request: Request) {
       }
 
       // ─── 🤖 PATH 2: MULTI-ROW DYNAMIC TENANT NATURAL LANGUAGE PARSER ───
-      
-      // 1. Pre-fetch multi-tenant custom profile configurations from settings
       let nameA = "Partner A";
       let nameB = "Partner B";
       
@@ -334,7 +352,7 @@ export async function POST(request: Request) {
         }
       }
 
-      // 2. Build the system configuration prompt injecting dynamic variables
+      // 2. Build the system configuration prompt injecting dynamic session variables
       const systemPrompt = `You are an expert personal finance clerk parsing ledger lines. 
       Analyze the text input and extract EVERY individual transaction item mentioned. 
       Map the entries into a valid JSON array of objects.
