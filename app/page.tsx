@@ -4121,9 +4121,9 @@ export default function App() {
     b: data.settings.partnerBName,
   };
 
+  // ─── MASTER CONTROLLER BLOCK RE-BALANCING ─────────────────────────────────
   const actions = {
     addExpense: async (e: any) => {
-      // 1. The Translation Engine (UI Name -> Database Key)
       const toSystemKey = (val: string) => {
         if (val === data.settings.partnerAName) return 'Partner A';
         if (val === data.settings.partnerBName) return 'Partner B';
@@ -4145,25 +4145,22 @@ export default function App() {
         settled_with: toSystemKey(e.settledFor),
       };
 
-      // 2. ⚡ SAFE MEMORY UPDATE: Prevents the charts from wiping out!
       setData((prev: any) => ({
         ...prev,
         expenses: [{
           ...e,
-          account: e.account, // Keep UI names for the instant local screen update
+          account: e.account,
           addedBy: e.addedBy,
           settledFor: e.settledFor
         }, ...prev.expenses]
       }));
 
-      // 3. Save to Cloud
       const { error } = await supabase.from('transactions').insert([newTx]);
       if (error) alert('Failed to save to cloud: ' + error.message);
       else notify('New Transaction Added', `Added ₹${e.amount} for ${e.category}`, data.settings);
     },
     
     updateExpense: async (id: string, updated: any) => {
-      // ⚡ SAFE MEMORY UPDATE
       setData((prev: any) => ({
         ...prev,
         expenses: prev.expenses.map((e: any) => (e.id === id ? updated : e)),
@@ -4202,17 +4199,15 @@ export default function App() {
       const { error } = await supabase.from('transactions').delete().eq('id', id);
       if (error) alert('Failed to delete: ' + error.message);
     },
-    // ⚡ ADD THIS NEW BATCH DROP COMMAND HERE:
+
     bulkDeleteExpense: async (ids: string[]) => {
       if (!confirm(`Are you sure you want to permanently clear these ${ids.length} entries from the database?`)) return;
 
-      // 1. Instantly pull them out of the current layout interface
       setData((prev: any) => ({
         ...prev,
         expenses: prev.expenses.filter((e: any) => !ids.includes(e.id)),
       }));
 
-      // 2. Transmit an array delete constraint block to Supabase
       const { error } = await supabase
         .from('transactions')
         .delete()
@@ -4222,6 +4217,7 @@ export default function App() {
         alert('Local view cleared, but cloud synchronization bounced: ' + error.message);
       }
     },
+
     toggleToSettle: async (id: string) => {
       const expense = data.expenses.find((e: any) => e.id === id);
       const newValue = !expense.toSettle;
@@ -4237,36 +4233,24 @@ export default function App() {
         .eq('id', id);
       if (error) alert('Failed to update status: ' + error.message);
     },
+
     bulkSettle: async (ids: string[]) => {
       const idSet = new Set(ids);
-      
-      // 1. Determine local state updates
       const updatedExpenses = data.expenses.map((e: any) => {
         if (!idSet.has(e.id)) return e;
-        const partner = e.account.includes(names.a) || e.account.includes('Partner A')
-          ? 'Partner A'
-          : 'Partner B';
+        const partner = e.account.includes(names.a) || e.account.includes('Partner A') ? 'Partner A' : 'Partner B';
         return { ...e, settled: true, settledFor: partner, account: 'Joint' };
       });
 
-      // 2. Update local UI state layout instantly for responsiveness
       setData((prev: any) => ({ ...prev, expenses: updatedExpenses }));
 
-      // 3. Issue asynchronous batch update execution blocks straight to Supabase
       try {
         const promises = ids.map((id) => {
           const e = data.expenses.find((x: any) => x.id === id);
-          const partner = e?.account.includes(names.a) || e?.account.includes('Partner A')
-            ? 'Partner A'
-            : 'Partner B';
-          
+          const partner = e?.account.includes(names.a) || e?.account.includes('Partner A') ? 'Partner A' : 'Partner B';
           return supabase
             .from('transactions')
-            .update({
-              settled: true,
-              settled_with: partner,
-              account_used: 'Joint'
-            })
+            .update({ settled: true, settled_with: partner, account_used: 'Joint' })
             .eq('id', id);
         });
 
@@ -4279,17 +4263,12 @@ export default function App() {
         alert('UI updated locally, but cloud settlement failed to persist: ' + err.message);
       }
     },
+
     updateContrib: async (month: string, pA: number, pB: number) => {
-      // 1. Locate if this month already exists in local browser memory cache
       const existing = data.contributions.find((c: any) => c.month === month);
-      
-      // 2. Validate UUID integrity: check if the existing ID is a standard 36-character UUID string
       const isCleanUUID = existing && existing.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(existing.id);
-      
-      // 3. Auto-Heal: Re-use valid UUID or automatically generate a clean crypto UUID string to purge "2024-12"
       const dbId = isCleanUUID ? existing.id : uid();
 
-      // 4. Update local responsive layout view state with the safe UUID format
       setData((prev: any) => ({
         ...prev,
         contributions: [
@@ -4298,20 +4277,18 @@ export default function App() {
         ],
       }));
       
-      // 5. Fire upsert payload straight to your Supabase contributions table
       const { error } = await supabase.from('contributions').upsert({
-        id: dbId, // Passes strict PostgreSQL UUID type checks seamlessly
+        id: dbId,
         household_id: data.householdId,
         month: month,
-        partner_a_amount: pA, // Matches your column schema header
-        partner_b_amount: pB, // Matches your column schema header
+        partner_a_amount: pA,
+        partner_b_amount: pB,
       }, { onConflict: 'household_id,month' });
 
-      if (error) {
-        alert('Cloud contribution sync failed: ' + error.message);
-      }
+      if (error) alert('Cloud contribution sync failed: ' + error.message);
     },
-   addGoal: async (g: any) => {
+
+    addGoal: async (g: any) => {
       const goalId = g.id || crypto.randomUUID(); 
       const freshGoal = { 
         ...g, 
@@ -4327,10 +4304,10 @@ export default function App() {
           household_id: data.householdId,
           name: g.name,
           target_amount: Number(g.target || 0),
-          partner_a_target: Number(g.partnerATarget || 0),   // ⚡ Split Target
-          partner_b_target: Number(g.partnerBTarget || 0),   // ⚡ Split Target
-          partner_a_current: Number(g.partnerACurrent || 0), // ⚡ Split Progress
-          partner_b_current: Number(g.partnerBCurrent || 0), // ⚡ Split Progress
+          partner_a_target: Number(g.partnerATarget || 0),
+          partner_b_target: Number(g.partnerBTarget || 0),
+          partner_a_current: Number(g.partnerACurrent || 0),
+          partner_b_current: Number(g.partnerBCurrent || 0),
           target_date: g.targetDate || null, 
           strategy: g.strategy || 'Short-Term',
           icon: g.icon || '🎯',
@@ -4377,7 +4354,6 @@ export default function App() {
     },
 
     addLoan: async (l: any) => {
-      // 1. ⚡ SAFE MEMORY UPDATE
       setData((prev: any) => ({
         ...prev,
         loans: [...prev.loans, {
@@ -4389,43 +4365,40 @@ export default function App() {
         }]
       }));
 
-      // 2. ⚡ TRANSLATION ENGINE: Map camelCase loan/EMI items back to database snake_case
       const { error } = await supabase.from('loans').insert([
         {
           id: l.id,
           household_id: data.householdId,
           name: l.name,
           principal: Number(l.principal || 0),
-          interest_rate: Number(l.interestRate || 0), // Translated!
+          interest_rate: Number(l.interestRate || 0),
           emi: Number(l.emi || 0),
           outstanding: Number(l.outstanding || 0),
-          start_date: l.startDate,                    // Translated!
-          tenure_months: Number(l.tenureMonths || 0),  // Translated!
-          payment_day: Number(l.paymentDay || 1),     // Translated!
+          start_date: l.startDate,
+          tenure_months: Number(l.tenureMonths || 0),
+          payment_day: Number(l.paymentDay || 1),
         },
       ]);
       if (error) alert('Failed to save loan to cloud: ' + error.message);
     },
 
     updateLoan: async (id: string, updated: any) => {
-      // 1. ⚡ SAFE MEMORY UPDATE: Instantly reflect the edited EMI/Loan metrics on screen
       setData((prev: any) => ({
         ...prev,
         loans: prev.loans.map((l: any) => (l.id === id ? updated : l)),
       }));
 
-      // 2. ⚡ TRANSLATION ENGINE: Map camelCase frontend fields back to database snake_case columns
       const { error } = await supabase
         .from('loans')
         .update({
           name: updated.name,
           principal: Number(updated.principal || 0),
-          interest_rate: Number(updated.interestRate || 0), // Translated!
+          interest_rate: Number(updated.interestRate || 0),
           emi: Number(updated.emi || 0),
           outstanding: Number(updated.outstanding || 0),
-          start_date: updated.startDate,                    // Translated!
-          tenure_months: Number(updated.tenureMonths || 0),  // Translated!
-          payment_day: Number(updated.paymentDay || 1),     // Translated!
+          start_date: updated.startDate,
+          tenure_months: Number(updated.tenureMonths || 0),
+          payment_day: Number(updated.paymentDay || 1),
         })
         .eq('id', id);
 
@@ -4440,17 +4413,17 @@ export default function App() {
       const { error } = await supabase.from('loans').delete().eq('id', id);
       if (error) alert('Failed to delete loan: ' + error.message);
     },
+
     saveSettings: async (s: any) => {
       setData((prev: any) => ({ ...prev, settings: s }));
       const { error } = await supabase.from('household_settings').upsert({
         household_id: data.householdId,
         settings_data: s,
-      }, { onConflict: 'household_id' }); // Explicitly resolves unique validation conflicts on the household identity key
+      }, { onConflict: 'household_id' });
       
-      if (error) {
-        alert('Supabase rejected settings change: ' + error.message);
-      }
+      if (error) alert('Supabase rejected settings change: ' + error.message);
     },
+
     joinHousehold: async (newHouseholdId: string) => {
       const { error } = await supabase
         .from('profiles')
@@ -4466,22 +4439,18 @@ export default function App() {
       setLoading(false);
       alert("Successfully joined partner's household!");
     },
-importData: async ({ expenses, contributions }: any) => {
-      // 1. Sanitize expenses and filter out any accidental empty rows
+
+    importData: async ({ expenses, contributions }: any) => {
       const sanitizedExpenses = (expenses || [])
-        .filter((e: any) => e && e.date && e.amount) // ⚡ Safety check: drops blank transaction rows
+        .filter((e: any) => e && e.date && e.amount)
         .map((e: any) => {
           const isValidUUID = e.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.id);
-          return {
-            ...e,
-            id: isValidUUID ? e.id : uid()
-          };
+          return { ...e, id: isValidUUID ? e.id : uid() };
         });
 
       const existingIds = new Set(data.expenses.map((e: any) => e.id));
       const newExp = sanitizedExpenses.filter((e: any) => !existingIds.has(e.id));
       
-      // ⚡ FIXED: Clean validation filter to skip empty trailing ghost rows from the Excel sheet
       const validImportedContribs = (contributions || []).filter(
         (c: any) => c && c.month && String(c.month).trim()
       );
@@ -4490,7 +4459,7 @@ importData: async ({ expenses, contributions }: any) => {
         const cleanMonth = String(c.month).trim();
         const existing = data.contributions.find((x: any) => x.month === cleanMonth);
         return {
-          id: existing ? existing.id : uid(), // Reuses your valid database UUID row or falls back to standard crypto UUID
+          id: existing ? existing.id : uid(),
           month: cleanMonth,
           partnerA: c.partnerA,
           partnerB: c.partnerB
@@ -4506,14 +4475,12 @@ importData: async ({ expenses, contributions }: any) => {
           ]
         : data.contributions;
 
-      // 2. Synchronize local UI view state instantly
       setData((prev: any) => ({
         ...prev,
         expenses: [...prev.expenses, ...newExp],
         contributions: mergedContribs,
       }));
 
-      // 3. Batch insert new expense lines into cloud database
       if (newExp.length > 0) {
         const rowsToInsert = newExp.map((e: any) => ({
           id: e.id,
@@ -4534,7 +4501,6 @@ importData: async ({ expenses, contributions }: any) => {
         if (txError) alert('Cloud expense synchronization failed: ' + txError.message);
       }
 
-      // 4. Batch upsert imported spreadsheet contributions using pure verified UUIDs
       if (sanitizedImportedContribs.length > 0) {
         const contribRowsToUpsert = sanitizedImportedContribs.map((c: any) => ({
           id: c.id,
@@ -4544,7 +4510,7 @@ importData: async ({ expenses, contributions }: any) => {
           partner_b_amount: c.partnerB || 0
         }));
 
-        const { error: cbError } = await supabase.from('contributions').upsert(contribRowsToUpsert, { onConflict: 'household_id,month' }); // ⚡ FIX: Directs bulk updates to overwrite by matching month keys
+        const { error: cbError } = await supabase.from('contributions').upsert(contribRowsToUpsert, { onConflict: 'household_id,month' });
         if (cbError) {
           alert('Local state updated, but cloud contribution synchronization bounced: ' + cbError.message);
         } else {
@@ -4556,8 +4522,9 @@ importData: async ({ expenses, contributions }: any) => {
         alert('No new unique records found to import.');
       }
     },
-};
-  
+  }; // ⚡ CLOSES THE ACTIONS DICTIONARY OBJECT CLEANLY
+
+  // ─── MASTER LAYOUT MARKUP RENDER TUNNEL ───────────────────────────────────
   return (
     <div
       style={{
@@ -4632,9 +4599,49 @@ importData: async ({ expenses, contributions }: any) => {
             </button>
           </div>
 
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              padding: '20px 12px',
+              flex: 1,
+              overflowY: 'auto',
+            }}
+          >
+            {NAV.map((n) => (
+              <button
+                key={n.id}
+                onClick={() => setView(n.id)}
+                title={n.label}
+                style={{
+                  background: view === n.id ? C.amber + '22' : 'transparent',
+                  border: 'none',
+                  color: view === n.id ? C.amber : C.text2,
+                  borderRadius: 10,
+                  padding: sidebarOpen ? '12px 16px' : '12px',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: view === n.id ? 700 : 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: sidebarOpen ? 'flex-start' : 'center',
+                  gap: 12,
+                  transition: 'all .2s',
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{n.icon}</span>
+                {sidebarOpen && (
+                  <span style={{ whiteSpace: 'nowrap' }}>{n.label}</span>
+                )}
+              </button>
+            ))}
+          </div>
+
           <div style={{ padding: '0 20px 10px', fontSize: 11, color: C.text2, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-  👤 Logged in as: {session.user.email}
-</div>
+            👤 Logged in as: {session.user.email}
+          </div>
 
           <div
             style={{
@@ -4647,7 +4654,7 @@ importData: async ({ expenses, contributions }: any) => {
               alignItems: 'center'
             }}
           >
-            {/* ⚡ PRIVACY EYE: Securely nested at the bottom utility dock */}
+            {/* PRIVACY EYE DOCK TRIGGER */}
             <button
               onClick={togglePrivacy}
               title={privacyMode ? "Reveal Financial Data" : "Mask Private Data"}
@@ -4692,6 +4699,7 @@ importData: async ({ expenses, contributions }: any) => {
               {sidebarOpen ? 'Log Out' : '🚪'}
             </button>
           </div>
+        </div>
       )}
 
       {/* MAIN AREA */}
@@ -4703,8 +4711,6 @@ importData: async ({ expenses, contributions }: any) => {
           overflowY: 'auto',
         }}
       >
-        
-        
         {/* MOBILE TOP HEADER */}
         {isMobile && (
           <div
@@ -4727,7 +4733,6 @@ importData: async ({ expenses, contributions }: any) => {
               </span>
             </div>
             
-            {/* ⚡ MOBILE PROFILE + PRIVACY CONTROL ACTIONS PANEL */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
               <span style={{ fontSize: 10, color: C.text2, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {session.user.email}
@@ -4791,41 +4796,40 @@ importData: async ({ expenses, contributions }: any) => {
             <Dashboard data={data} onAddExpense={actions.addExpense} />
           )}
           
-  {view === 'add' && (
-    <AddExpense
-      data={data}
-      session={session} // ⚡ Passes login token down
-      duplicateData={duplicateData} // ⚡ Passes copy data down
-      onAdd={actions.addExpense}
-      onClose={() => {
-        setDuplicateData(null); // Clear copy data on exit
-        setView(prevView);
-      }}
-    />
-  )}
+          {view === 'add' && (
+            <AddExpense
+              data={data}
+              session={session}
+              duplicateData={duplicateData}
+              onAdd={actions.addExpense}
+              onClose={() => {
+                setDuplicateData(null);
+                setView(prevView);
+              }}
+            />
+          )}
 
           {view === 'income' && <IncomeTracker data={data} />}
 
-  {view === 'expenses' && (
-    <ExpenseList
-      data={data}
-      onToggleToSettle={actions.toggleToSettle}
-      onDelete={actions.deleteExpense}
-      onUpdate={actions.updateExpense}
-      onBulkDelete={actions.bulkDeleteExpense}
-      onDuplicate={(e: any) => {
-        // Sets up a prefilled structure with today's date automatically assigned
-        setDuplicateData({
-          ...e,
-          date: today(), 
-          amount: e.amount.toString(), // Keep string formatting for form fields
-          id: null // Triggers a new UUID generation on save
-        });
-        setPrevView(view);
-        setView('add');
-      }}
-    />
-  )}
+          {view === 'expenses' && (
+            <ExpenseList
+              data={data}
+              onToggleToSettle={actions.toggleToSettle}
+              onDelete={actions.deleteExpense}
+              onUpdate={actions.updateExpense}
+              onBulkDelete={actions.bulkDeleteExpense}
+              onDuplicate={(e: any) => {
+                setDuplicateData({
+                  ...e,
+                  date: today(), 
+                  amount: e.amount.toString(),
+                  id: null
+                });
+                setPrevView(view);
+                setView('add');
+              }}
+            />
+          )}
           {view === 'settle' && (
             <SettleDashboard data={data} onBulkSettle={actions.bulkSettle} />
           )}
@@ -4951,4 +4955,4 @@ importData: async ({ expenses, contributions }: any) => {
       )}
     </div>
   );
-      }
+} // ⚡ SEALS THE MAIN APP PARENT FUNCTION AND COMPILING BALANCES PERFECTLY!
