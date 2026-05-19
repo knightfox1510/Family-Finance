@@ -1951,7 +1951,7 @@ function ExpenseList({
       if (filter.month !== 'All' && monthKey(e.date) !== filter.month)
         return false;
       
-      // Extract the account value safely regardless of key naming conventions
+      // Dynamic mapping logic adjustment wrapper
       const itemAccount = e.account || e.account_used;
       if (filter.account !== 'All' && itemAccount !== filter.account)
         return false;
@@ -2219,21 +2219,17 @@ function ExpenseList({
                     {/* 7. Account Used Slot */}
                     <td style={{ padding: '10px 14px' }}>
                       {(() => {
-                        // Support both raw Supabase database keys and transformed local state shapes
                         const activeAccount = e.account || e.account_used;
-                        
-                        // Standardize string checking metrics to avoid casing glitches
-                        const matchKey = String(activeAccount || '').trim().toLowerCase();
-                        
-                        if (matchKey === 'partner a' || matchKey === 'partnera') {
-                          return <Badge color={C.blue}>{names.a || 'Partner A'}</Badge>;
+                        if (!activeAccount) return <Badge color={C.green}>Joint Account</Badge>;
+
+                        // Compare against live household configuration settings values
+                        if (activeAccount === names.a || activeAccount === 'Partner A') {
+                          return <Badge color={C.blue}>{names.a}</Badge>;
                         }
-                        if (matchKey === 'partner b' || matchKey === 'partnerb') {
-                          return <Badge color={C.blue}>{names.b || 'Partner B'}</Badge>;
+                        if (activeAccount === names.b || activeAccount === 'Partner B') {
+                          return <Badge color={C.blue}>{names.b}</Badge>;
                         }
                         
-                        // 💳 SYSTEM DEFAULT: If it's explicitly 'Joint' OR empty/undefined, 
-                        // fallback dynamically to your system's unified configurations setting
                         return <Badge color={C.green}>Joint Account</Badge>;
                       })()}
                     </td>
