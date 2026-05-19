@@ -3788,25 +3788,79 @@ function Settings({
 
       {/* ✈️ TELEGRAM BOT USERNAME LINK */}
       <Card style={{ border: `1px solid ${C.teal}44` }}>
-        <SectionTitle>Telegram Account Synchronization</SectionTitle>
+        <SectionTitle>Account Identity & Telegram Sync</SectionTitle>
         
         {(() => {
-          // Check if there is an existing username stored anywhere in the settings/profile data state
           const linkedHandle = (s.telegramUsername || s.telegram_username || '').trim();
           const hasLinked = linkedHandle.length > 0;
+          
+          // Read the current live validated profile role loaded from the cloud database
+          const currentCloudRole = data.currentUserRole || 'Partner A';
 
           return (
             <>
+              {/* 👥 SYSTEM IDENTITY SWITCHER SECTION */}
+              <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${C.border}` }}>
+                <Label style={{ marginBottom: 4 }}>System Household Profile Role</Label>
+                <p style={{ color: C.muted, fontSize: 12, margin: '0 0 10px' }}>
+                  Your device is registered as <b>{currentCloudRole === 'Partner A' ? data.settings.partnerAName : data.settings.partnerBName}</b> ({currentCloudRole}) in the cloud ledger databases.
+                </p>
+                
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <Btn
+                    variant={currentCloudRole === 'Partner A' ? 'primary' : 'ghost'}
+                    style={{ flex: 1, fontSize: 12, padding: '8px' }}
+                    onClick={async () => {
+                      if (currentCloudRole === 'Partner A') return;
+                      if (confirm(`Switch system profile role to Partner A (${data.settings.partnerAName})?`)) {
+                        const { error } = await supabase
+                          .from('profiles')
+                          .update({ display_name: 'Partner A' })
+                          .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
+                        
+                        if (error) alert(error.message);
+                        else {
+                          if (typeof window !== 'undefined') localStorage.setItem('active_partner_role', 'Partner A');
+                          alert("System profile successfully updated to Partner A!");
+                          window.location.reload();
+                        }
+                      }
+                    }}
+                  >
+                    👤 Set as {data.settings.partnerAName} (Partner A)
+                  </Btn>
+                  
+                  <Btn
+                    variant={currentCloudRole === 'Partner B' ? 'primary' : 'ghost'}
+                    style={{ flex: 1, fontSize: 12, padding: '8px' }}
+                    onClick={async () => {
+                      if (currentCloudRole === 'Partner B') return;
+                      if (confirm(`Switch system profile role to Partner B (${data.settings.partnerBName})?`)) {
+                        const { error } = await supabase
+                          .from('profiles')
+                          .update({ display_name: 'Partner B' })
+                          .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
+                        
+                        if (error) alert(error.message);
+                        else {
+                          if (typeof window !== 'undefined') localStorage.setItem('active_partner_role', 'Partner B');
+                          alert("System profile successfully updated to Partner B!");
+                          window.location.reload();
+                        }
+                      }
+                    }}
+                  >
+                    👥 Set as {data.settings.partnerBName} (Partner B)
+                  </Btn>
+                </div>
+              </div>
+
+              {/* ✈️ TELEGRAM INTEGRATION HANDLING SECTION */}
               <p style={{ color: C.text1, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
                 {hasLinked ? (
-                  <span>
-                    Your account is securely connected to the conversational AI tracking bot. Text the bot directly to log expenses on the go.
-                  </span>
+                  <span>Your account is securely connected to the conversational AI tracking bot. Text the bot directly to log expenses on the go.</span>
                 ) : (
-                  <span>
-                    Link your public Telegram handle to enable conversational AI transaction logging. 
-                    Do not include the <code>@</code> symbol.
-                  </span>
+                  <span>Link your public Telegram handle to enable conversational AI transaction logging. Do not include the <code>@</code> symbol.</span>
                 )}
               </p>
 
@@ -3824,7 +3878,7 @@ function Settings({
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                     <input
                       type="text"
-                      disabled={hasLinked} // Locks the field if already configured
+                      disabled={hasLinked}
                       placeholder={hasLinked ? `@${linkedHandle}` : "e.g. goku_ops"}
                       value={hasLinked ? `@${linkedHandle}` : (s.telegramUsername || '')}
                       onChange={(e: any) =>
@@ -3834,14 +3888,8 @@ function Settings({
                         background: hasLinked ? `${C.bg}80` : C.bg,
                         border: `1px solid ${hasLinked ? C.border : C.teal}`,
                         color: hasLinked ? C.text2 : C.textW,
-                        borderRadius: 8,
-                        padding: '10px 14px',
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        outline: 'none',
-                        fontFamily: 'monospace',
-                        opacity: hasLinked ? 0.7 : 1,
-                        cursor: hasLinked ? 'not-allowed' : 'text'
+                        borderRadius: 8, padding: '10px 14px', width: '100%', boxSizing: 'border-box', outline: 'none',
+                        fontFamily: 'monospace', opacity: hasLinked ? 0.7 : 1, cursor: hasLinked ? 'not-allowed' : 'text'
                       }}
                     />
                     
@@ -3850,17 +3898,14 @@ function Settings({
                         variant="danger"
                         style={{ padding: '10px 14px', fontSize: 13, whiteSpace: 'nowrap' }}
                         onClick={async () => {
-                          if (confirm('Are you sure you want to disconnect this Telegram account? The AI bot will no longer recognize your messages.')) {
-                            // Clear out from Supabase profiles table
+                          if (confirm('Are you sure you want to disconnect this Telegram account?')) {
                             const { error } = await supabase
                               .from('profiles')
                               .update({ telegram_username: null })
                               .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
 
-                            if (error) {
-                              alert('Failed to sever link: ' + error.message);
-                            } else {
-                              // Clear out local configuration state reactively
+                            if (error) alert('Failed to sever link: ' + error.message);
+                            else {
                               setS((x: any) => ({ ...x, telegramUsername: '' }));
                               alert('Telegram link successfully severed!');
                               window.location.reload();
@@ -3886,11 +3931,10 @@ function Settings({
                               .update({ telegram_username: handle })
                               .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
 
-                          if (error) {
-                            alert('Failed to link Telegram username: ' + error.message);
-                          } else {
+                          if (error) alert('Failed to link Telegram username: ' + error.message);
+                          else {
                             alert(`Successfully linked @${handle} to your ledger profile!`);
-                            window.location.reload(); // Refresh to broadcast settings tree updates
+                            window.location.reload();
                           }
                         }}
                       >
