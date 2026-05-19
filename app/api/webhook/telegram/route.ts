@@ -294,6 +294,7 @@ export async function POST(request: Request) {
       // ─── 🤖 PATH 2: MULTI-ROW NATURAL LANGUAGE PARSER PIPELINE ───
       const systemPrompt = `You are an expert personal finance clerk parsing ledger lines. 
       Analyze the text input and extract EVERY individual transaction item mentioned. 
+      This includes inputs written as lists or separated by new lines/line breaks.
       Map the entries into a valid JSON array of objects.
       
       VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
@@ -333,11 +334,17 @@ export async function POST(request: Request) {
       TYPE: "income" if text contains salary/bonus/credited/refund. Else "expense".
 
       CRUCIAL RULES:
-      1. Output a JSON array of transaction objects matching the requested format.
+      1. Your output must be a clean, valid raw JSON array of objects ONLY. Do not wrap it in markdown code blocks.
       2. Process single items as an array containing exactly one object.
-      3. Split composite compound items into individual distinct objects.
-      4. CLEAN NOTE TEXT: The "note" field must contain ONLY the physical item description or store merchant name (e.g., "Savana", "Swiggy", "Fuel"). Strikingly strip out user tracking identifiers ("Gaurav", "Karishma") or operational terms ("to settle") from the note text completely.`;
+      3. Split composite compound items or items separated by newlines/line-breaks into individual distinct objects.
+      4. CLEAN NOTE TEXT: The "note" field must contain ONLY the physical item description or store merchant name (e.g., "test transaction", "Swiggy", "Fuel"). Strikingly remove operational tracking keywords like account names ("Gaurav", "Karishma", "Joint") or settlement phrases ("to settle", "to be settled") from the final note string. Do not include the category name inside the note field.
 
+      Example Output format:
+      [
+        {"amount": 100, "category": "Dining Out", "note": "test transaction", "type": "expense", "account": "Joint", "toSettle": false},
+        {"amount": 200, "category": "Utilities", "note": "test transaction", "type": "expense", "account": "Joint", "toSettle": false}
+      ]`;
+      
       // UPGRADED FETCH TO NATIVE STRUCTURAL JSON GENERATION
       const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
         method: 'POST', 
