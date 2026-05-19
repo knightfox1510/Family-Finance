@@ -1270,7 +1270,7 @@ function Dashboard({ data, onAddExpense }: any) {
             >
               <option value="All">All Accounts Combined</option>
               <option value="Joint">Joint Account Only</option>
-              <option value="PersonalOnly">Gaurav & Karishma (Individual Out of Pocket)</option>
+              <option value="PersonalOnly">{names.a} & {names.b} (Individual Out of Pocket)</option>
               <option value={names.a}>{names.a} Only</option>
               <option value={names.b}>{names.b} Only</option>
             </select>
@@ -1957,9 +1957,15 @@ function ExpenseList({
         return false;
       
       // Dynamic mapping logic adjustment wrapper
+      // Unified multi-tenant safe account filter check
       const itemAccount = e.account || e.account_used;
-      if (filter.account !== 'All' && itemAccount !== filter.account)
-        return false;
+      if (filter.account !== 'All') {
+        const matchesPartnerA = (filter.account === names.a || filter.account === 'Partner A') && (itemAccount === names.a || itemAccount === 'Partner A');
+        const matchesPartnerB = (filter.account === names.b || filter.account === 'Partner B') && (itemAccount === names.b || itemAccount === 'Partner B');
+        const matchesJoint = filter.account === 'Joint' && itemAccount === 'Joint';
+        
+        if (!matchesPartnerA && !matchesPartnerB && !matchesJoint) return false;
+      }
         
       if (filter.category !== 'All' && e.category !== filter.category)
         return false;
