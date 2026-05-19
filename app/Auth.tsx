@@ -89,8 +89,7 @@ export default function Auth() {
           targetHouseholdId = inviteCode.trim();
         }
 
-        // 3. 🎯 THE UPDATED PROFILE INSERTION PAYLOAD
-        // Automatically flags creators as Partner A and joiners as Partner B
+        // 3. Bind the user profile with dynamic role metadata and email mapping
         const assignedRole = onboardingChoice === 'create' ? 'Partner A' : 'Partner B';
 
         const { error: profileError } = await supabase
@@ -98,8 +97,8 @@ export default function Auth() {
           .insert({
             id: userId,
             household_id: targetHouseholdId,
-            email: email.toLowerCase().trim(), // Stores the email address cleanly
-            display_name: assignedRole         // Stores their systemic household role
+            email: email.toLowerCase().trim(),
+            display_name: assignedRole
           });
         if (profileError) throw profileError;
 
@@ -109,14 +108,11 @@ export default function Auth() {
         }
 
         alert('Success! Your account and ledger maps are synced. Welcome aboard!');
-      }
-
-        alert('Success! Your account and ledger maps are synced. Welcome aboard!');
       } else {
         // Standard Log In Pipeline
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
-          password,
+          password, // 💡 Double check that this password property is explicitly closed out
         });
         if (signInError) throw signInError;
       }
