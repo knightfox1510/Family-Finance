@@ -169,26 +169,66 @@ async function loadData(userId: string) {
       }
     }
 
-    // 1. Fetch remaining data configurations in parallel
+    // 1. Fetch data arrays in parallel
     const [gl, ln, cb, st, currentProfileRow] = await Promise.all([
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
       supabase.from('household_settings').select('*').eq('household_id', hId),
-      supabase.from('profiles').select('telegram_username, display_name').eq('id', userId).single() // 👈 FETCH ROLE
+      supabase.from('profiles').select('telegram_username, display_name').eq('id', userId).single()
     ]);
 
-    // ... (Keep your existing settings configuration assignments exactly the same)
+    // 2. Safe in-memory sorting for configs
+    let cloudSettingsRow = null;
+    if (st.data && st.data.length > 0) {
+      const sortedSettings = [...st.data].sort((a: any, b: any) => {
+        if (a.created_at && b.created_at) {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        return 0;
+      });
+      cloudSettingsRow = sortedSettings[0] || st.data[st.data.length - 1];
+    }
+    
+    // 3. Defensive JSON Unpacker
+    let unpackedSettings: any = {};
+    if (cloudSettingsRow) {
+      if (cloudSettingsRow.settings_data) {
+        if (typeof cloudSettingsRow.settings_data === 'string') {
+          try {
+            unpackedSettings = JSON.parse(cloudSettingsRow.settings_data);
+          } catch (e) {
+            unpackedSettings = {};
+          }
+        } else {
+          unpackedSettings = cloudSettingsRow.settings_data;
+        }
+      } else {
+        unpackedSettings = cloudSettingsRow;
+      }
+    }
+    
+    // 4. ✨ BUILD THE SETTINGS ENTITY (Must happen BEFORE formattedData)
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      ...unpackedSettings,
+      partnerAName: unpackedSettings.partnerAName || unpackedSettings.partner_a_name || unpackedSettings.partnerA || 'Partner A',
+      partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
+      expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.expense_categories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
+      incomeCategories: unpackedSettings.incomeCategories || unpackedSettings.income_categories || DEFAULT_SETTINGS.incomeCategories,
+      budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {},
+      telegramUsername: currentProfileRow.data?.telegram_username || unpackedSettings.telegramUsername || ''
+    };
 
+    // 5. 🎯 TRANSFORMS CLOUD DATA FOR APPLICAION RADAR UI
     const formattedData = {
       householdId: hId,
       categories: settings.expenseCategories, 
       partnerAName: settings.partnerAName,
       partnerBName: settings.partnerBName,
+      currentUserRole: currentProfileRow.data?.display_name || 'Partner A', // Dynamically passed!
+      settings: settings, // Safely mounts active settings mapping tree context
       
-      // 🎯 PASS THE TRUE RESOLVED SYSTEMIC USER ROLE TO THE APP ROOT STATE
-      currentUserRole: currentProfileRow.data?.display_name || 'Partner A',
-
       expenses: allTransactions.map((r: any) => ({
         id: r.id,
         date: r.date,
@@ -202,6 +242,7 @@ async function loadData(userId: string) {
         settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
         settledFor: toUI(r.settled_with), 
       })),
+      
       goals: (gl.data || []).map((r: any) => {
         const targetAmt = Number(r.target_amount || 0);
         const pATarget = Number(r.partner_a_target || 0);
