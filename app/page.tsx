@@ -215,6 +215,7 @@ async function loadData(userId: string) {
       expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.expense_categories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
       incomeCategories: unpackedSettings.incomeCategories || unpackedSettings.income_categories || DEFAULT_SETTINGS.incomeCategories,
       budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {}
+      telegramUsername: currentProfileRow.data?.telegram_username || unpackedSettings.telegramUsername || ''
     };
     
     const toUI = (val: string) => {
@@ -3650,6 +3651,13 @@ function Settings({
   const [newExpCat, setNewExpCat] = useState('');
   const [newIncCat, setNewIncCat] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 🩹 THE SYNC HOOK: Instantly populates the local state form whenever settings data finishes loading
+  useEffect(() => {
+    if (data?.settings) {
+      setS(JSON.parse(JSON.stringify(data.settings)));
+    }
+  }, [data.settings]);
 
   const save = () => {
     onSave(s);
