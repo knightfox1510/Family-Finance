@@ -703,20 +703,28 @@ function parseImport(file: any, callback: any) {
 
         const rawType = row.type ? String(row.type).toLowerCase().trim() : 'expense';
 
+        // Extract the true account value from your lowercase key columns map
+        const activeAccountVal = row.accountused || row.account || 'Joint';
+
+        // Standardize the capitalization formatting to match what your views expect
+        let formattedAccount = 'Joint';
+        if (activeAccountVal.toLowerCase() === 'partner a' || activeAccountVal.toLowerCase() === 'partnera') formattedAccount = 'Partner A';
+        if (activeAccountVal.toLowerCase() === 'partner b' || activeAccountVal.toLowerCase() === 'partnerb') formattedAccount = 'Partner B';
+
         return {
           id: row.id || null,
-          date: normalizeDate(row.date), // Runs the upgraded format normalizer
+          date: normalizeDate(row.date), 
           type: rawType === 'income' ? 'income' : 'expense',
           category: row.category || 'Other',
           amount: Number(row.amount) || 0,
-          account: row.account || 'Joint',
+          // ─── MAP THIS TO USE OUR CLEAN FORMATTED VARIABLE ────────────────
+          account: formattedAccount,
           addedBy: row.addedby || 'Partner A',
           note: row.note || '',
           toSettle: row.tosettle === 'Yes' || row.tosettle === 'true' || row.tosettle === true,
           settled: row.settled === 'Yes' || row.settled === 'true' || row.settled === true,
           settledFor: row.settledfor || null,
         };
-      });
 
       const contribs = getSheet('Contributions').map((r: any) => {
         const row: Record<string, any> = {};
