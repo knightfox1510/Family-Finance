@@ -252,11 +252,31 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      const householdId = process.env.TELEGRAM_DEFAULT_HOUSEHOLD_ID;
       const geminiKey = process.env.GEMINI_API_KEY;
-      const isPartnerA = tgUser.toLowerCase().includes('goku');
-      const senderIdentity = isPartnerA ? 'Partner A' : 'Partner B';
+      
+      // ─── 🤖 COMPLETELY MULTI-TENANT IDENTITY LOOKUP ENGINES ───
+      if (!tgUser) {
+        await sendTelegramMessage(chatId, "⚠️ Profile verification failed: Your Telegram account must have a public username configured in settings.");
+        return NextResponse.json({ ok: true });
+      }
 
+      // Query the database to find out exactly who this Telegram handle belongs to
+      const { data: userProfile, error: profileLookupError } = await supabase
+        .from('profiles')
+        .select('household_id, display_name')
+        .ilike('telegram_username', tgUser.trim()) // Case-insensitive matching
+        .maybeSingle();
+
+      if (profileLookupError || !userProfile) {
+        console.error("Telegram incoming route lookup warning:", profileLookupError);
+        await sendTelegramMessage(chatId, `🚫 <b>Profile Unlinked</b>\n\nPlease log into the web dashboard, go to Settings, and link your Telegram username: <code>@${tgUser}</code> to sync your ledger access.`);
+        return NextResponse.json({ ok: true });
+      }
+
+      // Extract their live multi-tenant parameters instantly from their profile record!
+      const householdId = userProfile.household_id;
+      const senderIdentity = userProfile.display_name === 'Partner B' ? 'Partner B' : 'Partner A';
+      
       // ─── 💥 PATH 1: THE ZERO-COST INTERACTIVE WIZARD TRIGGER ───
       const cleanNumericAmount = Number(rawText);
       if (!isNaN(cleanNumericAmount) && cleanNumericAmount > 0) {
