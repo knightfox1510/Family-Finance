@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+
 export const maxDuration = 60; 
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     const payload = await request.json();
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH A: INTERACTIVE CONTROL CONSOLE DISPATCH (CALLBACK QUERIES)
+    // BRANCH A: THE WORKING INTERACTIVE CONTROL CONSOLE (CALLBACK QUERIES)
     // ────────────────────────────────────────────────────────────────────────
     if (payload.callback_query) {
       const callbackQuery = payload.callback_query;
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      // --- SUB-MENU: SHOW CATEGORY GRID ---
       if (dataStr.startsWith('s_cat_')) {
         const txId = dataStr.split('s_cat_')[1];
         const inlineKeyboard: any[] = [];
@@ -49,6 +51,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      // --- SUB-MENU: SHOW ACCOUNT SELECTION ---
       if (dataStr.startsWith('s_acc_')) {
         const txId = dataStr.split('s_acc_')[1];
         const inlineKeyboard = [
@@ -64,6 +67,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      // --- ACTION: PROMPT USER FOR NOTE TEXT ---
       if (dataStr.startsWith('s_not_')) {
         const txId = dataStr.split('s_not_')[1];
         const promptMsg = `📝 <b>Editing Note for transaction reference:</b>\n<code>${txId}</code>\n\nPlease reply directly to this message block with your new custom note content.`;
@@ -72,6 +76,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
+      // --- DIRECT TOGGLE ACTION: SETTLEMENT STATUS SWITCH ---
       if (dataStr.startsWith('t_set_')) {
         const txId = dataStr.split('t_set_')[1];
         const { data: current } = await supabase.from('transactions').select('to_settle').eq('id', txId).single();
@@ -83,6 +88,7 @@ export async function POST(request: Request) {
         return handleReturnToMenu(chatId, messageId, txId);
       }
 
+      // --- DIRECT TOGGLE ACTION: EXPENSE ⇄ INCOME SWITCH ---
       if (dataStr.startsWith('t_typ_')) {
         const txId = dataStr.split('t_typ_')[1];
         const { data: current } = await supabase.from('transactions').select('type').eq('id', txId).single();
@@ -94,6 +100,7 @@ export async function POST(request: Request) {
         return handleReturnToMenu(chatId, messageId, txId);
       }
 
+      // --- VALUE EXECUTION RESOLUTIONS ---
       if (dataStr.startsWith('v_cat_')) {
         const [_, __, txId, indexStr] = dataStr.split('_');
         const targetCategory = QUICK_CATEGORIES[parseInt(indexStr, 10)];
@@ -127,7 +134,7 @@ export async function POST(request: Request) {
     }
 
     // ────────────────────────────────────────────────────────────────────────
-    // BRANCH B: STANDARD CONVERSATIONAL & ENTRY PARSER ENGINE
+    // BRANCH B: STANDARD MESSAGES & TEXT REPLY LISTENER HANDLERS
     // ────────────────────────────────────────────────────────────────────────
     if (payload.message) {
       const chatId = payload.message.chat.id;
@@ -140,7 +147,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // Intercept inline text notes modifications reply listeners
+      // --- INTERCEPT INLINE TEXT NOTE EDIT MODIFICATIONS ---
       if (payload.message.reply_to_message && payload.message.reply_to_message.text) {
         const replyText = payload.message.reply_to_message.text;
         if (replyText.includes('Editing Note for transaction reference:')) {
@@ -154,7 +161,7 @@ export async function POST(request: Request) {
       }
 
       if (rawText.startsWith('/start')) {
-        await sendTelegramMessage(chatId, "👋 Welcome! Send expenses naturally to log them, or ask plain English questions to run real-time metrics data summaries!");
+        await sendTelegramMessage(chatId, "👋 Welcome! Send transactions naturally. Use the dashboard controls to adjust any field dynamically.");
         return NextResponse.json({ ok: true });
       }
 
@@ -163,92 +170,8 @@ export async function POST(request: Request) {
       const isPartnerA = tgUser.toLowerCase().includes('goku');
       const senderIdentity = isPartnerA ? 'Partner A' : 'Partner B';
 
-      // 📡 INTENT DISCRIMINATOR PROMPT MATRIX
-      const intentPrompt = `You are a intent analysis router for a personal finance system. 
-      Analyze this user text input and determine if they want to LOG a transaction entry, or QUERY/ANALYZE existing historical data records.
-      
-      Examples of LOG: "250 Zepto", "1200 dining out joint", "500 petrol paid by Gaurav to settle"
-      Examples of QUERY: "How much did we spend on Zepto this week?", "Show me the last 5 transactions", "What is our balance?"
-
-      Respond ONLY with a raw single word: "LOG" or "QUERY". Input text: "${rawText}"`;
-
-      const intentRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: intentPrompt }] }] })
-      });
-      const intentData = await intentRes.json();
-      const resolvedIntent = (intentData.candidates?.[0]?.content?.parts?.[0]?.text || 'LOG').trim().toUpperCase();
-
-      // ─── OPTION PORTAL 1: CONVERSATIONAL TEXT-TO-SQL INTENT QUERY ───
-      if (resolvedIntent.includes('QUERY')) {
-        const currentYear = new Date().getFullYear();
-        
-        const textToSqlPrompt = `You are an expert PostgreSQL engineer tracking a ledger. Generate a clean SELECT query to answer the question based on this table schema.
-        Table Name: "transactions"
-        Columns:
-        - "id" (uuid, primary key)
-        - "household_id" (uuid)
-        - "date" (date, format YYYY-MM-DD)
-        - "amount" (numeric)
-        - "category" (text: "Groceries", "Dining Out", "Online Groceries", "Online Food Orders", "Cab Services", "Personal Transportation", "Miscellaneous", etc.)
-        - "type" (text: "expense" or "income")
-        - "account_used" (text: "Joint", "Partner A", "Partner B")
-        - "added_by" (text: "Partner A", "Partner B")
-        - "note" (text)
-        - "to_settle" (boolean)
-        - "settled" (boolean)
-
-        CRUCIAL INSTRUCTIONS:
-        1. Always filter by household_id = '${householdId}' explicitly.
-        2. Output ONLY the raw SQL query. Do not wrap it in markdown code blocks like \`\`\`sql. 
-        3. Make text comparisons case-insensitive using ILIKE where applicable.
-        4. Current Year context boundary is: ${currentYear}.
-        
-        User plain text question: "${rawText}"`;
-
-        const sqlGenRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: textToSqlPrompt }] }] })
-        });
-        const sqlGenData = await sqlGenRes.json();
-        let querySql = (sqlGenData.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
-        querySql = querySql.replace(/```sql/gi, '').replace(/```/g, '').trim();
-
-        // Fire query directly to our secure readout database function
-const { data: sqlOutput, error: rpcError } = await supabase.rpc('execute_read_only_query', { query_text: querySql });
-
-// 💥 DIAGNOSTIC PASS: Echoes the exact failure vector back to your chat window
-if (rpcError || (sqlOutput && sqlOutput.error)) {
-  const detailedError = rpcError?.message || sqlOutput?.error || "Unknown compilation exception.";
-  const errorReport = `⚠️ <b>SQL Execution Failed</b>\n\n<b>Generated SQL:</b>\n<code>${querySql}</code>\n\n<b>Database Error:</b>\n<code>${detailedError}</code>`;
-  
-  await sendTelegramMessage(chatId, errorReport);
-  return NextResponse.json({ ok: true });
-}
-
-        // Humanize the tabular database numbers back into conversational phrases
-        const summaryPrompt = `You are a helpful personal finance copilot. Translate this raw JSON database data result into a beautifully clear, conversational, and direct bulletproof HTML summary message to answer the user's question.
-        User Question: "${rawText}"
-        Executed SQL: \`${querySql}\`
-        Raw Result Dataset: ${JSON.stringify(sqlOutput)}
-        
-        Format beautifully using HTML formatting rules (<b>, <code>, <i>) where applicable. Keep it concise.`;
-
-        const summaryRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: summaryPrompt }] }] })
-        });
-        const summaryData = await summaryRes.json();
-        const finalConversationalReply = summaryData.candidates?.[0]?.content?.parts?.[0]?.text || 'No summarization yielded.';
-
-        await sendTelegramMessage(chatId, finalConversationalReply);
-        return NextResponse.json({ ok: true });
-      }
-
-      // ─── OPTION PORTAL 2: STANDARD TRANSACTION INSULATION PUSH ENTRY ───
       const systemPrompt = `You are an expert personal finance clerk processing raw ledger data. Map text input to valid JSON.
-      
-     VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
+            VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
     - "Alcohol"             (Wine shops, Living Liquidz, pub/bar drinks, beer, specific alcohol logs)
     - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, physically eating out at a venue)
     - "Education"           (Course fees, certifications, books, training programs, upskilling materials)
@@ -279,10 +202,10 @@ if (rpcError || (sqlOutput && sqlOutput.error)) {
     - "Interest Earned"     (Bank savings account quarterly interest payouts, fixed deposit (FD) interest pay-ins)
     - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
     - "Family payments"     (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
-      
-      ACCOUNT SELECTION: "Joint" if text says joint/joint account. "Partner A" if mentions Gaurav or Goku. "Partner B" if mentions Karishma or Kari. Else default to "${senderIdentity}".
+    
+      ACCOUNT SELECTION: "Joint" if text says joint/joint account/joint wallet. "Partner A" if mentions Gaurav or Goku. "Partner B" if mentions Karishma or Kari. Else default to "${senderIdentity}".
       SETTLEMENT: true if text contains "to settle", "tosettle", "to be settled". Else false.
-      TYPE: "income" if text contains salary/bonus/interest credited. Else "expense".
+      TYPE: "income" if text contains salary/bonus/interest credited/refund. Else "expense".
 
       Return ONLY a raw valid JSON string:
       {"amount": 500, "category": "Online Groceries", "note": "Zepto", "type": "expense", "account": "Joint", "toSettle": false}`;
@@ -347,7 +270,7 @@ if (rpcError || (sqlOutput && sqlOutput.error)) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// DYNAMIC REDRAW SWITCHBOARD HOOKS
+// TELEGRAM ENGINE TRANSMISSION PIPELINES
 // ────────────────────────────────────────────────────────────────────────
 async function handleReturnToMenu(chatId: number, messageId: number, txId: string) {
   const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
@@ -408,6 +331,10 @@ async function answerCallbackQuery(callbackQueryId: string, alertText?: string) 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ callback_query_id: callbackQueryId, text: alertText || "", show_alert: false }),
+    body: JSON.stringify({
+      callback_query_id: callbackQueryId,
+      text: alertText || "",
+      show_alert: false
+    }),
   });
 }
