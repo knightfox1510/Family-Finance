@@ -1983,7 +1983,18 @@ function ExpenseList({
         
       return true;
     })
-    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a: any, b: any) => {
+      // 1. Primary Check: Sort by calendar date
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      
+      if (dateB !== dateA) {
+        return dateB - dateA; 
+      }
+      
+      // 2. Secondary Tie-Breaker: Sort by unique ID footprint if dates match exactly
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    });
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
