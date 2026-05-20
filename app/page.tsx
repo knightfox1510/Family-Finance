@@ -1934,7 +1934,12 @@ const submit = () => {
           {form.type === 'expense' && form.account !== 'Joint' && (
             <div style={{ background: '#1e284033', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 14, border: `1px solid ${C.border}` }}>
               <div>
-                <Label style={{ marginBottom: 6, display: 'block' }}>🎯 Settlement Configuration Path</Label>
+                
+                {/* 👇 FIX: Wrap the Label cleanly to handle custom spacing without breaking its component properties definition layout */}
+                <div style={{ marginBottom: 6, display: 'block' }}>
+                  <Label>🎯 Settlement Configuration Path</Label>
+                </div>
+                
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[
                     { key: 'none', label: '❌ No Settlement', desc: 'Personal or fully paid from matching pool' },
