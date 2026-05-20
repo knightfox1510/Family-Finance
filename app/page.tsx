@@ -1061,46 +1061,6 @@ function Dashboard({ data, onAddExpense }: any) {
     })
     .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
-  // 🤝 PARALLEL PARTNER TRACK CALCULATIONS ENGINE
-  const partnerCalculations = useMemo(() => {
-    let p2pNetBalance = 0; // Positive means Partner B owes Partner A, Negative means Partner A owes Partner B
-    const pendingPartnerItems: any[] = [];
-
-    data.expenses.forEach((t: any) => {
-      if (t.settled) return; // Skip completed items
-
-      const amount = Number(t.amount || 0);
-      const paidBy = t.addedBy; // "Partner A" or "Partner B"
-
-      if (t.account === 'Joint') return; // Joint items skip debtor calculations
-
-      if (t.settleTrack === 'partner') {
-        const shareA = t.splitMode === 'equal' ? (amount * 0.5) : (amount * Number(t.partnerAShare || 0));
-        const shareB = t.splitMode === 'equal' ? (amount * 0.5) : (amount * Number(t.partnerBShare || 0));
-
-        if (paidBy === 'Partner A') {
-          p2pNetBalance += shareB;
-          pendingPartnerItems.push({
-            ...t,
-            debtorName: names.b,
-            amountOwed: shareB,
-            breakdownText: t.splitMode === 'equal' ? '50% Split' : `${Math.round(Number(t.partnerBShare) * 100)}% Share`
-          });
-        } else if (paidBy === 'Partner B') {
-          p2pNetBalance -= shareA;
-          pendingPartnerItems.push({
-            ...t,
-            debtorName: names.a,
-            amountOwed: shareA,
-            breakdownText: t.splitMode === 'equal' ? '50% Split' : `${Math.round(Number(t.partnerAShare) * 100)}% Share`
-          });
-        }
-      }
-    });
-
-    return { p2pNetBalance, pendingPartnerItems };
-  }, [data.expenses, names.a, names.b]);
-
   // Active Scope Joint Account Contribution Extraction Engine
   let contribA = 0;
   let contribB = 0;
@@ -4952,9 +4912,6 @@ export default function App() {
       
       handleManualRefresh();
     },
-
-    deleteExpense: async (id: string) => {
-
     
     deleteExpense: async (id: string) => {
       setData((prev: any) => ({
@@ -5378,8 +5335,48 @@ export default function App() {
         alert('No new unique records found to import.');
       }
     },
-  }; // ⚡ CLOSES THE ACTIONS DICTIONARY OBJECT CLEANLY
+  };// ⚡ CLOSES THE ACTIONS DICTIONARY OBJECT CLEANLY
 
+  // 🤝 PARALLEL PARTNER TRACK CALCULATIONS ENGINE
+  const partnerCalculations = useMemo(() => {
+    let p2pNetBalance = 0; // Positive means Partner B owes Partner A, Negative means Partner A owes Partner B
+    const pendingPartnerItems: any[] = [];
+
+    data.expenses.forEach((t: any) => {
+      if (t.settled) return; // Skip completed items
+
+      const amount = Number(t.amount || 0);
+      const paidBy = t.addedBy; // "Partner A" or "Partner B"
+
+      if (t.account === 'Joint') return; // Joint items skip debtor calculations
+
+      if (t.settleTrack === 'partner') {
+        const shareA = t.splitMode === 'equal' ? (amount * 0.5) : (amount * Number(t.partnerAShare || 0));
+        const shareB = t.splitMode === 'equal' ? (amount * 0.5) : (amount * Number(t.partnerBShare || 0));
+
+        if (paidBy === 'Partner A') {
+          p2pNetBalance += shareB;
+          pendingPartnerItems.push({
+            ...t,
+            debtorName: names.b,
+            amountOwed: shareB,
+            breakdownText: t.splitMode === 'equal' ? '50% Split' : `${Math.round(Number(t.partnerBShare) * 100)}% Share`
+          });
+        } else if (paidBy === 'Partner B') {
+          p2pNetBalance -= shareA;
+          pendingPartnerItems.push({
+            ...t,
+            debtorName: names.a,
+            amountOwed: shareA,
+            breakdownText: t.splitMode === 'equal' ? '50% Split' : `${Math.round(Number(t.partnerAShare) * 100)}% Share`
+          });
+        }
+      }
+    });
+
+    return { p2pNetBalance, pendingPartnerItems };
+  }, [data.expenses, names.a, names.b]);
+  
   // ─── MASTER LAYOUT MARKUP RENDER TUNNEL ───────────────────────────────────
   return (
     <div
