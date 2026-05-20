@@ -1151,7 +1151,7 @@ function Dashboard({ data, onAddExpense }: any) {
 
   filteredExp.forEach((e: any) => {
     if (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') {
-      const noteTxt = (e.note || '').toLowerCase();
+      const noteTxt = ( || '').toLowerCase();
       if (e.category === 'Insurance' || noteTxt.includes('lic') || noteTxt.includes('insurance')) {
         allocation['Insurance Policies'] += Number(e.amount || 0);
       } else if (noteTxt.includes('smallcase')) {
@@ -2275,17 +2275,17 @@ function ExpenseList({
   <td style={{ padding: '10px 14px', color: C.text2, whiteSpace: 'nowrap' }}>{e.date}</td>
   
   {/* 🎯 UPDATED LOGIC INLINE INSIDE YOUR NOTE CELL */}
-  <td style={{ padding: '10px 14px', color: C.muted, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-    <span style={{ color: C.textW }}>{e.note || '—'}</span>
-    {e.isRecurring && (
-      <span 
-        title={`Recurring: Repeats ${e.recurrenceInterval || 'monthly'}`} 
-        style={{ marginLeft: 6, fontSize: 12, cursor: 'help' }}
-      >
-        🔄
-      </span>
-    )}
-  </td>
+<td style={{ padding: '10px 14px', color: C.muted, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+  <span style={{ color: C.textW }}>{e.note || '—'}</span>
+  {e.is_recurring && (
+    <span 
+      title={`Recurring: Repeats ${e.recurrence_interval || 'monthly'}`} 
+      style={{ marginLeft: 6, fontSize: 12, cursor: 'help' }}
+    >
+      🔄
+    </span>
+  )}
+</td>
 
   <td style={{ padding: '10px 14px', color: C.text1 }}>{e.category}</td>
   <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>
