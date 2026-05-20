@@ -13,7 +13,7 @@ export type HouseholdMode =
 // ---------------------------------------------------------------------------
 // Core transaction
 // ---------------------------------------------------------------------------
-export type SplitMode = 'equal' | 'custom';
+export type SplitMode = 'equal' | 'fixed' | 'percentage';
 export type SettleTrack = 'none' | 'joint' | 'partner';
 export type TransactionType = 'expense' | 'income';
 
