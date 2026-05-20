@@ -1565,11 +1565,13 @@ function Dashboard({ data, onAddExpense }: any) {
 }
 
 // ─── ADD EXPENSE ──────────────────────────────────────────────────────────────
-function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
+function AddExpense({ data, session, duplicateData, onAdd, onClose, onUpdateSave }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
   };
+
+  const isEditingMode = duplicateData && duplicateData.id !== null && duplicateData.id !== undefined;
 
   const [form, setForm] = useState(duplicateData || {
     date: today(),
@@ -1690,7 +1692,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   const submit = () => {
     const numericAmount = Number(form.amount);
 
-    // Explicitly catch zero, empty, or negative inputs with user-facing warnings
+    // 1. Explicitly catch zero, empty, or negative inputs with user-facing warnings
     if (form.amount === '' || isNaN(numericAmount)) {
       alert('⚠️ Error: Please enter a valid numeric amount before saving.');
       return;
@@ -1704,20 +1706,33 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
       return;
     }
 
-    onAdd({
-      ...form,
-      amount: numericAmount,
-      id: uid(),
-      settled: false,
-      settledFor: null,
-      isRecurring: form.isRecurring,
-      recurrenceInterval: form.recurrenceInterval,
-    });
-    setForm((f: any) => ({ ...f, amount: '', note: '', toSettle: false }));
-    setFlash(true);
-    setTimeout(() => setFlash(false), 2000);
-  };
+    // 2. Route dynamically between Update and Insert cleanly with the new recurring engine payloads
+    if (isEditingMode) {
+      // 🚀 Run an UPDATE statement if an asset ID exists
+      onUpdateSave(duplicateData.id, { 
+        ...form, 
+        amount: numericAmount 
+      });
+    } else {
+      // ➕ Run a standard INSERT if creating a fresh transaction or a copied duplicate
+      onAdd({ 
+        ...form, 
+        amount: numericAmount, 
+        id: uid(),
+        settled: false,
+        settledFor: null
+      });
+    }
 
+    // 3. Trigger UI Flash Feedback and return back to logs screen
+    setFlash(true);
+    setForm((f: any) => ({ ...f, amount: '', note: '', toSettle: false, isRecurring: false }));
+    
+    setTimeout(() => { 
+      setFlash(false); 
+      if (onClose) onClose(); 
+    }, 1500);
+  };
   const cats = form.type === 'income' ? data.settings.incomeCategories : data.settings.expenseCategories;
   
   // SCANNABLE MOBILE UPGRADE: Sorted completely alphabetically
@@ -1729,13 +1744,14 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
     <div style={{ maxWidth: 560 }}>
       <Card style={{ border: duplicateData ? `1px solid ${C.amber}55` : `1px solid ${C.border}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <SectionTitle style={{ margin: 0 }}>
-            {duplicateData ? '📋 Duplicating Cost Entry' : 'Add New Transaction'}
-          </SectionTitle>
-          {onClose && (
-            <Btn variant="ghost" onClick={onClose} style={{ padding: '4px 10px', fontSize: 16 }}>✕</Btn>
-          )}
-        </div>
+        <SectionTitle style={{ margin: 0 }}>
+          {isEditingMode ? '📝 Modify Expense Parameters' : (duplicateData ? '📋 Duplicating Cost Entry' : 'Add New Transaction')}
+        </SectionTitle>
+        
+        {onClose && (
+          <Btn variant="ghost" onClick={onClose} style={{ padding: '4px 10px', fontSize: 16 }}>✕</Btn>
+        )}
+      </div>
 
         {/* Tab Switches (Expense vs Income) */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
@@ -2324,8 +2340,19 @@ function ExpenseList({
                       )}
                     </td>
                     <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>
-                      <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => startEdit(e)}>Edit</Btn>
-                      <Btn variant="danger" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => onDelete(e.id)}>✕</Btn>
+                      <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>
+  <Btn 
+    variant="ghost" 
+    style={{ padding: '3px 8px', fontSize: 11 }} 
+    onClick={() => {
+      // Send the entire transaction data object up to the parent edit router hook
+      onTriggerEdit(e);
+    }}
+  >
+    Edit
+  </Btn>
+  <Btn variant="danger" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => onDelete(e.id)}>✕</Btn>
+</td>
                     </td>
                   </tr>
                 );
@@ -4572,9 +4599,19 @@ export default function App() {
     },
     
     updateExpense: async (id: string, updated: any) => {
+      // 1. Optimistic local UI state update map
       setData((prev: any) => ({
         ...prev,
-        expenses: prev.expenses.map((e: any) => (e.id === id ? updated : e)),
+        expenses: prev.expenses.map((e: any) => 
+          e.id === id 
+            ? { 
+                ...updated, 
+                // Ensure local state explicitly retains camelCase fields for component layout maps
+                isRecurring: updated.isRecurring,
+                recurrenceInterval: updated.recurrenceInterval
+              } 
+            : e
+        ),
       }));
 
       const toSystemKey = (val: string) => {
@@ -4583,6 +4620,7 @@ export default function App() {
         return val;
       };
 
+      // 2. Sync changes straight down to Supabase schema columns
       const { error } = await supabase
         .from('transactions')
         .update({
@@ -4596,12 +4634,20 @@ export default function App() {
           to_settle: updated.toSettle,
           settled: updated.settled,
           settled_with: toSystemKey(updated.settledFor),
+          
+          // ✨ STITCH THESE TWO SNAKE_CASE COLUMNS IN HERE:
+          is_recurring: updated.isRecurring,
+          recurrence_interval: updated.recurrenceInterval,
         })
         .eq('id', id);
         
-      if (error) alert('Failed to update: ' + error.message);
+      if (error) {
+        alert('Failed to update cloud ledger: ' + error.message);
+      } else {
+        // Soft refresh to keep calculations perfectly synchronized across dashboards
+        handleManualRefresh();
+      }
     },
-
     deleteExpense: async (id: string) => {
       setData((prev: any) => ({
         ...prev,
@@ -5368,6 +5414,7 @@ export default function App() {
               session={session}
               duplicateData={duplicateData}
               onAdd={actions.addExpense}
+              onUpdateSave={actions.updateExpense}
               onClose={() => {
                 setDuplicateData(null);
                 setView(prevView);
@@ -5387,15 +5434,17 @@ export default function App() {
               onBulkFlagToSettle={actions.bulkFlagToSettle}
               onBulkMarkAsSettled={actions.bulkMarkAsSettled}
               onBulkAssignToAccount={actions.bulkAssignToAccount}
-              onDuplicate={(e: any) => {
-                setDuplicateData({
-                  ...e,
-                  date: today(), 
-                  amount: e.amount.toString(),
-                  id: null
-                });
-                setPrevView(view);
-                setView('add');
+              onTriggerEdit={(transactionToUpdate: any) => {
+      setDuplicateData(transactionToUpdate); // Passes full parameters object down
+      setPrevView(view);
+      setView('add'); // Swaps the screen window frame to the AddExpense layout view canvas panel
+    }}
+    
+    onDuplicate={(e: any) => {
+      // Your existing duplication handler stays exactly the same, but sets id: null explicitly
+      setDuplicateData({ ...e, date: today(), amount: e.amount.toString(), id: null });
+      setPrevView(view);
+      setView('add');
               }}
             />
           )}
