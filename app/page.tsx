@@ -1977,10 +1977,10 @@ function ExpenseList({
   onUpdate, 
   onBulkDelete, 
   onDuplicate,
-  // ─── PART 3: RECEIVE NEW BATCH PROPS HOOKS ───────────────────────
   onBulkFlagToSettle,
   onBulkMarkAsSettled,
-  onBulkAssignToAccount
+  onBulkAssignToAccount,
+  onTriggerEdit
 }: any) {
   const names = {
     a: data.settings.partnerAName,
