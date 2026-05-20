@@ -398,7 +398,10 @@ function ReceiptUploadSlot({ onUploadComplete, currentUrl }: { onUploadComplete:
   return (
     <div style={{ background: C.bg, padding: 12, borderRadius: 8, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ flex: 1 }}>
-        <Label style={{ margin: 0 }}>🧾 Receipt / Invoice Attachment</Label>
+        {/* ✨ NATIVE HTML WRAPPER FIX FOR TYPESCRIPT COMPILATION */}
+        <div style={{ margin: 0 }}>
+          <Label>🧾 Receipt / Invoice Attachment</Label>
+        </div>
         {currentUrl && <a href={currentUrl} target="_blank" rel="noreferrer" style={{ color: C.teal, fontSize: 12, display: 'block', marginTop: 4, textDecoration: 'underline' }}>✓ View Attached Image</a>}
       </div>
       <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} id="receipt-file-input" onChange={async (e) => {
