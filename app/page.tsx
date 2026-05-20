@@ -1029,7 +1029,7 @@ function Dashboard({ data, onAddExpense }: any) {
     .sort()
     .reverse();
 
-  // 1. ALL-TIME CAPITAL METRICS & POOL SANITIZATION
+// 1. ALL-TIME CAPITAL METRICS & POOL SANITIZATION
   const uniqueContributions: any[] = Array.from(
     new Map(data.contributions.map((c: any) => [c.month, c])).values()
   ) as any[];
@@ -1060,6 +1060,46 @@ function Dashboard({ data, onAddExpense }: any) {
       return e.account === 'Joint' && e.type !== 'income';
     })
     .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+
+  // 🤝 PARALLEL PARTNER TRACK CALCULATIONS ENGINE
+  const partnerCalculations = useMemo(() => {
+    let p2pNetBalance = 0; // Positive means Partner B owes Partner A, Negative means Partner A owes Partner B
+    const pendingPartnerItems: any[] = [];
+
+    data.expenses.forEach((t: any) => {
+      if (t.settled) return; // Skip completed items
+
+      const amount = Number(t.amount || 0);
+      const paidBy = t.addedBy; // "Partner A" or "Partner B"
+
+      if (t.account === 'Joint') return; // Joint items skip debtor calculations
+
+      if (t.settleTrack === 'partner') {
+        const shareA = t.splitMode === 'equal' ? (amount * 0.5) : (amount * Number(t.partnerAShare || 0));
+        const shareB = t.splitMode === 'equal' ? (amount * 0.5) : (amount * Number(t.partnerBShare || 0));
+
+        if (paidBy === 'Partner A') {
+          p2pNetBalance += shareB;
+          pendingPartnerItems.push({
+            ...t,
+            debtorName: names.b,
+            amountOwed: shareB,
+            breakdownText: t.splitMode === 'equal' ? '50% Split' : `${Math.round(Number(t.partnerBShare) * 100)}% Share`
+          });
+        } else if (paidBy === 'Partner B') {
+          p2pNetBalance -= shareA;
+          pendingPartnerItems.push({
+            ...t,
+            debtorName: names.a,
+            amountOwed: shareA,
+            breakdownText: t.splitMode === 'equal' ? '50% Split' : `${Math.round(Number(t.partnerAShare) * 100)}% Share`
+          });
+        }
+      }
+    });
+
+    return { p2pNetBalance, pendingPartnerItems };
+  }, [data.expenses, names.a, names.b]);
 
   // Active Scope Joint Account Contribution Extraction Engine
   let contribA = 0;
@@ -1700,6 +1740,20 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose, onUpdateSave
   }, [data.expenses, loggedInAccount]);
 
 const submit = () => {
+  // 🧠 AUTOMATED INTELLIGENT INTERCEPTOR FOR MANUAL SETTLEMENT ENTRIES
+    if (form.category === '🤝 Partner Debt Settlement') {
+      form.settleTrack = 'partner';
+      form.splitMode = 'fixed';
+      
+      const totalPayback = Number(form.amount);
+      if (form.account === names.a) {
+        form.partnerAShare = 0;
+        form.partnerBShare = totalPayback;
+      } else if (form.account === names.b) {
+        form.partnerAShare = totalPayback;
+        form.partnerBShare = 0;
+      }
+    }
     const numericAmount = Number(form.amount);
 
     if (form.amount === '' || isNaN(numericAmount) || numericAmount <= 0) {
@@ -2411,7 +2465,7 @@ function ExpenseList({
 }
 
 // ─── SETTLEMENT DASHBOARD ─────────────────────────────────────────────────────
-function SettleDashboard({ data, onBulkSettle }: any) {
+function SettleDashboard({ data, onBulkSettle, partnerCalculations, actions }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
@@ -2567,6 +2621,7 @@ const settleSelected = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* 📊 TOP LINE SUMMARY METRICS */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <StatCard
           label={`${names.a} — Pending`}
@@ -2584,6 +2639,96 @@ const settleSelected = () => {
         />
       </div>
 
+      {/* 🤝 NEW FEATURE: ITEMISED DIRECT PARTNER SETTLEMENT LEDGER (Approach B) */}
+      <Card style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <SectionTitle style={{ margin: 0 }}>🤝 Itemised Direct Partner Track Balance</SectionTitle>
+          <div style={{
+            padding: '6px 12px', 
+            borderRadius: 20, 
+            fontSize: 13, 
+            fontWeight: 700,
+            background: partnerCalculations.p2pNetBalance === 0 ? `${C.border}40` : `${C.amber}22`,
+            color: partnerCalculations.p2pNetBalance === 0 ? C.muted : C.amber,
+            border: `1px solid ${partnerCalculations.p2pNetBalance === 0 ? C.border : C.amber}44`
+          }}>
+            {partnerCalculations.p2pNetBalance === 0 && "🏆 Balances Perfectly Settled"}
+            {partnerCalculations.p2pNetBalance > 0 && `${names.b} owes ${names.a} ₹${Math.abs(partnerCalculations.p2pNetBalance).toLocaleString()}`}
+            {partnerCalculations.p2pNetBalance < 0 && `${names.a} owes ${names.b} ₹${Math.abs(partnerCalculations.p2pNetBalance).toLocaleString()}`}
+          </div>
+        </div>
+
+        <div style={{ color: C.text2, fontSize: 13, fontWeight: 600, marginBottom: 10 }}>✍️ Pending Shared Commitments ("Who Owes For What")</div>
+        
+        {partnerCalculations.pendingPartnerItems.length === 0 ? (
+          <div style={{ padding: '24px 12px', textAlign: 'center', color: C.muted, fontSize: 13, background: `${C.bg}40`, borderRadius: 8, border: `1px dashed ${C.border}` }}>
+            No pending personal tracking debts found between your profiles. Everything is clear!
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 260, overflowY: 'auto', paddingRight: 4 }}>
+            {partnerCalculations.pendingPartnerItems.map((item: any) => (
+              <div 
+                key={item.id} 
+                style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  background: `${C.bg}60`, 
+                  padding: '10px 14px', 
+                  borderRadius: 8, 
+                  border: `1px solid ${C.border}44` 
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: C.text1 }}>{item.category}</span>
+                    <span style={{ fontSize: 11, background: `${C.border}60`, color: C.text2, padding: '2px 6px', borderRadius: 4 }}>{item.breakdownText}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                    {item.date} • Paid from {item.account} {item.note ? `("${item.note}")` : ''}
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: item.debtorName === names.b ? C.amber : C.textW }}>
+                      ₹{Number(item.amountOwed).toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: 10, color: C.muted }}>
+                      {item.debtorName} owes
+                    </div>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => { 
+                      if (confirm(`Clear this item? It will instantly split this entry into individual personal logs automatically.`)) {
+                        actions.settleAndSplitPartnerTransaction(item); 
+                      }
+                    }} 
+                    style={{ 
+                      background: `${C.amber}15`, 
+                      border: `1px solid ${C.amber}44`, 
+                      color: C.amber, 
+                      padding: '6px 10px', 
+                      borderRadius: 6, 
+                      fontSize: 11, 
+                      fontWeight: 700, 
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e: any) => e.target.style.background = C.amber}
+                    onMouseLeave={(e: any) => e.target.style.background = `${C.amber}15`}
+                  >
+                    Settle ⚡
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* 🧳 LEGACY BULK SELECTION BANNER */}
       {selected.size > 0 && (
         <Card
           style={{
@@ -2592,18 +2737,12 @@ const settleSelected = () => {
             padding: '14px 18px',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <span style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>
                 {selected.size} transactions selected
               </span>
-<span style={{ color: C.text1, fontSize: 13, marginLeft: 10 }}>
+              <span style={{ color: C.text1, fontSize: 13, marginLeft: 10 }}>
                 Total:{' '}
                 {fmt(
                   data.expenses.reduce((s: number, e: any) => selected.has(e.id) ? s + (e.amount || 0) : s, 0),
@@ -2612,18 +2751,10 @@ const settleSelected = () => {
               </span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Btn
-                variant="ghost"
-                onClick={() => setSelected(new Set())}
-                style={{ fontSize: 12 }}
-              >
+              <Btn variant="ghost" onClick={() => setSelected(new Set())} style={{ fontSize: 12 }}>
                 Deselect All
               </Btn>
-              <Btn
-                variant="success"
-                onClick={settleSelected}
-                style={{ fontSize: 13 }}
-              >
+              <Btn variant="success" onClick={settleSelected} style={{ fontSize: 13 }}>
                 ✓ Settle Selected
               </Btn>
             </div>
@@ -2631,71 +2762,70 @@ const settleSelected = () => {
         </Card>
       )}
 
-<div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', width: '100%' }}>
-  <div style={{ flex: '1 1 340px', minWidth: 300 }}>
-    <SettleTable
-      items={pendingA}
-      partner={`${names.a}'s Expenses`}
-      color={C.purple}
-    />
-  </div>
-  <div style={{ flex: '1 1 340px', minWidth: 300 }}>
-    <SettleTable
-      items={pendingB}
-      partner={`${names.b}'s Expenses`}
-      color={C.blue}
-    />
-  </div>
-</div>
-
-      <Card>
-  <SectionTitle>Recently Settled</SectionTitle>
-  {(() => {
-    const recent = data.expenses
-      .filter((e: any) => e.settled)
-      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5);
-
-    if (!recent.length)
-      return (
-        <p style={{ color: C.muted, fontSize: 13 }}>
-          No settlements yet.
-        </p>
-      );
-    return recent.map((e: any) => (
-      <div
-        key={e.id}
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '8px 0',
-          borderBottom: `1px solid ${C.border}`,
-        }}
-      >
-        <div>
-          <span style={{ color: C.text1, fontSize: 13 }}>
-            {e.category}
-          </span>
-          <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>
-            {e.date}
-          </span>
-          {e.settledFor && (
-            <Badge color={C.teal} style={{ marginLeft: 8 }}>
-              ↩ {e.settledFor === 'Partner A' ? names.a : names.b}
-            </Badge>
-          )}
+      {/* 📋 BULK TABS LEDGER VIEWS */}
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', width: '100%' }}>
+        <div style={{ flex: '1 1 340px', minWidth: 300 }}>
+          <SettleTable
+            items={pendingA}
+            partner={`${names.a}'s Expenses`}
+            color={C.purple}
+          />
         </div>
-        <span style={{ color: C.green, fontWeight: 700 }}>
-          {fmt(e.amount, data.settings.currency)}
-        </span>
+        <div style={{ flex: '1 1 340px', minWidth: 300 }}>
+          <SettleTable
+            items={pendingB}
+            partner={`${names.b}'s Expenses`}
+            color={C.blue}
+          />
+        </div>
       </div>
-    ));
-  })()}
-</Card>
+
+      {/* 🏆 HISTORICAL SETTLED AUDIT TRAILS */}
+      <Card>
+        <SectionTitle>Recently Settled</SectionTitle>
+        {(() => {
+          const recent = data.expenses
+            .filter((e: any) => e.settled)
+            .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 5);
+
+          if (!recent.length)
+            return <p style={{ color: C.muted, fontSize: 13 }}>No settlements yet.</p>;
+            
+          return recent.map((e: any) => (
+            <div
+              key={e.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '8px 0',
+                borderBottom: `1px solid ${C.border}`,
+              }}
+            >
+              <div>
+                <span style={{ color: C.text1, fontSize: 13 }}>{e.category}</span>
+                <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>{e.date}</span>
+                {e.settledFor && (
+                  <Badge color={C.teal} style={{ marginLeft: 8 }}>
+                    ↩ {e.settledFor === 'Partner A' ? names.a : names.b}
+                  </Badge>
+                )}
+                {e.note && (
+                  <span style={{ color: C.muted, fontSize: 11, marginLeft: 8, fontStyle: 'italic' }}>
+                    {e.note}
+                  </span>
+                )}
+              </div>
+              <span style={{ color: C.green, fontWeight: 700 }}>
+                {fmt(e.amount, data.settings.currency)}
+              </span>
+            </div>
+          ));
+        })()}
+      </Card>
     </div>
   );
-}
 
 // ─── CONTRIBUTIONS ────────────────────────────────────────────────────────────
 function Contributions({ data, onUpdate }: any) {
@@ -4681,6 +4811,119 @@ addExpense: async (e: any) => {
         ),
       }));
 
+      settleAndSplitPartnerTransaction: async (item: any) => {
+      const toSystemKey = (val: string) => {
+        if (val === data.settings.partnerAName) return 'Partner A';
+        if (val === data.settings.partnerBName) return 'Partner B';
+        return val;
+      };
+
+      // 🧮 1. Calculate the exact mathematical breakdown weights
+      const totalAmount = Number(item.amount);
+      const shareA = item.splitMode === 'equal' ? (totalAmount * 0.5) : (totalAmount * Number(item.partnerAShare));
+      const shareB = item.splitMode === 'equal' ? (totalAmount * 0.5) : (totalAmount * Number(item.partnerBShare));
+
+      // Identify exactly who originally paid out-of-pocket and who is absorbing the debt
+      const originalPayer = item.addedBy; // 'Partner A' or 'Partner B'
+      const updatedOriginalAmount = originalPayer === 'Partner A' ? shareA : shareB;
+      const counterPartyAmount = originalPayer === 'Partner A' ? shareB : shareA;
+      const counterPartyUser = originalPayer === 'Partner A' ? 'Partner B' : 'Partner A';
+
+      const clonedId = uid();
+      
+      // 🔄 2. OPTIMISTIC FRONTEND LOCAL STATE REFACTOR (Comprehensive Mapping)
+      setData((prev: any) => {
+        const updatedExpenses = prev.expenses.map((e: any) => {
+          if (e.id === item.id) {
+            return { 
+              ...e, 
+              amount: updatedOriginalAmount, 
+              settleTrack: 'none', 
+              splitMode: 'equal', 
+              settled: true,
+              partnerAShare: 0.50,
+              partnerBShare: 0.50,
+              toSettle: false,
+              // Explicitly preserve recurring states across updates
+              isRecurring: item.isRecurring,
+              recurrenceInterval: item.recurrenceInterval
+            };
+          }
+          return e;
+        });
+
+        const clonedNewRow = {
+          ...item,
+          id: clonedId,
+          amount: counterPartyAmount,
+          account: counterPartyUser === 'Partner A' ? data.settings.partnerAName : data.settings.partnerBName,
+          addedBy: counterPartyUser,
+          settleTrack: 'none',
+          splitMode: 'equal',
+          partnerAShare: 0.50,
+          partnerBShare: 0.50,
+          settled: true,
+          toSettle: false,
+          settledFor: counterPartyUser === 'Partner A' ? 'Partner A' : 'Partner B',
+          note: `${item.note || ''} (Settlement Split Allocation)`.trim(),
+          // Explicitly carry over recurring markers to the partner clone
+          isRecurring: item.isRecurring,
+          recurrenceInterval: item.recurrenceInterval
+        };
+
+        return {
+          ...prev,
+          expenses: [clonedNewRow, ...updatedExpenses]
+        };
+      });
+
+      // ☁️ 3. CLOUD SYNC: UPDATE THE ORIGINAL ROW IN SUPABASE
+      const { error: updateError } = await supabase
+        .from('transactions')
+        .update({
+          amount: updatedOriginalAmount,
+          settle_track: 'none',
+          split_mode: 'equal',
+          partner_a_share: 0.50,
+          partner_b_share: 0.50,
+          settled: true,
+          to_settle: false,
+          is_recurring: item.isRecurring,
+          recurrence_interval: item.recurrenceInterval
+        })
+        .eq('id', item.id);
+
+      // ☁️ 4. CLOUD SYNC: INSERT THE COMPLEMENTARY CLONED ROW INTO SUPABASE
+      const { error: insertError } = await supabase
+        .from('transactions')
+        .insert([{
+          id: clonedId,
+          household_id: data.householdId,
+          date: item.date,
+          amount: counterPartyAmount,
+          category: item.category,
+          type: item.type,
+          account_used: toSystemKey(counterPartyUser === 'Partner A' ? data.settings.partnerAName : data.settings.partnerBName),
+          added_by: counterPartyUser,
+          note: `${item.note || ''} (Settlement Split Allocation)`.trim(),
+          settled: true,
+          settled_with: toSystemKey(counterPartyUser === 'Partner A' ? 'Partner A' : 'Partner B'),
+          settle_track: 'none',
+          split_mode: 'equal',
+          partner_a_share: 0.50,
+          partner_b_share: 0.50,
+          to_settle: false,
+          is_recurring: item.isRecurring,
+          recurrence_interval: item.recurrenceInterval
+        }]);
+
+      if (updateError || insertError) {
+        alert('⚠️ Operational sync lag detected. Re-aligning storage parameters...');
+      }
+      
+      handleManualRefresh(); // Lock down final analytical balance grids
+    },
+
       const toSystemKey = (val: string) => {
         if (val === data.settings.partnerAName) return 'Partner A';
         if (val === data.settings.partnerBName) return 'Partner B';
@@ -5532,8 +5775,13 @@ addExpense: async (e: any) => {
             />
           )}
               
-          {view === 'settle' && (
-            <SettleDashboard data={data} onBulkSettle={actions.bulkSettle} />
+            {view === 'settle' && (
+            <SettleDashboard 
+              data={data} 
+              onBulkSettle={actions.bulkSettle} 
+              partnerCalculations={partnerCalculations} 
+              actions={actions} 
+            />
           )}
           {view === 'contributions' && (
             <Contributions data={data} onUpdate={actions.updateContrib} />
