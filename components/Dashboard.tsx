@@ -89,8 +89,12 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   const periodInvested = filteredExp.filter((e) => INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const totalPeriodRaw = filteredExp.reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const trueLifestyleExpenses = totalPeriodRaw - periodInvested;
-  const savingsDelta = periodIncome - totalPeriodRaw;
-  const savingsRate = periodIncome > 0 ? Math.max(0, Math.min(100, (savingsDelta / periodIncome) * 100)) : 0;
+  // Capital retained = income minus lifestyle only.
+  // Investments are retained capital, not outflows, so they don't reduce this figure.
+  const capitalRetained  = periodIncome - trueLifestyleExpenses;
+  const investmentRate   = periodIncome > 0 ? Math.max(0, Math.min(100, (periodInvested    / periodIncome) * 100)) : 0;
+  const lifestyleRate    = periodIncome > 0 ? Math.max(0, Math.min(100, (trueLifestyleExpenses / periodIncome) * 100)) : 0;
+  const retentionRate    = periodIncome > 0 ? Math.max(0, Math.min(100, (capitalRetained   / periodIncome) * 100)) : 0;
 
   const personalLifestyleA = filteredExp.filter((e) => (e.account === names.a || e.addedBy === 'Partner A') && e.account !== 'Joint' && !INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const personalLifestyleB = filteredExp.filter((e) => (e.account === names.b || e.addedBy === 'Partner B') && e.account !== 'Joint' && !INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount ?? 0), 0);
@@ -101,6 +105,28 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   filteredExp.filter((e) => !INVESTMENT_CATS.has(e.category)).forEach((e) => { catMap[e.category] = (catMap[e.category] || 0) + Number(e.amount); });
   const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const maxCat = topCats[0]?.[1] || 1;
+
+  // Asset allocation — investment categories broken down by type
+  const assetMap: Record<string, number> = {};
+  filteredExp.filter((e) => INVESTMENT_CATS.has(e.category)).forEach((e) => {
+    assetMap[e.category] = (assetMap[e.category] || 0) + Number(e.amount);
+  });
+  // Also count by note keyword for richer breakdown (MF, SIP, Insurance etc.)
+  const assetDetail: Record<string, number> = {};
+  filteredExp.filter((e) => INVESTMENT_CATS.has(e.category)).forEach((e) => {
+    const note = (e.note || '').toLowerCase();
+    const key =
+      note.includes('sip') || note.includes('mutual') || note.includes('mf') ? 'Mutual Funds / SIP' :
+      note.includes('gold') ? 'Gold' :
+      note.includes('ppf') || note.includes('epf') || note.includes('nps') ? 'PPF / EPF / NPS' :
+      note.includes('stock') || note.includes('equity') || note.includes('zerodha') || note.includes('smallcase') ? 'Stocks / Equity' :
+      note.includes('fd') || note.includes('fixed deposit') ? 'Fixed Deposits' :
+      e.category === 'Insurance' ? 'Insurance' : 'Other Investments';
+    assetDetail[key] = (assetDetail[key] || 0) + Number(e.amount);
+  });
+  const assetDetailEntries = Object.entries(assetDetail).sort((a, b) => b[1] - a[1]);
+  const maxAsset = assetDetailEntries[0]?.[1] || 1;
+  const ASSET_COLORS = [C.teal, C.green, C.purple, C.blue, C.amber, '#ec4899'];
 
   const monthlyAuditList = useMemo(() => {
     const map: Record<string, { in: number; out: number }> = {};
@@ -188,6 +214,11 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                       <span style={{ fontWeight: 600, color: col as string }}>{val}</span>
                     </div>
                   ))}
+                  {/* Total row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
+                    <span style={{ color: C.text1, fontWeight: 700 }}>Total Financial Outflow:</span>
+                    <span style={{ fontWeight: 800, color: p.color }}>{fmt(p.lifestyle + p.invested + p.contrib)}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -195,20 +226,74 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
           <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '12px 4px 0' }}>Reflects personal out-of-pocket spending vs joint seed transfers.</div>
         </Card>
 
-        {/* Savings Velocity */}
+        {/* Wealth Retention Velocity */}
         <Card style={{ maxWidth: '100%' }}>
           <SectionTitle>Household Wealth Retention Velocity</SectionTitle>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 14 }}>
-            <div><span style={{ color: C.text2, fontSize: 13 }}>Income for Period:</span><div style={{ color: C.green, fontWeight: 700, fontSize: 18, marginTop: 2 }}>{fmt(periodIncome)}</div></div>
-            <div><span style={{ color: C.text2, fontSize: 13 }}>Capital Retained:</span><div style={{ color: savingsDelta >= 0 ? C.green : C.red, fontWeight: 700, fontSize: 18, marginTop: 2 }}>{fmt(savingsDelta)}</div></div>
-          </div>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Net Retention Rate:</span>
-              <span style={{ fontSize: 12, color: C.textW, fontWeight: 700 }}>{savingsRate.toFixed(0)}%</span>
+
+          {/* Top metrics row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14, marginBottom: 18 }}>
+            <div>
+              <span style={{ color: C.text2, fontSize: 12 }}>Income for Period</span>
+              <div style={{ color: C.green, fontWeight: 800, fontSize: 18, marginTop: 2 }}>{fmt(periodIncome)}</div>
             </div>
-            <ProgressBar pct={savingsRate} color={C.green} height={8} />
+            <div>
+              <span style={{ color: C.text2, fontSize: 12 }}>Lifestyle Spent</span>
+              <div style={{ color: C.amber, fontWeight: 800, fontSize: 18, marginTop: 2 }}>{fmt(trueLifestyleExpenses)}</div>
+            </div>
+            <div>
+              <span style={{ color: C.text2, fontSize: 12 }}>Deployed to Assets</span>
+              <div style={{ color: C.teal, fontWeight: 800, fontSize: 18, marginTop: 2 }}>{fmt(periodInvested)}</div>
+            </div>
+            <div>
+              <span style={{ color: C.text2, fontSize: 12 }}>Capital Retained</span>
+              <div style={{ color: capitalRetained >= 0 ? C.green : C.red, fontWeight: 800, fontSize: 18, marginTop: 2 }}>{fmt(capitalRetained)}</div>
+              <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Income − lifestyle</div>
+            </div>
           </div>
+
+          {/* Stacked income allocation bar */}
+          {periodIncome > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>How your income was allocated</span>
+                <span style={{ fontSize: 12, color: C.textW, fontWeight: 700 }}>{retentionRate.toFixed(0)}% retained</span>
+              </div>
+              {/* Stacked bar */}
+              <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', gap: 1 }}>
+                {lifestyleRate > 0 && (
+                  <div title={`Lifestyle: ${lifestyleRate.toFixed(0)}%`}
+                    style={{ width: `${lifestyleRate}%`, background: C.amber, transition: 'width 0.4s' }} />
+                )}
+                {investmentRate > 0 && (
+                  <div title={`Invested: ${investmentRate.toFixed(0)}%`}
+                    style={{ width: `${investmentRate}%`, background: C.teal, transition: 'width 0.4s' }} />
+                )}
+                {retentionRate > 0 && (
+                  <div title={`Retained: ${retentionRate.toFixed(0)}%`}
+                    style={{ flex: 1, background: C.green, transition: 'width 0.4s' }} />
+                )}
+              </div>
+              {/* Legend */}
+              <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
+                {[
+                  { label: 'Lifestyle', pct: lifestyleRate, color: C.amber },
+                  { label: 'Invested', pct: investmentRate, color: C.teal },
+                  { label: 'Retained', pct: retentionRate, color: C.green },
+                ].map(({ label, pct, color }) => (
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
+                    <span style={{ color: C.text2 }}>{label}</span>
+                    <span style={{ color: C.textW, fontWeight: 700 }}>{pct.toFixed(0)}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {periodIncome === 0 && (
+            <div style={{ color: C.muted, fontSize: 13, fontStyle: 'italic' }}>
+              Log your income for this period to see the allocation breakdown.
+            </div>
+          )}
         </Card>
       </div>
 
@@ -270,6 +355,53 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
             </div>
           );
         })}
+      </Card>
+
+      {/* Asset Allocation Breakdown */}
+      <Card>
+        <SectionTitle>Asset Allocation Breakdown</SectionTitle>
+        {assetDetailEntries.length === 0 ? (
+          <p style={{ color: C.muted, fontSize: 13 }}>
+            No investment or insurance transactions in this period. Log investments under the "Investments" or "Insurance" categories to see your allocation.
+          </p>
+        ) : (
+          <>
+            {/* Total invested header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ color: C.text2, fontSize: 13 }}>Total deployed to assets this period</span>
+              <span style={{ color: C.teal, fontWeight: 800, fontSize: 18 }}>{fmt(periodInvested)}</span>
+            </div>
+
+            {/* Allocation bars */}
+            {assetDetailEntries.map(([asset, amt], i) => {
+              const pct = (amt / periodInvested) * 100;
+              const color = ASSET_COLORS[i % ASSET_COLORS.length];
+              return (
+                <div key={asset} style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ color: C.text1, fontSize: 13 }}>{asset}</span>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <span style={{ color: C.muted, fontSize: 12 }}>{pct.toFixed(0)}%</span>
+                      <span style={{ color, fontSize: 13, fontWeight: 700 }}>{fmt(amt)}</span>
+                    </div>
+                  </div>
+                  <ProgressBar pct={pct} color={color} />
+                </div>
+              );
+            })}
+
+            {/* vs lifestyle comparison */}
+            {trueLifestyleExpenses > 0 && (
+              <div style={{ marginTop: 16, padding: '10px 14px', background: C.bg, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <span style={{ color: C.muted, fontSize: 12 }}>Investment to Lifestyle ratio</span>
+                <span style={{ fontWeight: 700, fontSize: 13, color: periodInvested >= trueLifestyleExpenses ? C.teal : C.amber }}>
+                  {fmt(periodInvested)} invested : {fmt(trueLifestyleExpenses)} lifestyle
+                  {' '}({((periodInvested / trueLifestyleExpenses) * 100).toFixed(0)}%)
+                </span>
+              </div>
+            )}
+          </>
+        )}
       </Card>
 
       {/* Audit Modal */}
