@@ -1161,6 +1161,31 @@ export default function App() {
       await supabase.from('contributions').upsert({ id: uid(), household_id: data.householdId, month: m, partner_a_amount: a, partner_b_amount: b });
       handleManualRefresh();
     }
+    importData: async ({ expenses }: any) => {
+      if (!expenses || expenses.length === 0) return alert('No valid data lines found to import.');
+      
+      const sanitizedExpenses = expenses.map((e: any) => ({
+        id: e.id || uid(),
+        household_id: data.householdId,
+        date: e.date || today(),
+        amount: Number(e.amount) || 0,
+        category: e.category || 'Other',
+        type: e.type || 'expense',
+        account_used: e.account === 'Joint' ? 'Joint' : e.account === data.partnerAName ? 'Partner A' : 'Partner B',
+        added_by: e.addedBy === 'Partner B' ? 'Partner B' : 'Partner A',
+        note: e.note || '',
+        to_settle: Boolean(e.toSettle),
+        settled: Boolean(e.settled),
+        settled_with: e.settledFor ? (e.settledFor === data.partnerBName ? 'Partner B' : 'Partner A') : null
+      }));
+
+      const { error } = await supabase.from('transactions').insert(sanitizedExpenses);
+      if (error) alert('Cloud dataset sync bounced: ' + error.message);
+      else {
+        alert(`Successfully imported and synced ${sanitizedExpenses.length} transaction rows!`);
+        handleManualRefresh();
+      }
+    },
   };
 
   return (
