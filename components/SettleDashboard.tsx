@@ -73,8 +73,8 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
           <SectionTitle style={{ margin: 0 }}>🤝 Direct Partner Track Balance</SectionTitle>
           <div style={{ padding: '6px 12px', borderRadius: 20, fontSize: 13, fontWeight: 700, background: partnerCalculations.p2pNetBalance === 0 ? `${C.border}40` : `${C.amber}22`, color: partnerCalculations.p2pNetBalance === 0 ? C.muted : C.amber, border: `1px solid ${partnerCalculations.p2pNetBalance === 0 ? C.border : C.amber}44` }}>
             {partnerCalculations.p2pNetBalance === 0 && '🏆 Fully Settled'}
-            {partnerCalculations.p2pNetBalance > 0 && `${names.b} owes ${names.a} ₹${Math.abs(partnerCalculations.p2pNetBalance).toLocaleString()}`}
-            {partnerCalculations.p2pNetBalance < 0 && `${names.a} owes ${names.b} ₹${Math.abs(partnerCalculations.p2pNetBalance).toLocaleString()}`}
+            {partnerCalculations.p2pNetBalance > 0 && `${names.b} owes ${names.a} ${fmt(Math.abs(partnerCalculations.p2pNetBalance))}`}
+            {partnerCalculations.p2pNetBalance < 0 && `${names.a} owes ${names.b} ${fmt(Math.abs(partnerCalculations.p2pNetBalance))}`}
           </div>
         </div>
         {partnerCalculations.pendingPartnerItems.length === 0 ? (
@@ -92,7 +92,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>₹{Number(item.amountOwed).toLocaleString()}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>{fmt(Number(item.amountOwed))}</div>
                     <div style={{ fontSize: 10, color: C.muted }}>{item.debtorName} owes</div>
                   </div>
                   <button type="button" onClick={() => { if (confirm('Split this entry into individual logs?')) actions.settleAndSplitPartnerTransaction(item); }} style={{ background: `${C.amber}15`, border: `1px solid ${C.amber}44`, color: C.amber, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Settle ⚡</button>
