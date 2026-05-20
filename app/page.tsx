@@ -18,7 +18,7 @@ import { supabase } from '@/lib/supabaseClient';
 import Auth from './Auth';
 
 import { loadData } from '@/lib/supabaseHelpers';
-import { SetupWizard } from '@/lib/householdModes';
+import { SetupWizard } from '@/components/SetupWizard';
 import { useActions } from '@/hooks/useActions';
 import { ToastContainer, useToast } from '@/components/ui';
 

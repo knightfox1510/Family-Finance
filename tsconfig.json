@@ -21,7 +21,6 @@
     "jsx": "preserve",
 
     /* ── Strict extras ──────────────────────────────────────────────────── */
-    "resolveJsonModule": true,
     "isolatedModules": true,
     "incremental": true,
 
