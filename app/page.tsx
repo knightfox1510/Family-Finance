@@ -7,6 +7,21 @@ import { supabase } from '../lib/supabaseClient';
 import Auth from './Auth';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
+// ─── GLOBAL SYSTEM NAVIGATION CONSTANTS ────────────────────────────────────────
+const NAV = [
+  { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
+  { id: 'add', label: 'Add Expense', icon: '➕' },
+  { id: 'income', label: 'Income', icon: '💰' },
+  { id: 'expenses', label: 'Expenses', icon: '📋' },
+  { id: 'settle', label: 'Settlements', icon: '🔄' },
+  { id: 'contributions', label: 'Contributions', icon: '🏦' },
+  { id: 'goals', label: 'Goals', icon: '🎯' },
+  { id: 'loans', label: 'EMI Tracker', icon: '🏧' },
+  { id: 'insights', label: 'AI Insights', icon: '✨' },
+  { id: 'settings', label: 'Settings', icon: '⚙️' },
+];
+
+
 const DEFAULT_EXPENSE_CATS = [
   'Groceries',
   'Dining Out',
