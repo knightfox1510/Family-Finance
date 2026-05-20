@@ -1783,66 +1783,118 @@ const submit = () => {
         </div>
 
         {/* SCOPED COLLABORATIVE WIZARDS */}
-        {form.type === 'expense' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-            
-            {/* TRAY 1: JOINT POOL WIZARD */}
-            {jointPresets.length > 0 && (
-              <div style={{ background: `${C.bg}60`, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
-                <span style={{ color: C.green, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  👥 Joint Account Quick Add
-                </span>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {jointPresets.map((preset: any) => (
+        {/* 🔄 STREAMLINED PARALLEL DIRECT SETTLEMENT ENGINE */}
+          {form.type === 'expense' && (
+            <div style={{ background: '#1e284033', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 14, border: `1px solid ${C.border}` }}>
+              <div>
+                <div style={{ marginBottom: 6, display: 'block' }}>
+                  <Label>🎯 Transaction Settlement Track</Label>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[
+                    { key: 'none', label: '❌ No Settlement', desc: 'Standard or Joint Pool expense' },
+                    { key: 'partner', label: '🤝 Direct Partner Settlement', desc: 'Peer-to-Peer split directly between both partners' }
+                  ].map((track) => (
                     <button
-                      key={`joint-${preset.note}-${preset.cat}`}
+                      key={track.key}
                       type="button"
+                      disabled={track.key === 'partner' && form.account === 'Joint'}
                       onClick={() => {
-                        set('category', preset.cat);
-                        set('account', 'Joint'); 
-                        set('addedBy', loggedInAddedBy);
-                        set('note', preset.note);
-                        set('toSettle', false);
-                        set('type', 'expense');
+                        set('settleTrack', track.key);
+                        if (track.key === 'none') {
+                          set('splitMode', 'equal');
+                        }
                       }}
-                      style={presetBtnStyle()}
+                      style={{
+                        flex: 1,
+                        padding: '10px 8px',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: form.settleTrack === track.key ? 700 : 500,
+                        background: form.settleTrack === track.key ? C.amber : `${C.bg}80`,
+                        color: form.settleTrack === track.key ? C.surface : C.text2,
+                        border: `1px solid ${form.settleTrack === track.key ? C.amber : C.border}`,
+                        cursor: form.account === 'Joint' && track.key === 'partner' ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.15s ease',
+                        textAlign: 'center',
+                        opacity: form.account === 'Joint' && track.key === 'partner' ? 0.35 : 1
+                      }}
+                      title={form.account === 'Joint' && track.key === 'partner' ? "Joint account items cannot be split with a partner" : track.desc}
                     >
-                      {preset.label} <span style={{ opacity: 0.5, fontSize: 9 }}>({preset.cat})</span>
+                      {track.label}
                     </button>
                   ))}
                 </div>
               </div>
-            )}
 
-            {/* TRAY 2: LIVE PERSONAL SESSION WIZARD */}
-            {personalPresets.length > 0 && (
-              <div style={{ background: `${C.bg}60`, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
-                <span style={{ color: C.blue, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  👤 Personal Out-of-Pocket ({loggedInAccount})
-                </span>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {personalPresets.map((preset: any) => (
-                    <button
-                      key={`personal-${preset.note}-${preset.cat}`}
-                      type="button"
-                      onClick={() => {
-                        set('category', preset.cat);
-                        set('account', loggedInAccount); 
-                        set('addedBy', loggedInAddedBy);
-                        set('note', preset.note);
-                        set('toSettle', preset.shared); // Automatically checks if this shortcut needs settlement!
-                        set('type', 'expense');
+              {/* 📊 UNEQUAL SPLITTING MATRIX (Revealed only for Partner Splits) */}
+              {form.settleTrack === 'partner' && form.account !== 'Joint' && (
+                <div style={{ background: `${C.bg}60`, padding: 12, borderRadius: 8, border: `1px solid ${C.border}60`, marginTop: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ fontSize: 13, color: C.text1, fontWeight: 600 }}>Division Architecture</span>
+                    <select
+                      value={form.splitMode}
+                      onChange={(e) => {
+                        const mode = e.target.value;
+                        set('splitMode', mode);
+                        if (mode === 'equal') {
+                          set('partnerAShare', 0.50);
+                          set('partnerBShare', 0.50);
+                        } else if (mode === 'percentage') {
+                          set('partnerAShare', 50);
+                          set('partnerBShare', 50);
+                        } else if (mode === 'fixed') {
+                          set('partnerAShare', '');
+                          set('partnerBShare', '');
+                        }
                       }}
-                      style={presetBtnStyle()}
+                      style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 6, padding: '4px 8px', fontSize: 12 }}
                     >
-                      {preset.label} <span style={{ opacity: 0.5, fontSize: 9 }}>({preset.cat})</span>
-                    </button>
-                  ))}
+                      <option value="equal">Split Evenly (50/50)</option>
+                      <option value="percentage">Unequal Percentages (%)</option>
+                      <option value="fixed">Fixed Currency Weights (₹)</option>
+                    </select>
+                  </div>
+
+                  {/* Dynamic inputs for Percentages and Fixed Modes */}
+                  {form.splitMode !== 'equal' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
+                      <div>
+                        <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>Gaurav's Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
+                        <Inp
+                          type="number"
+                          placeholder="0"
+                          value={form.partnerAShare}
+                          onChange={(e: any) => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            set('partnerAShare', val);
+                            if (form.splitMode === 'percentage' && val !== '' && val <= 100) {
+                              set('partnerBShare', 100 - val);
+                            }
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>Karishma's Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
+                        <Inp
+                          type="number"
+                          placeholder="0"
+                          value={form.partnerBShare}
+                          onChange={(e: any) => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            set('partnerBShare', val);
+                            if (form.splitMode === 'percentage' && val !== '' && val <= 100) {
+                              set('partnerAShare', 100 - val);
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
         {/* Input Form Fields Layout */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
@@ -1873,8 +1925,8 @@ const submit = () => {
                   const selectedAccount = e.target.value;
                   set('account', selectedAccount);
                   
-                  // 🛡️ CRITICAL SECURITY OVERWRITE:
-                  // If paid from Joint, it can never belong to a trailing calculation track
+                  // 🛡️ ENFORCE THE BUSINESS RULE:
+                  // If paying from Joint, clear out trailing partner settlement variables instantly
                   if (selectedAccount === 'Joint') {
                     set('settleTrack', 'none');
                     set('splitMode', 'equal');
