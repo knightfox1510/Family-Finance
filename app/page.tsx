@@ -2338,16 +2338,16 @@ function ExpenseList({
   <td style={{ padding: '10px 14px', color: C.text2, whiteSpace: 'nowrap' }}>{e.date}</td>
   
   {/* 🎯 UPDATED LOGIC INLINE INSIDE YOUR NOTE CELL */}
-<td style={{ padding: '10px 14px', color: C.muted, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-  <span style={{ color: C.textW }}>{e.note || '—'}</span>
-  {e.is_recurring && (
-    <span 
-      title={`Recurring: Repeats ${e.recurrence_interval || 'monthly'}`} 
-      style={{ marginLeft: 6, fontSize: 12, cursor: 'help' }}
-    >
-      🔄
-    </span>
-  )}
+    <td style={{ padding: '10px 14px', color: C.muted, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ color: C.textW }}>{e.note || '—'}</span>
+    {(e.isRecurring || e.is_recurring) && (
+      <span 
+        title={`Recurring commitment: ${e.recurrenceInterval || e.recurrence_interval || 'monthly'}`} 
+        style={{ marginRight: 6, color: C.amber, fontSize: 13, display: 'inline-flex', alignItems: 'center' }}
+      >
+        🔄
+      </span>
+    )}
 </td>
 
   <td style={{ padding: '10px 14px', color: C.text1 }}>{e.category}</td>
