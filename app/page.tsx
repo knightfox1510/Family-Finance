@@ -4550,6 +4550,8 @@ export default function App() {
         to_settle: e.toSettle,
         settled: e.settled,
         settled_with: toSystemKey(e.settledFor),
+        is_recurring: e.isRecurring,
+        recurrence_interval: e.recurrenceInterval,
       };
 
       setData((prev: any) => ({
