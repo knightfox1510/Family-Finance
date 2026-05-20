@@ -231,9 +231,11 @@ export function useActions({ data, setData, session, addToast }: UseActionsParam
       shareB = total * bShare;
     }
     const payer = item.addedBy;
-    const updatedAmount = payer === 'Partner A' ? shareA : shareB;
-    const counterAmount = payer === 'Partner A' ? shareB : shareA;
-    const counterParty  = payer === 'Partner A' ? 'Partner B' : 'Partner A';
+    // addedBy is a display name — compare against both display name and system key
+    const payerIsA = payer === data.settings.partnerAName || payer === 'Partner A';
+    const updatedAmount = payerIsA ? shareA : shareB;
+    const counterAmount = payerIsA ? shareB : shareA;
+    const counterParty  = payerIsA ? 'Partner B' : 'Partner A';
     const clonedId = uid();
 
     const cloned: Expense = {

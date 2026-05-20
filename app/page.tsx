@@ -161,12 +161,21 @@ export default function App() {
         shareB = amount * bShare;
       }
 
-      if (t.addedBy === 'Partner A') {
+      // addedBy is a display name after toUI() mapping,
+      // so check both display name and system key to be safe
+      const paidByA = t.addedBy === names.a || t.addedBy === 'Partner A';
+      const paidByB = t.addedBy === names.b || t.addedBy === 'Partner B';
+
+      if (paidByA) {
         p2pNetBalance += shareB;
-        pendingPartnerItems.push({ ...t, debtorName: names.b, amountOwed: shareB });
-      } else if (t.addedBy === 'Partner B') {
+        pendingPartnerItems.push({ ...t, debtorName: names.b, amountOwed: shareB,
+          breakdownText: t.splitMode === 'equal' ? '50% Split' : `₹${Math.round(shareB)} share`,
+        });
+      } else if (paidByB) {
         p2pNetBalance -= shareA;
-        pendingPartnerItems.push({ ...t, debtorName: names.a, amountOwed: shareA });
+        pendingPartnerItems.push({ ...t, debtorName: names.a, amountOwed: shareA,
+          breakdownText: t.splitMode === 'equal' ? '50% Split' : `₹${Math.round(shareA)} share`,
+        });
       }
     });
 
