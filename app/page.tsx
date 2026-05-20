@@ -139,8 +139,27 @@ export default function App() {
     data.expenses.forEach((t) => {
       if (t.settled || t.account === 'Joint' || t.settleTrack !== 'partner') return;
       const amount = Number(t.amount);
-      const shareA = t.splitMode === 'equal' ? amount * 0.5 : amount * t.partnerAShare;
-      const shareB = t.splitMode === 'equal' ? amount * 0.5 : amount * t.partnerBShare;
+      const aShare = Number(t.partnerAShare);
+      const bShare = Number(t.partnerBShare);
+
+      // 'fixed' mode: shares are absolute amounts (e.g. ₹4698)
+      // 'percentage' mode: shares are 0–100, convert to fraction
+      // 'equal' mode: always 50/50
+      let shareA: number;
+      let shareB: number;
+      if (t.splitMode === 'equal') {
+        shareA = amount * 0.5;
+        shareB = amount * 0.5;
+      } else if (t.splitMode === 'fixed') {
+        shareA = aShare;
+        shareB = bShare;
+      } else if (t.splitMode === 'percentage') {
+        shareA = amount * (aShare / 100);
+        shareB = amount * (bShare / 100);
+      } else {
+        shareA = amount * aShare;
+        shareB = amount * bShare;
+      }
 
       if (t.addedBy === 'Partner A') {
         p2pNetBalance += shareB;

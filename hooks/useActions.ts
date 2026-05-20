@@ -213,8 +213,23 @@ export function useActions({ data, setData, session, addToast }: UseActionsParam
   // Split a partner expense into two rows
   const settleAndSplitPartnerTransaction = useCallback(async (item: Expense) => {
     const total = Number(item.amount);
-    const shareA = item.splitMode === 'equal' ? total * 0.5 : total * Number(item.partnerAShare);
-    const shareB = item.splitMode === 'equal' ? total * 0.5 : total * Number(item.partnerBShare);
+    const aShare = Number(item.partnerAShare);
+    const bShare = Number(item.partnerBShare);
+    let shareA: number;
+    let shareB: number;
+    if (item.splitMode === 'equal') {
+      shareA = total * 0.5;
+      shareB = total * 0.5;
+    } else if (item.splitMode === 'fixed') {
+      shareA = aShare;
+      shareB = bShare;
+    } else if (item.splitMode === 'percentage') {
+      shareA = total * (aShare / 100);
+      shareB = total * (bShare / 100);
+    } else {
+      shareA = total * aShare;
+      shareB = total * bShare;
+    }
     const payer = item.addedBy;
     const updatedAmount = payer === 'Partner A' ? shareA : shareB;
     const counterAmount = payer === 'Partner A' ? shareB : shareA;

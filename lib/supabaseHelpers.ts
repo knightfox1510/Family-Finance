@@ -134,8 +134,8 @@ export async function loadData(userId: string): Promise<AppData> {
       recurrenceInterval: r.recurrence_interval ?? 'monthly',
       settleTrack: r.settle_track ?? (r.to_settle ? 'joint' : 'none'),
       splitMode: r.split_mode ?? 'equal',
-      partnerAShare: r.partner_a_share ?? 0.5,
-      partnerBShare: r.partner_b_share ?? 0.5,
+      partnerAShare: Number(r.partner_a_share ?? 0.5),
+      partnerBShare: Number(r.partner_b_share ?? 0.5),
       toSettle: r.settle_track === 'joint' || r.to_settle === true,
     }));
 
