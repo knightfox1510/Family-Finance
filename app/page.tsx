@@ -1578,6 +1578,8 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
     note: '',
     toSettle: false,
     type: 'expense',
+    isRecurring: false,
+    recurrenceInterval: 'monthly',
   });
   
   const [flash, setFlash] = useState(false);
@@ -1706,6 +1708,8 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
       id: uid(),
       settled: false,
       settledFor: null,
+      isRecurring: form.isRecurring,
+      recurrenceInterval: form.recurrenceInterval,
     });
     setForm((f: any) => ({ ...f, amount: '', note: '', toSettle: false }));
     setFlash(true);
@@ -1851,6 +1855,34 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
           <div>
             <Label>Note (optional)</Label>
             <Inp placeholder="What was this for?" value={form.note} onChange={(e: any) => set('note', e.target.value)} />
+          </div>
+
+          <div style={{ background: '#1e284033', padding: 14, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 12, border: `1px solid ${C.border}` }}>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', width: '100%' }}>
+              <span style={{ fontSize: 14, color: C.text1 }}>🔄 Set as Recurring Household Commitment</span>
+              <input 
+                type="checkbox" 
+                checked={form.isRecurring} 
+                onChange={(e) => set('isRecurring', e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: C.amber, cursor: 'pointer' }}
+              />
+            </label>
+            
+            {form.isRecurring && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ color: C.text2, fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Execution Interval Pattern</div>
+                <select 
+                  value={form.recurrenceInterval} 
+                  onChange={(e) => set('recurrenceInterval', e.target.value)}
+                  style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 8, padding: '10px 14px', fontSize: 14, width: '100%', cursor: 'pointer', outline: 'none' }}
+                >
+                  <option value="daily">Daily Subscription / Allowance</option>
+                  <option value="weekly">Weekly Automated Run</option>
+                  <option value="monthly">Monthly Fixed Cost (Rent, WiFi, Maid)</option>
+                  <option value="yearly">Yearly Commitment (Insurance, Taxes)</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Settle Parameter Checkbox */}
