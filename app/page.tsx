@@ -5456,7 +5456,9 @@ export default function App() {
                 });
                 setPrevView(view);
                 setView('add');
-            }
+            }} 
+            />
+          )}
               
           {view === 'settle' && (
             <SettleDashboard data={data} onBulkSettle={actions.bulkSettle} />
