@@ -772,10 +772,15 @@ function AddExpense({ data, duplicateData, onAdd, onClose }: any) {
           {/* ATTACHMENT UPLOAD TRIGGER */}
           <ReceiptUploadSlot currentUrl={form.receiptUrl} onUploadComplete={(url) => set('receiptUrl', url)} />
 
-          {/* DYNAMIC UNEQUAL SPLITS BLUEPRINT LAYER */}
+          {/* ⚖️ ADVANCED SPLIT CONFIGURATION REGION */}
           {form.type === 'expense' && (
             <div style={{ background: `${C.border}33`, padding: 14, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <Label style={{ margin: 0, color: C.amber }}>⚖️ Advanced Split Quotient Architectures</Label>
+              
+              {/* ✨ WRAPPER FIX: Native div handles the color and margin styles safely */}
+              <div style={{ margin: 0, color: C.amber }}>
+                <Label>⚖️ Advanced Split Quotient Architectures</Label>
+              </div>
+
               <Sel value={form.splitMode} onChange={(e: any) => { set('splitMode', e.target.value); set('toSettle', e.target.value !== 'equal' || form.account !== 'Joint'); }}>
                 <option value="equal">Standard Split (50/50 Matrix)</option>
                 <option value="unequal_pct">Asymmetrical Share Percentage (% Weights)</option>
