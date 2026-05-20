@@ -5435,19 +5435,29 @@ export default function App() {
               onBulkMarkAsSettled={actions.bulkMarkAsSettled}
               onBulkAssignToAccount={actions.bulkAssignToAccount}
               onTriggerEdit={(transactionToUpdate: any) => {
-      setDuplicateData(transactionToUpdate); // Passes full parameters object down
-      setPrevView(view);
-      setView('add'); // Swaps the screen window frame to the AddExpense layout view canvas panel
-    }}
-    
-    onDuplicate={(e: any) => {
-      // Your existing duplication handler stays exactly the same, but sets id: null explicitly
-      setDuplicateData({ ...e, date: today(), amount: e.amount.toString(), id: null });
-      setPrevView(view);
-      setView('add');
+                setDuplicateData({
+                  ...transactionToUpdate,
+                  // 🔄 Ensure naming variants safely default to camelCase for the form state fields
+                  isRecurring: transactionToUpdate.isRecurring ?? transactionToUpdate.is_recurring ?? false,
+                  recurrenceInterval: transactionToUpdate.recurrenceInterval ?? transactionToUpdate.recurrence_interval ?? 'monthly'
+                });
+                setPrevView(view);
+                setView('add'); // Swaps the screen window frame to the AddExpense layout view canvas panel
               }}
-            />
-          )}
+
+              onDuplicate={(e: any) => {
+                setDuplicateData({ 
+                  ...e, 
+                  date: today(), 
+                  amount: e.amount.toString(), 
+                  id: null,
+                  isRecurring: e.isRecurring ?? e.is_recurring ?? false,
+                  recurrenceInterval: e.recurrenceInterval ?? e.recurrence_interval ?? 'monthly'
+                });
+                setPrevView(view);
+                setView('add');
+            }}
+              
           {view === 'settle' && (
             <SettleDashboard data={data} onBulkSettle={actions.bulkSettle} />
           )}
