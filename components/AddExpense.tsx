@@ -193,19 +193,57 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
             )}
           </div>
 
-          {/* Settlement track — hidden in solo mode or when account is Joint */}
+          {/* Settlement track — hidden in solo mode */}
           {form.type === 'expense' && mode !== 'solo' && (
             <div style={{ background: '#1e284033', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 14, border: `1px solid ${C.border}` }}>
               <div>
                 <Label>🎯 Settlement Track</Label>
-                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                  {[{ key: 'none', label: '❌ No Settlement' }, { key: 'partner', label: '🤝 Partner Split' }].map((track) => (
-                    <button key={track.key} type="button" disabled={track.key === 'partner' && form.account === 'Joint'}
-                      onClick={() => { set('settleTrack', track.key); if (track.key === 'none') set('splitMode', 'equal'); }}
-                      style={{ flex: 1, padding: '10px 8px', borderRadius: 8, fontSize: 12, fontWeight: form.settleTrack === track.key ? 700 : 500, background: form.settleTrack === track.key ? C.amber : `${C.bg}80`, color: form.settleTrack === track.key ? C.surface : C.text2, border: `1px solid ${form.settleTrack === track.key ? C.amber : C.border}`, cursor: form.account === 'Joint' && track.key === 'partner' ? 'not-allowed' : 'pointer', opacity: form.account === 'Joint' && track.key === 'partner' ? 0.35 : 1 }}>
-                      {track.label}
+                <p style={{ color: C.muted, fontSize: 11, margin: '4px 0 8px', lineHeight: 1.5 }}>
+                  {form.account === 'Joint'
+                    ? 'Joint account expenses are shared directly — no settlement needed.'
+                    : 'Did you pay personally for something that should be reimbursed?'}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+
+                  {/* Option 1: No settlement */}
+                  <button type="button"
+                    onClick={() => { set('settleTrack', 'none'); set('splitMode', 'equal'); }}
+                    style={{ padding: '10px 12px', borderRadius: 8, fontSize: 12, textAlign: 'left',
+                      fontWeight: form.settleTrack === 'none' ? 700 : 500,
+                      background: form.settleTrack === 'none' ? C.amber : `${C.bg}80`,
+                      color: form.settleTrack === 'none' ? C.surface : C.text2,
+                      border: `1px solid ${form.settleTrack === 'none' ? C.amber : C.border}`,
+                      cursor: 'pointer' }}>
+                    ❌ No Settlement — personal or already joint
+                  </button>
+
+                  {/* Option 2: Reimburse from Joint pool — only when paid from personal account */}
+                  {form.account !== 'Joint' && (
+                    <button type="button"
+                      onClick={() => { set('settleTrack', 'joint'); set('splitMode', 'equal'); }}
+                      style={{ padding: '10px 12px', borderRadius: 8, fontSize: 12, textAlign: 'left',
+                        fontWeight: form.settleTrack === 'joint' ? 700 : 500,
+                        background: form.settleTrack === 'joint' ? C.green : `${C.bg}80`,
+                        color: form.settleTrack === 'joint' ? C.surface : C.text2,
+                        border: `1px solid ${form.settleTrack === 'joint' ? C.green : C.border}`,
+                        cursor: 'pointer' }}>
+                      🏦 Reimburse from Joint Pool — I paid personally, Joint owes me
                     </button>
-                  ))}
+                  )}
+
+                  {/* Option 3: Direct partner split — only when paid from personal account */}
+                  {form.account !== 'Joint' && (
+                    <button type="button"
+                      onClick={() => { set('settleTrack', 'partner'); }}
+                      style={{ padding: '10px 12px', borderRadius: 8, fontSize: 12, textAlign: 'left',
+                        fontWeight: form.settleTrack === 'partner' ? 700 : 500,
+                        background: form.settleTrack === 'partner' ? C.purple : `${C.bg}80`,
+                        color: form.settleTrack === 'partner' ? '#fff' : C.text2,
+                        border: `1px solid ${form.settleTrack === 'partner' ? C.purple : C.border}`,
+                        cursor: 'pointer' }}>
+                      🤝 Partner Split — my partner owes me part of this directly
+                    </button>
+                  )}
                 </div>
               </div>
 
