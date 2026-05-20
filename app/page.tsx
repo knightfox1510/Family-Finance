@@ -4732,16 +4732,15 @@ export default function App() {
     b: data.settings.partnerBName,
   };
 
-  // ─── MASTER CONTROLLER BLOCK RE-BALANCING ─────────────────────────────────
+// ─── MASTER CONTROLLER BLOCK RE-BALANCING ─────────────────────────────────
   const actions = {
-addExpense: async (e: any) => {
+    addExpense: async (e: any) => {
       const toSystemKey = (val: string) => {
         if (val === data.settings.partnerAName) return 'Partner A';
         if (val === data.settings.partnerBName) return 'Partner B';
         return val; 
       };
 
-      // 1. Structure database payload to map camelCase fields cleanly to snake_case columns
       const newTx = {
         id: e.id,
         household_id: data.householdId,
@@ -4757,15 +4756,13 @@ addExpense: async (e: any) => {
         is_recurring: e.isRecurring || false,
         recurrence_interval: e.recurrenceInterval || 'monthly',
         
-        // ✨ NEW PARALLEL TRACK DB SLOTS:
         settle_track: e.settleTrack || 'none',
         split_mode: e.splitMode || 'equal',
         partner_a_share: e.partnerAShare ?? 0.50,
         partner_b_share: e.partnerBShare ?? 0.50,
-        to_settle: e.settleTrack === 'joint' // Fallback flag for any old hooks
+        to_settle: e.settleTrack === 'joint'
       };
 
-      // 2. Optimistic local UI state update (preserves custom camelCase variables)
       setData((prev: any) => ({
         ...prev,
         expenses: [{
@@ -4780,13 +4777,12 @@ addExpense: async (e: any) => {
         }, ...prev.expenses]
       }));
 
-      // 3. Persist transaction directly to your remote Supabase schema
       const { error } = await supabase.from('transactions').insert([newTx]);
       if (error) {
         alert('Failed to save to cloud: ' + error.message);
       } else {
         notify('New Transaction Added', `Added ₹${e.amount} for ${e.category}`, data.settings);
-        handleManualRefresh(); // Sync all states to ensure charts stay locked
+        handleManualRefresh();
       }
     },
     
@@ -4799,7 +4795,6 @@ addExpense: async (e: any) => {
             ? { 
                 ...e, 
                 ...updated, 
-                // Ensure local client states explicitly retain our custom camelCase keys
                 isRecurring: updated.isRecurring,
                 recurrenceInterval: updated.recurrenceInterval,
                 settleTrack: updated.settleTrack,
@@ -4811,7 +4806,44 @@ addExpense: async (e: any) => {
         ),
       }));
 
-      settleAndSplitPartnerTransaction: async (item: any) => {
+      const toSystemKey = (val: string) => {
+        if (val === data.settings.partnerAName) return 'Partner A';
+        if (val === data.settings.partnerBName) return 'Partner B';
+        return val;
+      };
+
+      // 2. Sync updates down to matching row index in Supabase
+      const { error } = await supabase
+        .from('transactions')
+        .update({
+          date: updated.date,
+          amount: updated.amount,
+          category: updated.category,
+          type: updated.type,
+          account_used: toSystemKey(updated.account),
+          added_by: toSystemKey(updated.addedBy),
+          note: updated.note,
+          settled: updated.settled,
+          settled_with: toSystemKey(updated.settledFor),
+          is_recurring: updated.isRecurring,
+          recurrence_interval: updated.recurrenceInterval,
+          
+          settle_track: updated.settleTrack,
+          split_mode: updated.splitMode,
+          partner_a_share: updated.partnerAShare,
+          partner_b_share: updated.partnerBShare,
+          to_settle: updated.settleTrack === 'joint'
+        })
+        .eq('id', id);
+        
+      if (error) {
+        alert('Failed to update cloud ledger: ' + error.message);
+      } else {
+        handleManualRefresh();
+      }
+    },
+
+    settleAndSplitPartnerTransaction: async (item: any) => {
       const toSystemKey = (val: string) => {
         if (val === data.settings.partnerAName) return 'Partner A';
         if (val === data.settings.partnerBName) return 'Partner B';
@@ -4823,15 +4855,14 @@ addExpense: async (e: any) => {
       const shareA = item.splitMode === 'equal' ? (totalAmount * 0.5) : (totalAmount * Number(item.partnerAShare));
       const shareB = item.splitMode === 'equal' ? (totalAmount * 0.5) : (totalAmount * Number(item.partnerBShare));
 
-      // Identify exactly who originally paid out-of-pocket and who is absorbing the debt
-      const originalPayer = item.addedBy; // 'Partner A' or 'Partner B'
+      const originalPayer = item.addedBy;
       const updatedOriginalAmount = originalPayer === 'Partner A' ? shareA : shareB;
       const counterPartyAmount = originalPayer === 'Partner A' ? shareB : shareA;
       const counterPartyUser = originalPayer === 'Partner A' ? 'Partner B' : 'Partner A';
 
       const clonedId = uid();
       
-      // 🔄 2. OPTIMISTIC FRONTEND LOCAL STATE REFACTOR (Comprehensive Mapping)
+      // 🔄 2. OPTIMISTIC FRONTEND LOCAL STATE REFACTOR
       setData((prev: any) => {
         const updatedExpenses = prev.expenses.map((e: any) => {
           if (e.id === item.id) {
@@ -4844,7 +4875,6 @@ addExpense: async (e: any) => {
               partnerAShare: 0.50,
               partnerBShare: 0.50,
               toSettle: false,
-              // Explicitly preserve recurring states across updates
               isRecurring: item.isRecurring,
               recurrenceInterval: item.recurrenceInterval
             };
@@ -4866,7 +4896,6 @@ addExpense: async (e: any) => {
           toSettle: false,
           settledFor: counterPartyUser === 'Partner A' ? 'Partner A' : 'Partner B',
           note: `${item.note || ''} (Settlement Split Allocation)`.trim(),
-          // Explicitly carry over recurring markers to the partner clone
           isRecurring: item.isRecurring,
           recurrenceInterval: item.recurrenceInterval
         };
@@ -4877,7 +4906,7 @@ addExpense: async (e: any) => {
         };
       });
 
-      // ☁️ 3. CLOUD SYNC: UPDATE THE ORIGINAL ROW IN SUPABASE
+      // ☁️ 3. CLOUD SYNC: UPDATE ORIGINAL ROW
       const { error: updateError } = await supabase
         .from('transactions')
         .update({
@@ -4893,7 +4922,7 @@ addExpense: async (e: any) => {
         })
         .eq('id', item.id);
 
-      // ☁️ 4. CLOUD SYNC: INSERT THE COMPLEMENTARY CLONED ROW INTO SUPABASE
+      // ☁️ 4. CLOUD SYNC: INSERT PARTNER CLONE ROW
       const { error: insertError } = await supabase
         .from('transactions')
         .insert([{
@@ -4918,49 +4947,13 @@ addExpense: async (e: any) => {
         }]);
 
       if (updateError || insertError) {
-        alert('⚠️ Operational sync lag detected. Re-aligning storage parameters...');
+        alert('⚠️ Operational sync delay encountered.');
       }
       
-      handleManualRefresh(); // Lock down final analytical balance grids
+      handleManualRefresh();
     },
 
-      const toSystemKey = (val: string) => {
-        if (val === data.settings.partnerAName) return 'Partner A';
-        if (val === data.settings.partnerBName) return 'Partner B';
-        return val;
-      };
-
-      // 2. Sync updates down to matching row index in Supabase
-      const { error } = await supabase
-        .from('transactions')
-        .update({
-          date: updated.date,
-          amount: updated.amount,
-          category: updated.category,
-          type: updated.type,
-          account_used: toSystemKey(updated.account),
-          added_by: toSystemKey(updated.addedBy),
-          note: updated.note,
-          settled: updated.settled,
-          settled_with: toSystemKey(updated.settledFor),
-          is_recurring: updated.isRecurring,
-          recurrence_interval: updated.recurrenceInterval,
-          
-          // ✨ REFACTOR DB VALUE INJECTIONS:
-          settle_track: updated.settleTrack,
-          split_mode: updated.splitMode,
-          partner_a_share: updated.partnerAShare,
-          partner_b_share: updated.partnerBShare,
-          to_settle: updated.settleTrack === 'joint'
-        })
-        .eq('id', id);
-        
-      if (error) {
-        alert('Failed to update cloud ledger: ' + error.message);
-      } else {
-        handleManualRefresh();
-      }
-    },
+    deleteExpense: async (id: string) => {
 
     
     deleteExpense: async (id: string) => {
