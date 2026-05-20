@@ -239,20 +239,26 @@ async function loadData(userId: string) {
         settings: settings, 
         
         expenses: allTransactions.map((r: any) => ({
-          id: r.id,
-          date: r.date,
-          amount: r.amount,
-          category: r.category,
-          type: r.type,
-          account: toUI(r.account_used), 
-          addedBy: toUI(r.added_by),     
-          note: r.note,
-          toSettle: r.to_settle === true || r.to_settle === 'true' || r.to_settle === 'Yes',
-          settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
-          settledFor: toUI(r.settled_with), 
-          is_recurring: r.is_recurring || false,
-recurrence_interval: r.recurrence_interval || 'monthly',
-        })),
+        id: r.id,
+        date: r.date,
+        amount: r.amount,
+        category: r.category,
+        type: r.type,
+        account: toUI(r.account_used), 
+        addedBy: toUI(r.added_by),     
+        note: r.note,
+        settled: r.settled === true || r.settled === 'true',
+        settledFor: toUI(r.settled_with), 
+        isRecurring: r.is_recurring || false,
+        recurrenceInterval: r.recurrence_interval || 'monthly',
+        
+        // ✨ CONVERT SNAKE_CASE COLUMNS BACK TO CAMELCASE FOR DATA CONSUMERS:
+        settleTrack: r.settle_track || (r.to_settle ? 'joint' : 'none'),
+        splitMode: r.split_mode || 'equal',
+        partnerAShare: r.partner_a_share ?? 0.50,
+        partnerBShare: r.partner_b_share ?? 0.50,
+        toSettle: r.settle_track === 'joint' || r.to_settle === true
+      })),
       
       goals: (gl.data || []).map((r: any) => {
         const targetAmt = Number(r.target_amount || 0);
@@ -1584,6 +1590,10 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose, onUpdateSave
     type: 'expense',
     isRecurring: false,
     recurrenceInterval: 'monthly',
+    settleTrack: duplicateData?.settle_track || duplicateData?.settleTrack || 'none', // 'none' | 'joint' | 'partner'
+    splitMode: duplicateData?.split_mode || duplicateData?.splitMode || 'equal',     // 'equal' | 'percentage' | 'fixed'
+    partnerAShare: duplicateData?.partner_a_share ?? duplicateData?.partnerAShare ?? 0.50,
+    partnerBShare: duplicateData?.partner_b_share ?? duplicateData?.partnerBShare ?? 0.50,
   });
   
   const [flash, setFlash] = useState(false);
@@ -1689,50 +1699,52 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose, onUpdateSave
     };
   }, [data.expenses, loggedInAccount]);
 
-  const submit = () => {
+const submit = () => {
     const numericAmount = Number(form.amount);
 
-    // 1. Explicitly catch zero, empty, or negative inputs with user-facing warnings
-    if (form.amount === '' || isNaN(numericAmount)) {
-      alert('⚠️ Error: Please enter a valid numeric amount before saving.');
-      return;
-    }
-    if (numericAmount === 0) {
-      alert('⚠️ Warning: You are attempting to add a transaction with an amount of ₹0. Please input a valid cost.');
-      return;
-    }
-    if (numericAmount < 0) {
-      alert('⚠️ Error: Transaction amounts cannot be negative.');
+    if (form.amount === '' || isNaN(numericAmount) || numericAmount <= 0) {
+      alert('⚠️ Error: Please enter a valid transactional cost parameter.');
       return;
     }
 
-    // 2. Route dynamically between Update and Insert cleanly with the new recurring engine payloads
+    // 🧠 RUN ARCHITECTURAL SPLIT BALANCING VERIFICATIONS
+    if (form.type === 'expense' && form.settleTrack !== 'none') {
+      if (form.splitMode === 'percentage') {
+        const sum = Number(form.partnerAShare || 0) + Number(form.partnerBShare || 0);
+        if (sum !== 100) {
+          alert(`⚠️ Allocation Error: Dynamic percentage weights must total exactly 100%. Currently evaluating at: ${sum}%`);
+          return;
+        }
+      } 
+      else if (form.splitMode === 'fixed') {
+        const sum = Number(form.partnerAShare || 0) + Number(form.partnerBShare || 0);
+        if (Math.abs(sum - numericAmount) > 0.01) {
+          alert(`⚠️ Allocation Error: Fixed currency allocations (₹${sum}) must equal the total transaction bill value (₹${numericAmount}).`);
+          return;
+        }
+      }
+    }
+
+    // Prepare standard structured properties payload object
+    const finalFormPayload = {
+      ...form,
+      amount: numericAmount,
+      // Pass down standardized numbers for database calculations
+      partnerAShare: form.splitMode === 'percentage' ? Number(form.partnerAShare) / 100 : Number(form.partnerAShare),
+      partnerBShare: form.splitMode === 'percentage' ? Number(form.partnerBShare) / 100 : Number(form.partnerBShare),
+    };
+
     if (isEditingMode) {
-      // 🚀 Run an UPDATE statement if an asset ID exists
-      onUpdateSave(duplicateData.id, { 
-        ...form, 
-        amount: numericAmount 
-      });
+      onUpdateSave(duplicateData.id, finalFormPayload);
     } else {
-      // ➕ Run a standard INSERT if creating a fresh transaction or a copied duplicate
-      onAdd({ 
-        ...form, 
-        amount: numericAmount, 
-        id: uid(),
-        settled: false,
-        settledFor: null
-      });
+      onAdd({ ...finalFormPayload, id: uid(), settled: false, settledFor: null });
     }
 
-    // 3. Trigger UI Flash Feedback and return back to logs screen
     setFlash(true);
-    setForm((f: any) => ({ ...f, amount: '', note: '', toSettle: false, isRecurring: false }));
-    
-    setTimeout(() => { 
-      setFlash(false); 
-      if (onClose) onClose(); 
-    }, 1500);
+    setForm((f: any) => ({ ...f, amount: '', note: '' }));
+    setTimeout(() => { setFlash(false); if (onClose) onClose(); }, 1500);
   };
+  
   const cats = form.type === 'income' ? data.settings.incomeCategories : data.settings.expenseCategories;
   
   // SCANNABLE MOBILE UPGRADE: Sorted completely alphabetically
@@ -1855,7 +1867,22 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose, onUpdateSave
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <Label>Paid From</Label>
-              <Sel value={form.account} onChange={(e: any) => set('account', e.target.value)}>
+              <Sel 
+                value={form.account} 
+                onChange={(e: any) => {
+                  const selectedAccount = e.target.value;
+                  set('account', selectedAccount);
+                  
+                  // 🛡️ CRITICAL SECURITY OVERWRITE:
+                  // If paid from Joint, it can never belong to a trailing calculation track
+                  if (selectedAccount === 'Joint') {
+                    set('settleTrack', 'none');
+                    set('splitMode', 'equal');
+                    set('partnerAShare', 0.50);
+                    set('partnerBShare', 0.50);
+                  }
+                }}
+              >
                 <option value="Joint">Joint Account</option>
                 <option value={names.a}>{names.a}</option>
                 <option value={names.b}>{names.b}</option>
@@ -1903,39 +1930,119 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose, onUpdateSave
             )}
           </div>
 
-          {/* Settle Parameter Checkbox */}
+          {/* 🔄 MULTI-TRACK SETTLEMENT ENGINE WIZARD */}
           {form.type === 'expense' && form.account !== 'Joint' && (
-            <div style={{ background: C.bg, borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <div style={{ background: '#1e284033', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 14, border: `1px solid ${C.border}` }}>
               <div>
-                <div style={{ color: C.text1, fontSize: 13, fontWeight: 600 }}>To be settled by Joint Account?</div>
-                <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Reimburse personal expense from joint pool</div>
+                <Label style={{ marginBottom: 6, display: 'block' }}>🎯 Settlement Configuration Path</Label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[
+                    { key: 'none', label: '❌ No Settlement', desc: 'Personal or fully paid from matching pool' },
+                    { key: 'joint', label: '👥 Joint Pool', desc: 'Reimburse spending out of the shared Household fund' },
+                    { key: 'partner', label: '🤝 Direct Partner', desc: 'Peer-to-Peer settlement directly between accounts' }
+                  ].map((track) => (
+                    <button
+                      key={track.key}
+                      type="button"
+                      onClick={() => {
+                        set('settleTrack', track.key);
+                        if (track.key === 'none') set('splitMode', 'equal');
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '10px 8px',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: form.settleTrack === track.key ? 700 : 500,
+                        background: form.settleTrack === track.key ? C.amber : `${C.bg}80`,
+                        color: form.settleTrack === track.key ? C.surface : C.text2,
+                        border: `1px solid ${form.settleTrack === track.key ? C.amber : C.border}`,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        textAlign: 'center'
+                      }}
+                      title={track.desc}
+                    >
+                      {track.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              
-              <div 
-                onClick={() => set('toSettle', !form.toSettle)}
-                style={{
-                  width: 44,
-                  height: 24,
-                  borderRadius: 12,
-                  background: form.toSettle ? C.amber : `${C.border}aa`,
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  flexShrink: 0,
-                  border: `1px solid ${form.toSettle ? C.amber : C.border}`
-                }}
-              >
-                <div style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: '50%',
-                  background: form.toSettle ? C.surface : C.text2,
-                  position: 'absolute',
-                  top: 2,
-                  left: form.toSettle ? 22 : 2,
-                  transition: 'all 0.2s ease'
-                }} />
-              </div>
+
+              {/* 📊 UNEQUAL SPLITTING MATRIX (Revealed only if Settlement is required) */}
+              {form.settleTrack !== 'none' && (
+                <div style={{ background: `${C.bg}60`, padding: 12, borderRadius: 8, border: `1px solid ${C.border}60`, marginTop: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <span style={{ fontSize: 13, color: C.text1, fontWeight: 600 }}>Division Architecture</span>
+                    <select
+                      value={form.splitMode}
+                      onChange={(e) => {
+                        const mode = e.target.value;
+                        set('splitMode', mode);
+                        // Apply default balancing values based on mode selected
+                        if (mode === 'equal') {
+                          set('partnerAShare', 0.50);
+                          set('partnerBShare', 0.50);
+                        } else if (mode === 'percentage') {
+                          set('partnerAShare', 50); // user enters whole numbers 0-100
+                          set('partnerBShare', 50);
+                        } else if (mode === 'fixed') {
+                          set('partnerAShare', ''); // direct currency weights
+                          set('partnerBShare', '');
+                        }
+                      }}
+                      style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 6, padding: '4px 8px', fontSize: 12 }}
+                    >
+                      <option value="equal">Split Evenly (50/50)</option>
+                      <option value="percentage">Unequal Percentages (%)</option>
+                      <option value="fixed">Fixed Currency Weights (₹)</option>
+                    </select>
+                  </div>
+
+                  {/* Dynamic Allocation Trays for Percentages and Fixed Modes */}
+                  {form.splitMode !== 'equal' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
+                      <div>
+                        <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>{names.a}'s Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
+                        <Inp
+                          type="number"
+                          placeholder="0"
+                          value={form.partnerAShare}
+                          onChange={(e: any) => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            set('partnerAShare', val);
+                            // Auto-balance the counter-party fields if dealing with clear percentages
+                            if (form.splitMode === 'percentage' && val !== '' && val <= 100) {
+                              set('partnerBShare', 100 - val);
+                            }
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>{names.b}'s Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
+                        <Inp
+                          type="number"
+                          placeholder="0"
+                          value={form.partnerBShare}
+                          onChange={(e: any) => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            set('partnerBShare', val);
+                            if (form.splitMode === 'percentage' && val !== '' && val <= 100) {
+                              set('partnerAShare', 100 - val);
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div style={{ fontSize: 11, color: C.amber, marginTop: 8, opacity: 0.85 }}>
+                    {form.splitMode === 'equal' && `💡 Costs are split exactly half-and-half between both profiles.`}
+                    {form.splitMode === 'percentage' && `💡 Adjusting either slot automatically recalculates the remaining balance ratio.`}
+                    {form.splitMode === 'fixed' && `💡 Specify the explicit liability amount each person is independently responsible for.`}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -4559,13 +4666,14 @@ export default function App() {
 
   // ─── MASTER CONTROLLER BLOCK RE-BALANCING ─────────────────────────────────
   const actions = {
-    addExpense: async (e: any) => {
+addExpense: async (e: any) => {
       const toSystemKey = (val: string) => {
         if (val === data.settings.partnerAName) return 'Partner A';
         if (val === data.settings.partnerBName) return 'Partner B';
         return val; 
       };
 
+      // 1. Structure database payload to map camelCase fields cleanly to snake_case columns
       const newTx = {
         id: e.id,
         household_id: data.householdId,
@@ -4576,39 +4684,60 @@ export default function App() {
         account_used: toSystemKey(e.account),
         added_by: toSystemKey(e.addedBy),
         note: e.note,
-        to_settle: e.toSettle,
-        settled: e.settled,
+        settled: e.settled || false,
         settled_with: toSystemKey(e.settledFor),
-        is_recurring: e.isRecurring,
-        recurrence_interval: e.recurrenceInterval,
+        is_recurring: e.isRecurring || false,
+        recurrence_interval: e.recurrenceInterval || 'monthly',
+        
+        // ✨ NEW PARALLEL TRACK DB SLOTS:
+        settle_track: e.settleTrack || 'none',
+        split_mode: e.splitMode || 'equal',
+        partner_a_share: e.partnerAShare ?? 0.50,
+        partner_b_share: e.partnerBShare ?? 0.50,
+        to_settle: e.settleTrack === 'joint' // Fallback flag for any old hooks
       };
 
+      // 2. Optimistic local UI state update (preserves custom camelCase variables)
       setData((prev: any) => ({
         ...prev,
         expenses: [{
           ...e,
           account: e.account,
           addedBy: e.addedBy,
-          settledFor: e.settledFor
+          settledFor: e.settledFor,
+          settleTrack: e.settleTrack || 'none',
+          splitMode: e.splitMode || 'equal',
+          partnerAShare: e.partnerAShare ?? 0.50,
+          partnerBShare: e.partnerBShare ?? 0.50
         }, ...prev.expenses]
       }));
 
+      // 3. Persist transaction directly to your remote Supabase schema
       const { error } = await supabase.from('transactions').insert([newTx]);
-      if (error) alert('Failed to save to cloud: ' + error.message);
-      else notify('New Transaction Added', `Added ₹${e.amount} for ${e.category}`, data.settings);
+      if (error) {
+        alert('Failed to save to cloud: ' + error.message);
+      } else {
+        notify('New Transaction Added', `Added ₹${e.amount} for ${e.category}`, data.settings);
+        handleManualRefresh(); // Sync all states to ensure charts stay locked
+      }
     },
     
     updateExpense: async (id: string, updated: any) => {
-      // 1. Optimistic local UI state update map
+      // 1. Optimistic local UI state modification mapper
       setData((prev: any) => ({
         ...prev,
         expenses: prev.expenses.map((e: any) => 
           e.id === id 
             ? { 
+                ...e, 
                 ...updated, 
-                // Ensure local state explicitly retains camelCase fields for component layout maps
+                // Ensure local client states explicitly retain our custom camelCase keys
                 isRecurring: updated.isRecurring,
-                recurrenceInterval: updated.recurrenceInterval
+                recurrenceInterval: updated.recurrenceInterval,
+                settleTrack: updated.settleTrack,
+                splitMode: updated.splitMode,
+                partnerAShare: updated.partnerAShare,
+                partnerBShare: updated.partnerBShare
               } 
             : e
         ),
@@ -4620,7 +4749,7 @@ export default function App() {
         return val;
       };
 
-      // 2. Sync changes straight down to Supabase schema columns
+      // 2. Sync updates down to matching row index in Supabase
       const { error } = await supabase
         .from('transactions')
         .update({
@@ -4631,23 +4760,28 @@ export default function App() {
           account_used: toSystemKey(updated.account),
           added_by: toSystemKey(updated.addedBy),
           note: updated.note,
-          to_settle: updated.toSettle,
           settled: updated.settled,
           settled_with: toSystemKey(updated.settledFor),
-          
-          // ✨ STITCH THESE TWO SNAKE_CASE COLUMNS IN HERE:
           is_recurring: updated.isRecurring,
           recurrence_interval: updated.recurrenceInterval,
+          
+          // ✨ REFACTOR DB VALUE INJECTIONS:
+          settle_track: updated.settleTrack,
+          split_mode: updated.splitMode,
+          partner_a_share: updated.partnerAShare,
+          partner_b_share: updated.partnerBShare,
+          to_settle: updated.settleTrack === 'joint'
         })
         .eq('id', id);
         
       if (error) {
         alert('Failed to update cloud ledger: ' + error.message);
       } else {
-        // Soft refresh to keep calculations perfectly synchronized across dashboards
         handleManualRefresh();
       }
     },
+
+    
     deleteExpense: async (id: string) => {
       setData((prev: any) => ({
         ...prev,
