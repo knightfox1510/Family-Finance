@@ -1942,7 +1942,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose, onUpdateSave
           {/* Form Trigger Buttons */}
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             <Btn variant={flash ? 'success' : 'primary'} onClick={submit} style={{ flex: 1, padding: 13, fontSize: 15 }}>
-              {flash ? '✓ Added Successfully!' : (duplicateData ? '✓ Confirm Duplicate' : `Add ${form.type === 'income' ? 'Income' : 'Expense'}`)}
+              {flash ? '✓ Added Successfully!' : (duplicateData ? '✓ Update Transaction' : `Add ${form.type === 'income' ? 'Income' : 'Expense'}`)}
             </Btn>
             {onClose && (
               <Btn variant="ghost" onClick={onClose} style={{ padding: 13, fontSize: 15 }}>Cancel</Btn>
