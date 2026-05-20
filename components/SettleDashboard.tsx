@@ -34,7 +34,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div>
           <SectionTitle style={{ margin: 0 }}>{partner}</SectionTitle>
-          <div style={{ color, fontWeight: 800, fontSize: 18, marginTop: 2 }}>{fmt(items.reduce((s, e) => s + e.amount, 0), data.settings.currency)} pending</div>
+          <div style={{ color, fontWeight: 800, fontSize: 18, marginTop: 2 }}>{fmt(items.reduce((s, e) => s + e.amount, 0))} pending</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Btn variant="ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => selectAll(items)}>Select All</Btn>
@@ -108,7 +108,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <span style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>{selected.size} selected</span>
-              <span style={{ color: C.text1, fontSize: 13, marginLeft: 10 }}>Total: {fmt(data.expenses.reduce((s, e) => selected.has(e.id) ? s + (e.amount || 0) : s, 0), data.settings.currency)}</span>
+              <span style={{ color: C.text1, fontSize: 13, marginLeft: 10 }}>Total: {fmt(data.expenses.reduce((s, e) => selected.has(e.id) ? s + (e.amount || 0) : s, 0))}</span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <Btn variant="ghost" onClick={() => setSelected(new Set())} style={{ fontSize: 12 }}>Deselect All</Btn>
