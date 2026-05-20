@@ -116,12 +116,14 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   filteredExp.filter((e) => INVESTMENT_CATS.has(e.category)).forEach((e) => {
     const note = (e.note || '').toLowerCase();
     const key =
-      note.includes('sip') || note.includes('mutual') || note.includes('mf') ? 'Mutual Funds / SIP' :
-      note.includes('gold') ? 'Gold' :
-      note.includes('ppf') || note.includes('epf') || note.includes('nps') ? 'PPF / EPF / NPS' :
-      note.includes('stock') || note.includes('equity') || note.includes('zerodha') || note.includes('smallcase') ? 'Stocks / Equity' :
-      note.includes('fd') || note.includes('fixed deposit') ? 'Fixed Deposits' :
-      e.category === 'Insurance' ? 'Insurance' : 'Other Investments';
+        note.includes('sip') || note.includes('mutual') || note.includes('mf') || note.includes('nj') ? 'Mutual Funds / SIP' :
+        note.includes('gold') || note.includes('bluestone') || note.includes('sgb') || note.includes('png') || note.includes('waman') ? 'Gold' :
+        note.includes('ppf') || note.includes('epf') || note.includes('nps') ? 'PPF / EPF / NPS' :
+        note.includes('stock') || note.includes('equity') || note.includes('zerodha') || note.includes('smallcase') || note.includes('share') || note.includes('indmoney') || note.includes('ind money') ? 'Stocks / Equity' :
+        note.includes('fd') || note.includes('fixed deposit') ? 'Fixed Deposits' :
+        note.includes('crypto') || note.includes('bitcoin') || note.includes('btc') ? 'Crypto' :
+        e.category === 'Insurance' || note.includes('insurance') || note.includes('lic') ? 'Insurance' : 
+        'Other Investments';
     assetDetail[key] = (assetDetail[key] || 0) + Number(e.amount);
   });
   const assetDetailEntries = Object.entries(assetDetail).sort((a, b) => b[1] - a[1]);
