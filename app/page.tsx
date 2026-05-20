@@ -1151,7 +1151,7 @@ function Dashboard({ data, onAddExpense }: any) {
 
   filteredExp.forEach((e: any) => {
     if (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') {
-      const noteTxt = ( || '').toLowerCase();
+      const noteTxt = (e.note || '').toLowerCase();
       if (e.category === 'Insurance' || noteTxt.includes('lic') || noteTxt.includes('insurance')) {
         allocation['Insurance Policies'] += Number(e.amount || 0);
       } else if (noteTxt.includes('smallcase')) {
