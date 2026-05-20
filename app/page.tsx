@@ -250,6 +250,8 @@ async function loadData(userId: string) {
           toSettle: r.to_settle === true || r.to_settle === 'true' || r.to_settle === 'Yes',
           settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
           settledFor: toUI(r.settled_with), 
+          is_recurring: r.is_recurring || false,
+recurrence_interval: r.recurrence_interval || 'monthly',
         })),
       
       goals: (gl.data || []).map((r: any) => {
