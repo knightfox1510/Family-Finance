@@ -1160,7 +1160,7 @@ export default function App() {
     updateContrib: async (m: string, a: number, b: number) => {
       await supabase.from('contributions').upsert({ id: uid(), household_id: data.householdId, month: m, partner_a_amount: a, partner_b_amount: b });
       handleManualRefresh();
-    }
+    },
     importData: async ({ expenses }: any) => {
       if (!expenses || expenses.length === 0) return alert('No valid data lines found to import.');
       
