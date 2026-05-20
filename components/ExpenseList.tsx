@@ -15,6 +15,7 @@ interface Props {
   onToggleToSettle: (id: string) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, u: any) => void;
+  onUnsettle: (id: string) => void;
   onBulkDelete: (ids: string[]) => void;
   onBulkFlagToSettle: (ids: string[]) => void;
   onBulkMarkAsSettled: (ids: string[]) => void;
@@ -23,7 +24,7 @@ interface Props {
   onDuplicate: (e: any) => void;
 }
 
-export function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulkDelete, onDuplicate, onBulkFlagToSettle, onBulkMarkAsSettled, onBulkAssignToAccount, onTriggerEdit }: Props) {
+export function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onUnsettle, onBulkDelete, onDuplicate, onBulkFlagToSettle, onBulkMarkAsSettled, onBulkAssignToAccount, onTriggerEdit }: Props) {
   const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
   const mk = monthKey(today());
   const [filter, setFilter] = useState({ month: mk, account: 'All', category: 'All', type: 'All', settled: 'All' });
@@ -141,7 +142,30 @@ export function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onBulk
                     <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>{e.type === 'income' ? '+' : ''}{fmt(e.amount, data.settings.currency)}</td>
                     <td style={{ padding: '10px 14px' }}>{accountBadge(e.account)}</td>
                     <td style={{ padding: '10px 14px' }}>
-                      {e.type === 'income' ? <span style={{ color: C.muted }}>—</span> : e.settled ? <Badge color={C.green}>✓ Settled — {e.settledFor === 'Partner A' ? names.a : names.b}</Badge> : e.account === 'Joint' ? <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Shared</span> : !e.toSettle ? <span style={{ color: C.text2, fontSize: 12 }}>Personal</span> : <Badge color={C.amber}>⏳ Pending</Badge>}
+                      {e.type === 'income' ? (
+                        <span style={{ color: C.muted }}>—</span>
+                      ) : e.settled ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <Badge color={C.green}>
+                            ✓ Settled{e.settledFor ? ` — ${e.settledFor === 'Partner A' ? names.a : e.settledFor === 'Partner B' ? names.b : e.settledFor}` : ''}
+                          </Badge>
+                          <button
+                            title="Mark as unsettled"
+                            onClick={() => onUnsettle(e.id)}
+                            style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 10, padding: '1px 4px', borderRadius: 4, lineHeight: 1 }}
+                          >
+                            ↩ Unsettle
+                          </button>
+                        </div>
+                      ) : e.account === 'Joint' ? (
+                        <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Shared</span>
+                      ) : e.settleTrack === 'partner' ? (
+                        <Badge color={C.purple}>🤝 Partner Split</Badge>
+                      ) : !e.toSettle ? (
+                        <span style={{ color: C.text2, fontSize: 12 }}>Personal</span>
+                      ) : (
+                        <Badge color={C.amber}>⏳ Pending — Joint</Badge>
+                      )}
                     </td>
                     <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>
                       <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => onTriggerEdit(e)}>Edit</Btn>

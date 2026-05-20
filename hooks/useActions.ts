@@ -109,6 +109,35 @@ export function useActions({ data, setData, session, addToast }: UseActionsParam
     }
   }, [data, setData, addToast]);
 
+  // Reverse a settled transaction back to its pending state.
+  // Useful when a settlement was recorded by mistake, or when a partner-track
+  // item was incorrectly marked settled via the old joint-settle flow.
+  const unsettle = useCallback(async (id: string) => {
+    // Optimistic update
+    setData((prev) => ({
+      ...prev,
+      expenses: prev.expenses.map((e) =>
+        e.id === id
+          ? { ...e, settled: false, settledFor: null }
+          : e
+      ),
+    }));
+    const { error } = await dbUpdateExpense(id, { settled: false, settledFor: null }, data.settings);
+    if (error) {
+      // Rollback
+      setData((prev) => ({
+        ...prev,
+        expenses: prev.expenses.map((e) => {
+          const original = data.expenses.find((x) => x.id === id);
+          return e.id === id && original ? original : e;
+        }),
+      }));
+      addToast('Failed to unsettle: ' + error.message, 'error');
+    } else {
+      addToast('Marked as unsettled ✓', 'success');
+    }
+  }, [data, setData, addToast]);
+
   const toggleToSettle = useCallback(async (id: string) => {
     const expense = data.expenses.find((e) => e.id === id);
     if (!expense) return;
@@ -450,6 +479,7 @@ export function useActions({ data, setData, session, addToast }: UseActionsParam
     addExpense,
     updateExpense,
     deleteExpense,
+    unsettle,
     toggleToSettle,
     bulkDeleteExpense,
     bulkFlagToSettle,

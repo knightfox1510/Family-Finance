@@ -119,25 +119,59 @@ export async function loadData(userId: string): Promise<AppData> {
 
     const toUI = (val: string) => toDisplayName(val, settings);
 
-    const expenses: Expense[] = allTransactions.map((r: any) => ({
-      id: r.id,
-      date: r.date,
-      amount: r.amount,
-      category: r.category,
-      type: r.type,
-      account: toUI(r.account_used),
-      addedBy: toUI(r.added_by),
-      note: r.note ?? '',
-      settled: r.settled === true || r.settled === 'true',
-      settledFor: r.settled_with ? toUI(r.settled_with) : null,
-      isRecurring: r.is_recurring ?? false,
-      recurrenceInterval: r.recurrence_interval ?? 'monthly',
-      settleTrack: r.settle_track ?? (r.to_settle ? 'joint' : 'none'),
-      splitMode: r.split_mode ?? 'equal',
-      partnerAShare: Number(r.partner_a_share ?? 0.5),
-      partnerBShare: Number(r.partner_b_share ?? 0.5),
-      toSettle: r.settle_track === 'joint' || r.to_settle === true,
-    }));
+    const expenses: Expense[] = allTransactions.map((r: any) => {
+      // ── Backward-compatible settlement mapping ─────────────────────────────
+      // Old system used: to_settle (bool), settled (bool), settled_with (string)
+      // New system adds: settle_track ('none'|'joint'|'partner'), split_mode,
+      //                  partner_a_share, partner_b_share
+      //
+      // Rules:
+      //  1. If settle_track is set, trust it. It's the authoritative new value.
+      //  2. If settle_track is null/missing, derive it from old columns:
+      //       to_settle=true  → 'joint'  (was flagged for joint reimbursement)
+      //       otherwise       → 'none'
+      //  3. toSettle (UI flag for "pending in settle queue") = true when:
+      //       - settle_track is 'joint' (new), OR
+      //       - to_settle is true (old), AND not yet settled
+      //  4. Partner-track items are NEVER in the joint settle queue (toSettle=false)
+      //     — they appear in the partner ledger instead.
+
+      const rawSettleTrack = r.settle_track;
+      const settleTrack: string =
+        rawSettleTrack === 'joint'   ? 'joint'   :
+        rawSettleTrack === 'partner' ? 'partner' :
+        rawSettleTrack === 'none'    ? 'none'    :
+        r.to_settle === true         ? 'joint'   : 'none';
+
+      const isSettled = r.settled === true || r.settled === 'true';
+
+      // toSettle = "show in the joint settlement queue"
+      // partner-track items never appear there
+      const toSettle =
+        !isSettled &&
+        settleTrack !== 'partner' &&
+        (settleTrack === 'joint' || r.to_settle === true);
+
+      return {
+        id: r.id,
+        date: r.date,
+        amount: r.amount,
+        category: r.category,
+        type: r.type,
+        account: toUI(r.account_used),
+        addedBy: toUI(r.added_by),
+        note: r.note ?? '',
+        settled: isSettled,
+        settledFor: r.settled_with ? toUI(r.settled_with) : null,
+        isRecurring: r.is_recurring ?? false,
+        recurrenceInterval: r.recurrence_interval ?? 'monthly',
+        settleTrack,
+        splitMode: r.split_mode ?? 'equal',
+        partnerAShare: Number(r.partner_a_share ?? 0.5),
+        partnerBShare: Number(r.partner_b_share ?? 0.5),
+        toSettle,
+      };
+    });
 
     const goals: Goal[] = (gl.data ?? []).map((r: any) => {
       const target   = Number(r.target_amount ?? 0);

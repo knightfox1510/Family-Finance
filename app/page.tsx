@@ -137,7 +137,15 @@ export default function App() {
     const pendingPartnerItems: any[] = [];
 
     data.expenses.forEach((t) => {
-      if (t.settled || t.account === 'Joint' || t.settleTrack !== 'partner') return;
+      // Skip if not a partner-track item
+      if (t.settleTrack !== 'partner') return;
+      // Skip if already settled (via the "Settle ⚡" split action)
+      // Note: old transactions may have settled=true from joint flow — only skip
+      // if settleTrack is also 'partner', which we already checked above,
+      // AND settled is true meaning the partner split was explicitly completed.
+      if (t.settled) return;
+      // Joint account items never appear in partner ledger
+      if (t.account === 'Joint') return;
       const amount = Number(t.amount);
       const aShare = Number(t.partnerAShare);
       const bShare = Number(t.partnerBShare);
@@ -383,6 +391,7 @@ export default function App() {
               onToggleToSettle={actions.toggleToSettle}
               onDelete={actions.deleteExpense}
               onUpdate={actions.updateExpense}
+              onUnsettle={actions.unsettle}
               onBulkDelete={actions.bulkDeleteExpense}
               onBulkFlagToSettle={actions.bulkFlagToSettle}
               onBulkMarkAsSettled={actions.bulkMarkAsSettled}
