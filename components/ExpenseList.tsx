@@ -46,10 +46,14 @@ export function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onUnse
     }
     if (filter.category !== 'All' && e.category !== filter.category) return false;
     if (filter.type !== 'All' && (e.type || 'expense') !== filter.type) return false;
-    if (filter.settled === 'pending' && (!e.toSettle || e.settled)) return false;
-    if (filter.settled === 'personal' && e.toSettle) return false;
-    if (filter.settled === 'settledA' && (!e.settled || e.settledFor !== 'Partner A')) return false;
-    if (filter.settled === 'settledB' && (!e.settled || e.settledFor !== 'Partner B')) return false;
+    if (filter.settled !== 'All') {
+      if (filter.settled === 'pendingJoint' && !(e.toSettle && !e.settled && e.settleTrack !== 'partner')) return false;
+      if (filter.settled === 'pendingPartner' && !(e.settleTrack === 'partner' && !e.settled)) return false;
+      if (filter.settled === 'personal' && (e.toSettle || e.settleTrack === 'partner' || e.settled)) return false;
+      if (filter.settled === 'settled' && !e.settled) return false;
+      if (filter.settled === 'settledA' && (!e.settled || (e.settledFor !== 'Partner A' && e.settledFor !== names.a))) return false;
+      if (filter.settled === 'settledB' && (!e.settled || (e.settledFor !== 'Partner B' && e.settledFor !== names.b))) return false;
+    }
     return true;
   }).sort((a, b) => { const d = new Date(b.date).getTime() - new Date(a.date).getTime(); return d !== 0 ? d : String(b.id).localeCompare(String(a.id)); });
 
@@ -76,7 +80,15 @@ export function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onUnse
           <select style={selStyle} value={filter.type} onChange={(e) => sf('type', e.target.value)}><option value="All">All Types</option><option value="expense">Expenses</option><option value="income">Income</option></select>
           <select style={selStyle} value={filter.account} onChange={(e) => sf('account', e.target.value)}><option value="All">All Accounts</option><option value="Joint">Joint</option><option value={names.a}>{names.a}</option><option value={names.b}>{names.b}</option></select>
           <select style={selStyle} value={filter.category} onChange={(e) => sf('category', e.target.value)}><option value="All">All Categories</option>{allCats.map((c) => <option key={c} value={c}>{c}</option>)}</select>
-          <select style={selStyle} value={filter.settled} onChange={(e) => sf('settled', e.target.value)}><option value="All">All Statuses</option><option value="pending">⏳ Pending</option><option value="personal">👤 Personal</option><option value="settledA">✅ Settled — {names.a}</option><option value="settledB">✅ Settled — {names.b}</option></select>
+          <select style={selStyle} value={filter.settled} onChange={(e) => sf('settled', e.target.value)}>
+            <option value="All">All Statuses</option>
+            <option value="pendingJoint">⏳ Pending — Joint Reimbursement</option>
+            <option value="pendingPartner">🤝 Pending — Partner Split</option>
+            <option value="personal">👤 Personal (no settlement)</option>
+            <option value="settled">✅ All Settled</option>
+            <option value="settledA">✅ Settled — {names.a}</option>
+            <option value="settledB">✅ Settled — {names.b}</option>
+          </select>
         </div>
       </Card>
 
