@@ -4,16 +4,17 @@ import type { AppData, PartnerCalculations } from '@/types';
 import { Card, Btn, SectionTitle, StatCard, Badge } from '@/components/ui';
 import { C } from '@/constants';
 
-function fmt(n: number, cur = 'INR') { return new Intl.NumberFormat('en-IN',{style:'currency',currency:cur,maximumFractionDigits:0}).format(n||0); }
+// fmt is received as a prop from page.tsx so privacy mode is respected globally
 
 interface Props {
+  fmt: (n: number) => string;
   data: AppData;
   onBulkSettle: (ids: string[]) => void;
   partnerCalculations: PartnerCalculations;
   actions: any;
 }
 
-export function SettleDashboard({ data, onBulkSettle, partnerCalculations, actions }: Props) {
+export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, actions }: Props) {
   const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -49,7 +50,7 @@ export function SettleDashboard({ data, onBulkSettle, partnerCalculations, actio
                 <td style={{ padding: '9px 12px' }}><input type="checkbox" checked={selected.has(e.id)} onChange={() => toggle(e.id)} style={{ cursor: 'pointer', accentColor: color }} /></td>
                 <td style={{ padding: '9px 12px', color: C.text2 }}>{e.date}</td>
                 <td style={{ padding: '9px 12px', color: C.text1 }}>{e.category}</td>
-                <td style={{ padding: '9px 12px', color: C.textW, fontWeight: 700 }}>{fmt(e.amount, data.settings.currency)}</td>
+                <td style={{ padding: '9px 12px', color: C.textW, fontWeight: 700 }}>{fmt(e.amount)}</td>
                 <td style={{ padding: '9px 12px', color: C.muted }}>{e.note || '—'}</td>
               </tr>
             ))}
@@ -62,8 +63,8 @@ export function SettleDashboard({ data, onBulkSettle, partnerCalculations, actio
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <StatCard label={`${names.a} — Pending`} value={fmt(totalA, data.settings.currency)} accent={C.purple} icon="👤" sub={`${pendingA.length} transactions`} />
-        <StatCard label={`${names.b} — Pending`} value={fmt(totalB, data.settings.currency)} accent={C.blue} icon="👤" sub={`${pendingB.length} transactions`} />
+        <StatCard label={`${names.a} — Pending`} value={fmt(totalA)} accent={C.purple} icon="👤" sub={`${pendingA.length} transactions`} />
+        <StatCard label={`${names.b} — Pending`} value={fmt(totalB)} accent={C.blue} icon="👤" sub={`${pendingB.length} transactions`} />
       </div>
 
       {/* Partner-to-partner track */}
@@ -134,7 +135,7 @@ export function SettleDashboard({ data, onBulkSettle, partnerCalculations, actio
                 <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>{e.date}</span>
                 {e.settledFor && <Badge color={C.teal} style={{ marginLeft: 8 }}>↩ {e.settledFor === 'Partner A' ? names.a : names.b}</Badge>}
               </div>
-              <span style={{ color: C.green, fontWeight: 700 }}>{fmt(e.amount, data.settings.currency)}</span>
+              <span style={{ color: C.green, fontWeight: 700 }}>{fmt(e.amount)}</span>
             </div>
           ));
         })()}

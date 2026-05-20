@@ -8,10 +8,11 @@ import { C } from '@/constants';
 function today() { return new Date().toISOString().slice(0, 10); }
 function monthKey(d: string) { const dt = new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; }
 function monthLabel(key: string) { if (!key || key === 'All') return 'All Months'; const [y,m]=key.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-IN',{month:'short',year:'numeric'}); }
-function fmt(n: number, cur = 'INR') { return new Intl.NumberFormat('en-IN',{style:'currency',currency:cur,maximumFractionDigits:0}).format(n||0); }
+// fmt is received as a prop from page.tsx so privacy mode is respected globally
 
 interface Props {
   data: AppData;
+  fmt: (n: number) => string;
   onToggleToSettle: (id: string) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, u: any) => void;
@@ -24,7 +25,7 @@ interface Props {
   onDuplicate: (e: any) => void;
 }
 
-export function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onUnsettle, onBulkDelete, onDuplicate, onBulkFlagToSettle, onBulkMarkAsSettled, onBulkAssignToAccount, onTriggerEdit }: Props) {
+export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, onUnsettle, onBulkDelete, onDuplicate, onBulkFlagToSettle, onBulkMarkAsSettled, onBulkAssignToAccount, onTriggerEdit }: Props) {
   const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
   const mk = monthKey(today());
   const [filter, setFilter] = useState({ month: mk, account: 'All', category: 'All', type: 'All', settled: 'All' });
@@ -151,7 +152,7 @@ export function ExpenseList({ data, onToggleToSettle, onDelete, onUpdate, onUnse
                       {e.isRecurring && <span title={`Recurring: ${e.recurrenceInterval}`} style={{ marginLeft: 6, color: C.amber, fontSize: 13 }}>🔄</span>}
                     </td>
                     <td style={{ padding: '10px 14px', color: C.text1 }}>{e.category}</td>
-                    <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>{e.type === 'income' ? '+' : ''}{fmt(e.amount, data.settings.currency)}</td>
+                    <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>{e.type === 'income' ? '+' : ''}{fmt(e.amount)}</td>
                     <td style={{ padding: '10px 14px' }}>{accountBadge(e.account)}</td>
                     <td style={{ padding: '10px 14px' }}>
                       {e.type === 'income' ? (

@@ -388,6 +388,7 @@ export default function App() {
           {view === 'expenses' && (
             <ExpenseList
               data={data}
+              fmt={fmt$}
               onToggleToSettle={actions.toggleToSettle}
               onDelete={actions.deleteExpense}
               onUpdate={actions.updateExpense}
@@ -409,7 +410,7 @@ export default function App() {
             />
           )}
           {view === 'settle' && mode !== 'solo' && (
-            <SettleDashboard data={data} onBulkSettle={actions.bulkSettle} partnerCalculations={partnerCalculations} actions={actions} />
+            <SettleDashboard data={data} fmt={fmt$} onBulkSettle={actions.bulkSettle} partnerCalculations={partnerCalculations} actions={actions} />
           )}
           {view === 'contributions' && mode === 'joint' && (
             <Contributions data={data} onUpdate={actions.updateContrib} fmt={fmt$} />
