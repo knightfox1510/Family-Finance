@@ -50,18 +50,8 @@ function ACCOUNT_TYPES(names: { a: string; b: string }) {
   return ['Joint', names.a, names.b];
 }
 const MONTHS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
 const DEFAULT_SETTINGS = {
@@ -80,15 +70,12 @@ const DEFAULT_SETTINGS = {
   currency: 'INR',
 };
 
-// 🔥 PRIVACY MATRIX: Application-wide tracking token
 let GLOBAL_PRIVACY_MASK = false;
 
 function fmt(n: number, currency: string = 'INR') {  
-  // ⚡ If privacy mode is flipped, hide the actual values behind secure dots
   if (GLOBAL_PRIVACY_MASK) {
     return currency === 'INR' ? '₹ ••••' : '••••';
   }
-
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency,
@@ -109,19 +96,16 @@ function monthLabel(key: string) {
   return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 }
 function uid() {
-  // Safe for both Server-Side Pre-rendering and Browser execution
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
     return window.crypto.randomUUID();
   }
-  // Fallback string generator if executed on Vercel's build server
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
-// ─── Seed data ────────────────────────────────────────────────────────────────
 function seedData() {
   const mk = monthKey(today());
   return {
-    expenses: [] as any[], // Start with a completely clean slate!
+    expenses: [] as any[], 
     contributions: [{ id: uid(), month: mk, partnerA: 0, partnerB: 0 }],
     goals: [] as any[],
     loans: [] as any[],
@@ -131,126 +115,120 @@ function seedData() {
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 async function loadData(userId: string) {
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('household_id')
-        .eq('id', userId)
-        .single();
-      if (!profile) throw new Error('Profile not found');
-      const hId = profile.household_id;
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('household_id')
+      .eq('id', userId)
+      .single();
+    if (!profile) return { isNewUser: true };
+    
+    const hId = profile.household_id;
+    if (!hId) return { isNewUser: true };
 
-      // ⚡ Pagination Engine
-      let allTransactions: any[] = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
+    let allTransactions: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-      while (hasMore) {
-        const { data: txChunk, error: txError } = await supabase
-          .from('transactions')
-          .select('*')
-          .eq('household_id', hId)
-          .order('date', { ascending: false })
-          .order('id', { ascending: true }) 
-          .range(page * pageSize, (page + 1) * pageSize - 1);
+    while (hasMore) {
+      const { data: txChunk, error: txError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('household_id', hId)
+        .order('date', { ascending: false })
+        .order('id', { ascending: true }) 
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-        if (txError) throw txError;
+      if (txError) throw txError;
 
-        if (!txChunk || txChunk.length === 0) {
+      if (!txChunk || txChunk.length === 0) {
+        hasMore = false;
+      } else {
+        allTransactions = [...allTransactions, ...txChunk];
+        if (txChunk.length < pageSize) {
           hasMore = false;
         } else {
-          allTransactions = [...allTransactions, ...txChunk];
-          if (txChunk.length < pageSize) {
-            hasMore = false;
-          } else {
-            page++;
-          }
+          page++;
         }
       }
+    }
 
-      // 1. Fetch data arrays in parallel
-      const [gl, ln, cb, st, currentProfileRow] = await Promise.all([
-        supabase.from('goals').select('*').eq('household_id', hId),
-        supabase.from('loans').select('*').eq('household_id', hId),
-        supabase.from('contributions').select('*').eq('household_id', hId),
-        supabase.from('household_settings').select('*').eq('household_id', hId),
-        supabase.from('profiles').select('telegram_username, display_name').eq('id', userId).single()
-      ]);
+    const [gl, ln, cb, st, currentProfileRow] = await Promise.all([
+      supabase.from('goals').select('*').eq('household_id', hId),
+      supabase.from('loans').select('*').eq('household_id', hId),
+      supabase.from('contributions').select('*').eq('household_id', hId),
+      supabase.from('household_settings').select('*').eq('household_id', hId),
+      supabase.from('profiles').select('telegram_username, display_name').eq('id', userId).single()
+    ]);
 
-      // 2. Safe in-memory sorting for configs
-      let cloudSettingsRow = null;
-      if (st.data && st.data.length > 0) {
-        const sortedSettings = [...st.data].sort((a: any, b: any) => {
-          if (a.created_at && b.created_at) {
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-          }
-          return 0;
-        });
-        cloudSettingsRow = sortedSettings[0] || st.data[st.data.length - 1];
-      }
-      
-      // 3. Defensive JSON Unpacker
-      let unpackedSettings: any = {};
-      if (cloudSettingsRow) {
-        if (cloudSettingsRow.settings_data) {
-          if (typeof cloudSettingsRow.settings_data === 'string') {
-            try {
-              unpackedSettings = JSON.parse(cloudSettingsRow.settings_data);
-            } catch (e) {
-              unpackedSettings = {};
-            }
-          } else {
-            unpackedSettings = cloudSettingsRow.settings_data;
+    let cloudSettingsRow = null;
+    if (st.data && st.data.length > 0) {
+      const sortedSettings = [...st.data].sort((a: any, b: any) => {
+        if (a.created_at && b.created_at) {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        return 0;
+      });
+      cloudSettingsRow = sortedSettings[0] || st.data[st.data.length - 1];
+    }
+    
+    let unpackedSettings: any = {};
+    if (cloudSettingsRow) {
+      if (cloudSettingsRow.settings_data) {
+        if (typeof cloudSettingsRow.settings_data === 'string') {
+          try {
+            unpackedSettings = JSON.parse(cloudSettingsRow.settings_data);
+          } catch (e) {
+            unpackedSettings = {};
           }
         } else {
-          unpackedSettings = cloudSettingsRow;
+          unpackedSettings = cloudSettingsRow.settings_data;
         }
+      } else {
+        unpackedSettings = cloudSettingsRow;
       }
+    }
+    
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      ...unpackedSettings,
+      partnerAName: unpackedSettings.partnerAName || unpackedSettings.partner_a_name || unpackedSettings.partnerA || 'Partner A',
+      partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
+      expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.expense_categories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
+      incomeCategories: unpackedSettings.incomeCategories || unpackedSettings.income_categories || DEFAULT_SETTINGS.incomeCategories,
+      budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {},
+      telegramUsername: currentProfileRow.data?.telegram_username || unpackedSettings.telegramUsername || ''
+    };
+
+    const toUI = (val: string) => {
+      if (!val) return '';
+      if (val === 'Partner A') return settings.partnerAName;
+      if (val === 'Partner B') return settings.partnerBName;
+      return val;
+    };
+
+    const formattedData = {
+      householdId: hId,
+      categories: settings.expenseCategories, 
+      partnerAName: settings.partnerAName,
+      partnerBName: settings.partnerBName,
+      currentUserRole: currentProfileRow.data?.display_name || 'Partner A',
+      settings: settings, 
       
-      // 4. ✨ BUILD THE SETTINGS ENTITY
-      const settings = {
-        ...DEFAULT_SETTINGS,
-        ...unpackedSettings,
-        partnerAName: unpackedSettings.partnerAName || unpackedSettings.partner_a_name || unpackedSettings.partnerA || 'Partner A',
-        partnerBName: unpackedSettings.partnerBName || unpackedSettings.partner_b_name || unpackedSettings.partnerB || 'Partner B',
-        expenseCategories: unpackedSettings.expenseCategories || unpackedSettings.expense_categories || unpackedSettings.categories || DEFAULT_SETTINGS.expenseCategories,
-        incomeCategories: unpackedSettings.incomeCategories || unpackedSettings.income_categories || DEFAULT_SETTINGS.incomeCategories,
-        budgets: unpackedSettings.budgets || DEFAULT_SETTINGS.budgets || {},
-        telegramUsername: currentProfileRow.data?.telegram_username || unpackedSettings.telegramUsername || ''
-      };
-
-      // 🛠️ HOISTED TRANSLATION HELPER
-      // Placed exactly here so it reads 'settings' correctly and is ready before 'formattedData'
-      const toUI = (val: string) => {
-        if (!val) return '';
-        if (val === 'Partner A') return settings.partnerAName;
-        if (val === 'Partner B') return settings.partnerBName;
-        return val;
-      };
-
-      // 5. 🎯 TRANSFORMS CLOUD DATA FOR APPLICATION RADAR UI
-      const formattedData = {
-        householdId: hId,
-        categories: settings.expenseCategories, 
-        partnerAName: settings.partnerAName,
-        partnerBName: settings.partnerBName,
-        currentUserRole: currentProfileRow.data?.display_name || 'Partner A',
-        settings: settings, 
-        
-        expenses: allTransactions.map((r: any) => ({
-          id: r.id,
-          date: r.date,
-          amount: r.amount,
-          category: r.category,
-          type: r.type,
-          account: toUI(r.account_used), 
-          addedBy: toUI(r.added_by),     
-          note: r.note,
-          toSettle: r.to_settle === true || r.to_settle === 'true' || r.to_settle === 'Yes',
-          settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
-          settledFor: toUI(r.settled_with), 
-        })),
+      expenses: allTransactions.map((r: any) => ({
+        id: r.id,
+        date: r.date,
+        amount: r.amount,
+        category: r.category,
+        type: r.type,
+        account: toUI(r.account_used), 
+        addedBy: toUI(r.added_by),     
+        note: r.note,
+        toSettle: r.to_settle === true || r.to_settle === 'true' || r.to_settle === 'Yes',
+        settled: r.settled === true || r.settled === 'true' || r.settled === 'Yes',
+        settledFor: toUI(r.settled_with), 
+      })),
       
       goals: (gl.data || []).map((r: any) => {
         const targetAmt = Number(r.target_amount || 0);
@@ -264,12 +242,12 @@ async function loadData(userId: string) {
         const shortfallA = Math.max(0, pATarget - pACurrent);
         const shortfallB = Math.max(0, pBTarget - pBCurrent);
 
-        const today = new Date();
+        const todayDate = new Date();
         const targetDate = r.target_date ? new Date(r.target_date) : null;
         
         let monthsRemaining = 0;
-        if (targetDate && targetDate > today) {
-          monthsRemaining = (targetDate.getFullYear() - today.getFullYear()) * 12 + (targetDate.getMonth() - today.getMonth());
+        if (targetDate && targetDate > todayDate) {
+          monthsRemaining = (targetDate.getFullYear() - todayDate.getFullYear()) * 12 + (targetDate.getMonth() - todayDate.getMonth());
           if (monthsRemaining <= 0) monthsRemaining = 1;
         }
 
@@ -342,7 +320,7 @@ const C = {
 };
 
 function Card({ children, style = {} }: { children: React.ReactNode; style?: any }) {
-    return (
+  return (
     <div
       style={{
         background: C.surface,
@@ -471,6 +449,7 @@ function SectionTitle({ children, style = {} }: { children: React.ReactNode; sty
         fontWeight: 700,
         margin: '0 0 16px',
         letterSpacing: -0.3,
+        ...style,
       }}
     >
       {children}
@@ -520,7 +499,7 @@ function Toggle({ checked, onChange, label }: any) {
           style={{
             position: 'absolute',
             cursor: 'pointer',
-            top: 0,left: 0, right: 0, bottom: 0,
+            top: 0, left: 0, right: 0, bottom: 0,
             backgroundColor: checked ? C.amber : C.border,
             transition: '0.3s',
             borderRadius: 24,
@@ -545,33 +524,13 @@ function Toggle({ checked, onChange, label }: any) {
 function StatCard({ label, value, sub, accent = C.amber, icon }: any) {
   return (
     <Card style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <span
-          style={{
-            color: C.text2,
-            fontSize: 12,
-            fontWeight: 600,
-            letterSpacing: 0.3,
-          }}
-        >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ color: C.text2, fontSize: 12, fontWeight: 600, letterSpacing: 0.3 }}>
           {label}
         </span>
         <span style={{ fontSize: 20 }}>{icon}</span>
       </div>
-      <div
-        style={{
-          color: accent,
-          fontSize: 24,
-          fontWeight: 800,
-          letterSpacing: -1,
-        }}
-      >
+      <div style={{ color: accent, fontSize: 24, fontWeight: 800, letterSpacing: -1 }}>
         {value}
       </div>
       {sub && <div style={{ color: C.muted, fontSize: 12 }}>{sub}</div>}
@@ -596,7 +555,6 @@ const NAV = [
 // ─── EXPORT HELPER ────────────────────────────────────────────────────────────
 function exportToExcel(data: any) {
   const wb = XLSX.utils.book_new();
-  // Expenses sheet
   const expRows = data.expenses.map((e: any) => ({
     ID: e.id,
     Date: e.date,
@@ -610,24 +568,16 @@ function exportToExcel(data: any) {
     Settled: e.settled ? 'Yes' : 'No',
     'Settled For': e.settledFor || '',
   }));
-  XLSX.utils.book_append_sheet(
-    wb,
-    XLSX.utils.json_to_sheet(expRows),
-    'Expenses'
-  );
-  // Contributions
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(expRows), 'Expenses');
+
   const cRows = data.contributions.map((c: any) => ({
     Month: c.month,
     'Partner A': c.partnerA,
     'Partner B': c.partnerB,
     Total: c.partnerA + c.partnerB,
   }));
-  XLSX.utils.book_append_sheet(
-    wb,
-    XLSX.utils.json_to_sheet(cRows),
-    'Contributions'
-  );
-  // Goals
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cRows), 'Contributions');
+
   const gRows = data.goals.map((g: any) => ({
     Name: g.name,
     Target: g.target,
@@ -635,7 +585,7 @@ function exportToExcel(data: any) {
     'Progress %': ((g.current / g.target) * 100).toFixed(1),
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gRows), 'Goals');
-  // Loans
+
   const lRows = data.loans.map((l: any) => ({
     Name: l.name,
     Lender: l.lender,
@@ -662,46 +612,26 @@ function parseImport(file: any, callback: any) {
         return sh ? XLSX.utils.sheet_to_json(sh) : [];
       };
 
-      // ⚡ UPGRADED RESILIENT DATE PARSER ENGINE
       const normalizeDate = (val: any) => {
         if (!val) return today();
-        
-        // 1. Handle numeric Excel date serial integers (e.g., 45658)
         if (!isNaN(val) && Number(val) > 30000) {
           const d = new Date((Number(val) - 25569) * 86400 * 1000);
           return d.toISOString().slice(0, 10);
         }
-        
-        // 2. Handle text strings containing regional variations (e.g., "25/1/2025" or "25-01-2025")
         const str = String(val).trim();
-        const parts = str.split(/[-/]/); // Splits cleanly across slashes or dashes
-
+        const parts = str.split(/[-/]/);
         if (parts.length === 3) {
-          // Case A: Format is already YYYY-MM-DD or YYYY/MM/DD
           if (parts[0].length === 4) {
-            const y = parts[0];
-            const m = parts[1].padStart(2, '0');
-            const d = parts[2].padStart(2, '0');
-            return `${y}-${m}-${d}`;
-          } 
-          // Case B: Format is regional like DD/MM/YYYY or D/M/YYYY
-          else if (parts[2].length === 4) {
-            const d = parts[0].padStart(2, '0');
-            const m = parts[1].padStart(2, '0');
-            const y = parts[2];
-            return `${y}-${m}-${d}`;
+            return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+          } else if (parts[2].length === 4) {
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
           }
         }
-        
-        // 3. Absolute native Javascript parser fallback for unconventional string patterns
         try {
           const parsed = new Date(str);
-          if (!isNaN(parsed.getTime())) {
-            return parsed.toISOString().slice(0, 10);
-          }
+          if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
         } catch (err) {}
-
-        return str; // Return fallback text if completely unparseable
+        return str;
       };
       
       const expenses = getSheet('Expenses').map((r: any) => {
@@ -711,11 +641,8 @@ function parseImport(file: any, callback: any) {
         });
 
         const rawType = row.type ? String(row.type).toLowerCase().trim() : 'expense';
-
-        // Extract the true account value from your lowercase key columns map
         const activeAccountVal = row.accountused || row.account || 'Joint';
 
-        // Standardize the capitalization formatting to match what your views expect
         let formattedAccount = 'Joint';
         if (activeAccountVal.toLowerCase() === 'partner a' || activeAccountVal.toLowerCase() === 'partnera') formattedAccount = 'Partner A';
         if (activeAccountVal.toLowerCase() === 'partner b' || activeAccountVal.toLowerCase() === 'partnerb') formattedAccount = 'Partner B';
@@ -753,53 +680,40 @@ function parseImport(file: any, callback: any) {
       callback(null, 'Failed to parse file: ' + err.message);
     }
   };
-  
   reader.readAsArrayBuffer(file);
 }
 
+// ─── INCOME TRACKER ───────────────────────────────────────────────────────────
 function IncomeTracker({ data }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
   };
 
-  // ⚡ Requirement 1: Set 'CurrentYear' as the absolute default state view
   const [timeFilter, setTimeFilter] = useState<string>('CurrentYear');
-  // ⚡ Requirement 4: Added Earner/Partner state filter selection logic
   const [earnerFilter, setEarnerFilter] = useState<string>('All');
-
   const currentYearStr = String(new Date().getFullYear());
 
-  // Gather unique months present in dataset
   const allAvailableMonths = data.expenses
     .map((e: any) => monthKey(e.date))
     .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
     .sort()
     .reverse();
 
-  // ⚡ Apply Master Filter Pipeline
   const periodInflows = data.expenses.filter((e: any) => {
-    // Isolate income inflows only
     if (e.type !== 'income') return false;
-
-    // A. Apply Time Boundary Filter Scopes
     if (timeFilter === 'CurrentYear') {
       if (!e.date.startsWith(currentYearStr)) return false;
     } else if (timeFilter !== 'All') {
       if (monthKey(e.date) !== timeFilter) return false;
     }
-
-    // B. Apply Earner Signature Check filters
     const isA = e.addedBy === 'Partner A' || e.account === names.a;
     const isB = e.addedBy === 'Partner B' || e.account === names.b;
-
     if (earnerFilter === 'PartnerA' && !isA) return false;
     if (earnerFilter === 'PartnerB' && !isB) return false;
-
     return true;
   });
 
-  // Calculate Aggregates for Metrics Panel cards
   const totalIncome = periodInflows.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
   const incomeA = periodInflows
     .filter((e: any) => e.addedBy === 'Partner A' || e.account === names.a)
@@ -808,7 +722,6 @@ function IncomeTracker({ data }: any) {
     .filter((e: any) => e.addedBy === 'Partner B' || e.account === names.b)
     .reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
 
-  // Group by Income Streams Categories
   const categoryMap = {} as Record<string, number>;
   periodInflows.forEach((e: any) => {
     categoryMap[e.category] = (categoryMap[e.category] || 0) + e.amount;
@@ -816,15 +729,11 @@ function IncomeTracker({ data }: any) {
   const sortedCategories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
   const maxCategoryValue = sortedCategories[0]?.[1] || 1;
 
-  // ⚡ Requirement 3: Build Trend Datastructure Matrix for Multi-Month selection
   const showTrendWidget = timeFilter === 'CurrentYear' || timeFilter === 'All';
   
   const trendData = [...allAvailableMonths]
-    .reverse() // Display chronological flow from left to right
-    .filter(mKey => {
-      if (timeFilter === 'CurrentYear') return mKey.startsWith(currentYearStr);
-      return true;
-    })
+    .reverse()
+    .filter(mKey => timeFilter !== 'CurrentYear' || mKey.startsWith(currentYearStr))
     .map(mKey => {
       const monthTotal = data.expenses
         .filter((e: any) => e.type === 'income' && monthKey(e.date) === mKey && (
@@ -837,71 +746,32 @@ function IncomeTracker({ data }: any) {
     });
 
   const maxTrendValue = trendData.reduce((max, m) => m.total > max ? m.total : max, 1);
-
-  const selStyle = {
-    background: C.bg,
-    border: `1px solid ${C.border}`,
-    color: C.text1,
-    padding: '6px 12px',
-    borderRadius: 8,
-    fontSize: 13,
-    cursor: 'pointer',
-    outline: 'none'
-  };
+  const selStyle = { background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', outline: 'none' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      
-      {/* FILTER PANEL HEADER CONTROLS */}
       <Card style={{ padding: '12px 18px', display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'space-between', alignItems: 'center' }}>
         <SectionTitle style={{ margin: 0 }}>💰 Income & Inflow Dashboard</SectionTitle>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          
-          {/* Earner Split Select Element Dropdown */}
           <select value={earnerFilter} onChange={(e) => setEarnerFilter(e.target.value)} style={selStyle}>
             <option value="All">Both Partners Combined</option>
             <option value="PartnerA">{names.a} Only</option>
             <option value="PartnerB">{names.b} Only</option>
           </select>
-
-          {/* Time View Select Element Dropdown */}
           <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={selStyle}>
-            {/* ⚡ Requirement 2: Inject explicit collective grouping target nodes */}
             <option value="CurrentYear">Current Year ({currentYearStr})</option>
             <option value="All">All Months History</option>
-            {allAvailableMonths.map((m: any) => (
-              <option key={m} value={m}>{monthLabel(m)}</option>
-            ))}
+            {allAvailableMonths.map((m: any) => <option key={m} value={m}>{monthLabel(m)}</option>)}
           </select>
         </div>
       </Card>
 
-      {/* TOP LINE METRICS PANEL */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        <StatCard
-          label="Total Net Inflow Pool"
-          value={fmt(totalIncome, data.settings.currency)}
-          accent={C.green}
-          icon="🏦"
-          sub={`Accumulated earnings for selection`}
-        />
-        <StatCard
-          label={`${names.a}'s Allocation`}
-          value={fmt(incomeA, data.settings.currency)}
-          accent={C.purple}
-          icon="👨‍💻"
-          sub={`Share: ${totalIncome > 0 ? ((incomeA / totalIncome) * 100).toFixed(0) : 0}% of net pool`}
-        />
-        <StatCard
-          label={`${names.b}'s Allocation`}
-          value={fmt(incomeB, data.settings.currency)}
-          accent={C.blue}
-          icon="👩‍💻"
-          sub={`Share: ${totalIncome > 0 ? ((incomeB / totalIncome) * 100).toFixed(0) : 0}% of net pool`}
-        />
+        <StatCard label="Total Net Inflow Pool" value={fmt(totalIncome, data.settings.currency)} accent={C.green} icon="🏦" sub="Accumulated earnings for selection" />
+        <StatCard label={`${names.a}'s Allocation`} value={fmt(incomeA, data.settings.currency)} accent={C.purple} icon="👨‍💻" sub={`Share: ${totalIncome > 0 ? ((incomeA / totalIncome) * 100).toFixed(0) : 0}% of net pool`} />
+        <StatCard label={`${names.b}'s Allocation`} value={fmt(incomeB, data.settings.currency)} accent={C.blue} icon="👩‍💻" sub={`Share: ${totalIncome > 0 ? ((incomeB / totalIncome) * 100).toFixed(0) : 0}% of net pool`} />
       </div>
 
-      {/* ⚡ Requirement 3: Conditional Monthly Trend Chart Rendering Card */}
       {showTrendWidget && trendData.length > 0 && (
         <Card>
           <SectionTitle>Monthly Inflow Velocity Trend Timeline</SectionTitle>
@@ -933,10 +803,7 @@ function IncomeTracker({ data }: any) {
         </Card>
       )}
 
-      {/* DATA CATEGORIES AND HISTORICAL AUDIT LIST TABLES */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-        
-        {/* Source Distribution Card */}
         <Card>
           <SectionTitle>Income Streams Breakdown</SectionTitle>
           {sortedCategories.length === 0 ? (
@@ -956,7 +823,6 @@ function IncomeTracker({ data }: any) {
           )}
         </Card>
 
-        {/* Audit Log Card */}
         <Card style={{ display: 'flex', flexDirection: 'column' }}>
           <SectionTitle>Inflow Audit Ledgers</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12, maxHeight: 280, overflowY: 'auto', paddingRight: 4 }}>
@@ -966,18 +832,7 @@ function IncomeTracker({ data }: any) {
               periodInflows.map((e: any) => {
                 const earnerLabel = e.account === 'Joint' ? 'Joint Account' : `${e.account} Personal`;
                 return (
-                  <div
-                    key={e.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      background: `${C.bg}80`,
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      border: `1px solid ${C.border}`,
-                    }}
-                  >
+                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${C.bg}80`, padding: '10px 12px', borderRadius: 8, border: `1px solid ${C.border}` }}>
                     <div>
                       <div style={{ color: C.textW, fontSize: 13, fontWeight: 600 }}>{e.note || 'Uncategorized Salary Deposit'}</div>
                       <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>
@@ -998,8 +853,7 @@ function IncomeTracker({ data }: any) {
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({ data, onAddExpense }: any) {
-  const [showAudit, setShowAudit] = useState(false); // ⚡ The Audit Modal Toggle
-
+  const [showAudit, setShowAudit] = useState(false);
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
@@ -1012,7 +866,6 @@ function Dashboard({ data, onAddExpense }: any) {
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
   const defaultStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
   const [customDates, setCustomDates] = useState({ start: defaultStart, end: today() });
-  
   const [accountFilter, setAccountFilter] = useState<string>('All');
 
   const allAvailableMonths = data.expenses
@@ -1021,27 +874,15 @@ function Dashboard({ data, onAddExpense }: any) {
     .sort()
     .reverse();
 
-  // 1. ALL-TIME CAPITAL METRICS & POOL SANITIZATION
   const uniqueContributions: any[] = Array.from(
     new Map(data.contributions.map((c: any) => [c.month, c])).values()
   ) as any[];
 
-  const allTimePool = uniqueContributions.reduce(
-    (sum: number, c: any) => sum + Number(c.partnerA || 0) + Number(c.partnerB || 0), 
-    0
-  );
-
-  const allTimeJointIncome = data.expenses
-    .filter((e: any) => e.account === 'Joint' && e.type === 'income')
-    .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
-
-  const allTimeJointSpent = data.expenses
-    .filter((e: any) => e.account === 'Joint' && e.type !== 'income')
-    .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
-  
+  const allTimePool = uniqueContributions.reduce((sum: number, c: any) => sum + Number(c.partnerA || 0) + Number(c.partnerB || 0), 0);
+  const allTimeJointIncome = data.expenses.filter((e: any) => e.account === 'Joint' && e.type === 'income').reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+  const allTimeJointSpent = data.expenses.filter((e: any) => e.account === 'Joint' && e.type !== 'income').reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
   const currentJointBalance = allTimePool + allTimeJointIncome - allTimeJointSpent;
 
-  // Isolated Period Joint Spend Engine
   const periodJointSpent = data.expenses
     .filter((e: any) => {
       if (rangeMode === 'month') {
@@ -1053,10 +894,8 @@ function Dashboard({ data, onAddExpense }: any) {
     })
     .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
-  // Active Scope Joint Account Contribution Extraction Engine
   let contribA = 0;
   let contribB = 0;
-
   if (rangeMode === 'month') {
     const periodContrib: any = uniqueContributions.find((c: any) => c.month === selectedMonth);
     if (periodContrib) {
@@ -1071,11 +910,6 @@ function Dashboard({ data, onAddExpense }: any) {
     contribB = overlappingContribs.reduce((sum: number, c: any) => sum + Number(c.partnerB || 0), 0);
   }
 
-  const allTimeInvested = data.expenses
-    .filter((e: any) => (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') && e.type !== 'income')
-    .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
-
-  // 2. TWIN RUN RATE ROLLING ENGINES
   const last6Months = Array.from({ length: 6 }).map((_, i) => {
     const target = new Date();
     target.setMonth(target.getMonth() - i);
@@ -1098,22 +932,18 @@ function Dashboard({ data, onAddExpense }: any) {
   });
   const maxInvestmentTrend = investmentTrendData.reduce((max, m) => m.total > max ? m.total : max, 1);
 
-  // 3. APPLY ACTIVE COMBINED ACCOUNT FILTER CRITERIA
   const filteredExp = data.expenses.filter((e: any) => {
     if (rangeMode === 'month') {
       if (monthKey(e.date) !== selectedMonth) return false;
     } else {
       if (e.date < customDates.start || e.date > customDates.end) return false;
     }
-    
     if (accountFilter === 'PersonalOnly') {
       if (e.account === 'Joint') return false;
     } else if (accountFilter !== 'All' && e.account !== accountFilter) {
       return false;
     }
-    
-    if (e.type === 'income') return false;
-    return true;
+    return e.type !== 'income';
   });
 
   const periodIncome = data.expenses.filter((e: any) => {
@@ -1130,60 +960,31 @@ function Dashboard({ data, onAddExpense }: any) {
     return e.type === 'income';
   }).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
 
-  const periodInvested = filteredExp
-    .filter((e: any) => e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance')
-    .reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+  const periodInvested = filteredExp.filter((e: any) => e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance').reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+  const trueLifestyleExpenses = filteredExp.reduce((s: number, e: any) => s + Number(e.amount || 0), 0) - periodInvested;
 
-  const totalPeriodRawExpenses = filteredExp.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
-  const trueLifestyleExpenses = totalPeriodRawExpenses - periodInvested;
-
-  const allocation: Record<string, number> = {
-    'Mutual Funds / SIP': 0,
-    'Smallcase': 0,
-    'Stocks / US Equity': 0,
-    'Gold / Precious Metals': 0,
-    'PPF': 0,
-    'NPS': 0,
-    'Crypto': 0,
-    'Insurance Policies': 0,
-    'Other Assets': 0
-  };
-
+  const allocation: Record<string, number> = { 'Mutual Funds / SIP': 0, 'Smallcase': 0, 'Stocks / US Equity': 0, 'Gold / Precious Metals': 0, 'PPF': 0, 'NPS': 0, 'Crypto': 0, 'Insurance Policies': 0, 'Other Assets': 0 };
   filteredExp.forEach((e: any) => {
     if (e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance') {
       const noteTxt = (e.note || '').toLowerCase();
-      if (e.category === 'Insurance' || noteTxt.includes('lic') || noteTxt.includes('insurance')) {
-        allocation['Insurance Policies'] += Number(e.amount || 0);
-      } else if (noteTxt.includes('smallcase')) {
-        allocation['Smallcase'] += Number(e.amount || 0);
-      } else if (noteTxt.includes('nj')) {
-        allocation['Mutual Funds / SIP'] += Number(e.amount || 0);
-      } else if (noteTxt.includes('gold') || noteTxt.includes('sgb') || noteTxt.includes('bluestone') || noteTxt.includes('png') || noteTxt.includes('waman')) {
-        allocation['Gold / Precious Metals'] += Number(e.amount || 0);
-      } else if (noteTxt.includes('stock') || noteTxt.includes('equity') || noteTxt.includes('share') || noteTxt.includes('zerodha') || noteTxt.includes('indmoney') || noteTxt.includes('ind money')) {
-        allocation['Stocks / US Equity'] += Number(e.amount || 0);
-      } else if (noteTxt.includes('ppf')) {
-        allocation['PPF'] += Number(e.amount || 0);
-      } else if (noteTxt.includes('nps')) {
-        allocation['NPS'] += Number(e.amount || 0);
-      } else if (noteTxt.includes('crypto') || noteTxt.includes('bitcoin') || noteTxt.includes('btc')) {
-        allocation['Crypto'] += Number(e.amount || 0);
-      } else if (noteTxt.includes('mutual') || noteTxt.includes('mf') || noteTxt.includes('sip')) {
-        allocation['Mutual Funds / SIP'] += Number(e.amount || 0);
-      } else {
-        allocation['Other Assets'] += Number(e.amount || 0);
-      }
+      if (e.category === 'Insurance' || noteTxt.includes('lic') || noteTxt.includes('insurance')) allocation['Insurance Policies'] += Number(e.amount || 0);
+      else if (noteTxt.includes('smallcase')) allocation['Smallcase'] += Number(e.amount || 0);
+      else if (noteTxt.includes('nj')) allocation['Mutual Funds / SIP'] += Number(e.amount || 0);
+      else if (noteTxt.includes('gold') || noteTxt.includes('sgb') || noteTxt.includes('bluestone') || noteTxt.includes('png') || noteTxt.includes('waman')) allocation['Gold / Precious Metals'] += Number(e.amount || 0);
+      else if (noteTxt.includes('stock') || noteTxt.includes('equity') || noteTxt.includes('share') || noteTxt.includes('zerodha') || noteTxt.includes('indmoney') || noteTxt.includes('ind money')) allocation['Stocks / US Equity'] += Number(e.amount || 0);
+      else if (noteTxt.includes('ppf')) allocation['PPF'] += Number(e.amount || 0);
+      else if (noteTxt.includes('nps')) allocation['NPS'] += Number(e.amount || 0);
+      else if (noteTxt.includes('crypto') || noteTxt.includes('bitcoin') || noteTxt.includes('btc')) allocation['Crypto'] += Number(e.amount || 0);
+      else if (noteTxt.includes('mutual') || noteTxt.includes('mf') || noteTxt.includes('sip')) allocation['Mutual Funds / SIP'] += Number(e.amount || 0);
+      else allocation['Other Assets'] += Number(e.amount || 0);
     }
   });
-
   const maxAllocationValue = Object.values(allocation).reduce((max: number, val: number) => val > max ? val : max, 1);
 
-  // ⚡ Split Out-Of-Pocket into Lifestyle vs. Investments (Partner A)
   const personalExpA = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner A' || e.account === names.a));
   const personalInvestedA = personalExpA.filter((e: any) => e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance').reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
   const personalLifestyleA = personalExpA.reduce((s: number, e: any) => s + Number(e.amount || 0), 0) - personalInvestedA;
 
-  // ⚡ Split Out-Of-Pocket into Lifestyle vs. Investments (Partner B)
   const personalExpB = filteredExp.filter((e: any) => e.account !== 'Joint' && (e.addedBy === 'Partner B' || e.account === names.b));
   const personalInvestedB = personalExpB.filter((e: any) => e.category === 'Investment' || e.category === 'Investments' || e.category === 'Insurance').reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
   const personalLifestyleB = personalExpB.reduce((s: number, e: any) => s + Number(e.amount || 0), 0) - personalInvestedB;
@@ -1195,56 +996,33 @@ function Dashboard({ data, onAddExpense }: any) {
   filteredExp.filter((e: any) => e.category !== 'Investment' && e.category !== 'Investments' && e.category !== 'Insurance').forEach((e: any) => {
     catMap[e.category] = (catMap[e.category] || 0) + Number(e.amount || 0);
   });
-  
   const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
   const maxCat = topCats[0]?.[1] || 1;
 
   const labelStyle = { color: C.muted, fontSize: 12, fontWeight: 600, marginRight: 4 };
-  const toggleBtnStyle = (active: boolean) => ({
-    padding: '4px 10px',
-    fontSize: 12,
-    borderRadius: 6,
-    background: active ? C.amber : 'transparent',
-    color: active ? C.bg : C.text1,
-    border: 'none',
-    cursor: 'pointer',
-    fontWeight: 600,
-    transition: 'all 0.2s'
-  });
+  const toggleBtnStyle = (active: boolean) => ({ padding: '4px 10px', fontSize: 12, borderRadius: 6, background: active ? C.amber : 'transparent', color: active ? C.bg : C.text1, border: 'none', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' });
 
-  // ⚡ Generate the Month-by-Month Joint Audit Table
   const monthlyAuditMap: Record<string, { in: number; out: number }> = {};
-
   uniqueContributions.forEach((c: any) => {
     if (!monthlyAuditMap[c.month]) monthlyAuditMap[c.month] = { in: 0, out: 0 };
     monthlyAuditMap[c.month].in += Number(c.partnerA || 0) + Number(c.partnerB || 0);
   });
-
   data.expenses.filter((e: any) => e.account === 'Joint').forEach((e: any) => {
     const mk = monthKey(e.date);
     if (!monthlyAuditMap[mk]) monthlyAuditMap[mk] = { in: 0, out: 0 };
-    if (e.type === 'income') {
-      monthlyAuditMap[mk].in += Number(e.amount || 0);
-    } else {
-      monthlyAuditMap[mk].out += Number(e.amount || 0);
-    }
+    if (e.type === 'income') monthlyAuditMap[mk].in += Number(e.amount || 0);
+    else monthlyAuditMap[mk].out += Number(e.amount || 0);
   });
-
-  const monthlyAuditList = Object.entries(monthlyAuditMap)
-    .map(([month, vals]) => ({ month, ...vals, net: vals.in - vals.out }))
-    .sort((a, b) => b.month.localeCompare(a.month)); // Sorts newest months to the top
+  const monthlyAuditList = Object.entries(monthlyAuditMap).map(([month, vals]) => ({ month, ...vals, net: vals.in - vals.out })).sort((a, b) => b.month.localeCompare(a.month));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      
-      {/* FILTER CONTROL PANEL */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <Card style={{ padding: '12px 18px', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* Left Controls wrapper with responsive wrap */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ background: C.bg, padding: 3, borderRadius: 8, display: 'inline-flex', border: `1px solid ${C.border}` }}>
-              <button onClick={() => setRangeMode('month')} style={toggleBtnStyle(rangeMode === 'month' as any)}>Single Month</button>
-              <button onClick={() => setRangeMode('custom')} style={toggleBtnStyle(rangeMode === 'custom' as any)}>Custom Range</button>
+              <button onClick={() => setRangeMode('month')} style={toggleBtnStyle(rangeMode === 'month')}>Single Month</button>
+              <button onClick={() => setRangeMode('custom')} style={toggleBtnStyle(rangeMode === 'custom')}>Custom Range</button>
             </div>
             {rangeMode === 'month' ? (
               <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
@@ -1259,24 +1037,9 @@ function Dashboard({ data, onAddExpense }: any) {
             )}
           </div>
           
-          {/* Right Controls (Account Filter) with responsive max-width protection */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%', maxWidth: 'max-content' }}>
             <span style={labelStyle}>Account Filter:</span>
-            <select 
-              value={accountFilter} 
-              onChange={(e) => setAccountFilter(e.target.value)} 
-              style={{ 
-                background: C.bg, 
-                border: `1px solid ${C.border}`, 
-                color: C.text1, 
-                padding: '6px 12px', 
-                borderRadius: 8, 
-                fontSize: 13, 
-                cursor: 'pointer',
-                maxWidth: '100%', // ⚡ THE FIX: Keeps select box locked to viewport bounds on narrow viewports
-                minWidth: 0
-              }}
-            >
+            <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', maxWidth: '100%', minWidth: 0 }}>
               <option value="All">All Accounts Combined</option>
               <option value="Joint">Joint Account Only</option>
               <option value="PersonalOnly">{names.a} & {names.b} (Individual Out of Pocket)</option>
@@ -1287,33 +1050,13 @@ function Dashboard({ data, onAddExpense }: any) {
         </Card>
       </div>
 
-      {/* Core Capital Metrics Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
-        {/* ⚡ CLICKABLE JOINT BALANCE CARD */}
-        <div 
-          onClick={() => setShowAudit(true)} 
-          style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-          onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-          onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-        >
-          <StatCard
-            label="Joint Balance (Click to Audit)"
-            value={fmt(currentJointBalance, data.settings.currency)}
-            accent={currentJointBalance < 5000 ? C.red : C.green}
-            icon="💰"
-            sub={`Spent this period: ${fmt(periodJointSpent, data.settings.currency)}`}
-          />
+        <div onClick={() => setShowAudit(true)} style={{ cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+          <StatCard label="Joint Balance (Click to Audit)" value={fmt(currentJointBalance, data.settings.currency)} accent={currentJointBalance < 5000 ? C.red : C.green} icon="💰" sub={`Spent this period: ${fmt(periodJointSpent, data.settings.currency)}`} />
         </div>
-        <StatCard
-          label="Lifestyle Spending"
-          value={fmt(trueLifestyleExpenses, data.settings.currency)}
-          accent={C.amber}
-          icon="🛒"
-          sub={`Amount spent excluding monthly contribution`}
-        />
+        <StatCard label="Lifestyle Spending" value={fmt(trueLifestyleExpenses, data.settings.currency)} accent={C.amber} icon="🛒" sub="Amount spent excluding monthly contribution" />
       </div>
 
-      {/* PORTFOLIO BREAKDOWN ASSET ALLOCATION */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
         <Card>
           <SectionTitle>Asset Allocation Breakdown</SectionTitle>
@@ -1330,76 +1073,39 @@ function Dashboard({ data, onAddExpense }: any) {
           </div>
         </Card>
 
-        {/* Partner Activity & Allocation Card Widget */}
         <Card style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
             <SectionTitle>Partner Activity Breakdown</SectionTitle>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-              
-              {/* Partner A Ledger */}
               <div style={{ background: C.bg, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
                 <div style={{ color: C.purple, fontWeight: 700, fontSize: 13, marginBottom: 8, borderBottom: `1px solid ${C.border}44`, paddingBottom: 4 }}>{names.a}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
-                  <span style={{ color: C.text2 }}>Out of Pocket (Lifestyle):</span>
-                  <span style={{ fontWeight: 600, color: C.textW }}>{fmt(personalLifestyleA, data.settings.currency)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
-                  <span style={{ color: C.text2 }}>Out of Pocket (Invested):</span>
-                  <span style={{ fontWeight: 600, color: C.teal }}>{fmt(personalInvestedA, data.settings.currency)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: C.text2 }}>Joint Pool Contributed:</span>
-                  <span style={{ fontWeight: 600, color: C.green }}>{fmt(contribA, data.settings.currency)}</span>
-                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}><span style={{ color: C.text2 }}>Out of Pocket (Lifestyle):</span><span style={{ fontWeight: 600, color: C.textW }}>{fmt(personalLifestyleA, data.settings.currency)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}><span style={{ color: C.text2 }}>Out of Pocket (Invested):</span><span style={{ fontWeight: 600, color: C.teal }}>{fmt(personalInvestedA, data.settings.currency)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: C.text2 }}>Joint Pool Contributed:</span><span style={{ fontWeight: 600, color: C.green }}>{fmt(contribA, data.settings.currency)}</span></div>
               </div>
-
-              {/* Partner B Ledger */}
               <div style={{ background: C.bg, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
                 <div style={{ color: C.blue, fontWeight: 700, fontSize: 13, marginBottom: 8, borderBottom: `1px solid ${C.border}44`, paddingBottom: 4 }}>{names.b}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
-                  <span style={{ color: C.text2 }}>Out of Pocket (Lifestyle):</span>
-                  <span style={{ fontWeight: 600, color: C.textW }}>{fmt(personalLifestyleB, data.settings.currency)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
-                  <span style={{ color: C.text2 }}>Out of Pocket (Invested):</span>
-                  <span style={{ fontWeight: 600, color: C.teal }}>{fmt(personalInvestedB, data.settings.currency)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span style={{ color: C.text2 }}>Joint Pool Contributed:</span>
-                  <span style={{ fontWeight: 600, color: C.green }}>{fmt(contribB, data.settings.currency)}</span>
-                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}><span style={{ color: C.text2 }}>Out of Pocket (Lifestyle):</span><span style={{ fontWeight: 600, color: C.textW }}>{fmt(personalLifestyleB, data.settings.currency)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}><span style={{ color: C.text2 }}>Out of Pocket (Invested):</span><span style={{ fontWeight: 600, color: C.teal }}>{fmt(personalInvestedB, data.settings.currency)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span style={{ color: C.text2 }}>Joint Pool Contributed:</span><span style={{ fontWeight: 600, color: C.green }}>{fmt(contribB, data.settings.currency)}</span></div>
               </div>
-
             </div>
           </div>
-          <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '12px 4px 0' }}>
-            Reflects personal out-of-pocket spending compared to joint seed transfers.
-          </div>
+          <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '12px 4px 0' }}>Reflects personal out-of-pocket spending compared to joint seed transfers.</div>
         </Card>
       </div>
 
-      {/* LIFESTYLE RUN RATE CHART WIDGET */}
       <Card>
         <SectionTitle>Household Trend — Monthly Lifestyle Expenses</SectionTitle>
-        {/* ⚡ THE FIX: Scroll viewport containment box */}
         <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch', marginTop: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12, minWidth: 500 }}>
             {lifestyleTrendData.map((m) => {
               const barHeightPct = (m.total / maxLifestyleTrend) * 100;
               return (
                 <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 65 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
-                    {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
-                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>{m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}</div>
                   <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                    <div style={{
-                      width: '100%',
-                      height: `${Math.max(6, barHeightPct)}%`,
-                      background: `linear-gradient(to top, ${C.surface}, ${C.amber})`,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: '4px 4px 0 0',
-                      transition: 'height 0.3s ease'
-                    }} />
+                    <div style={{ width: '100%', height: `${Math.max(6, barHeightPct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.amber})`, border: `1px solid ${C.border}`, borderRadius: '4px 4px 0 0', transition: 'height 0.3s ease' }} />
                   </div>
                   <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
                 </div>
@@ -1409,28 +1115,17 @@ function Dashboard({ data, onAddExpense }: any) {
         </div>
       </Card>
 
-      {/* INVESTMENT RUN RATE CHART WIDGET */}
       <Card>
         <SectionTitle>Wealth Growth Trend — Monthly Investments & Policies</SectionTitle>
-        {/* ⚡ THE FIX: Scroll viewport containment box */}
         <div style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch', marginTop: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12, minWidth: 500 }}>
             {investmentTrendData.map((m) => {
               const barHeightPct = (m.total / maxInvestmentTrend) * 100;
               return (
                 <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 65 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>
-                    {m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}
-                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>{m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}</div>
                   <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                    <div style={{
-                      width: '100%',
-                      height: `${Math.max(6, barHeightPct)}%`,
-                      background: `linear-gradient(to top, ${C.surface}, ${C.teal})`,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: '4px 4px 0 0',
-                      transition: 'height 0.3s ease'
-                    }} />
+                    <div style={{ width: '100%', height: `${Math.max(6, barHeightPct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.teal})`, border: `1px solid ${C.border}`, borderRadius: '4px 4px 0 0', transition: 'height 0.3s ease' }} />
                   </div>
                   <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
                 </div>
@@ -1440,34 +1135,21 @@ function Dashboard({ data, onAddExpense }: any) {
         </div>
       </Card>
 
-      {/* Household Savings Velocity */}
       <Card style={{ maxWidth: '100%' }}>
         <SectionTitle>Household Wealth Retention Velocity</SectionTitle>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginTop: 10, marginBottom: 14 }}>
-          <div>
-            <span style={{ color: C.text2, fontSize: 13 }}>Income for Period:</span>
-            <div style={{ color: C.green, fontWeight: 700, fontSize: 18, marginTop: 2 }}>{fmt(periodIncome, data.settings.currency)}</div>
-          </div>
-          <div>
-            <span style={{ color: C.text2, fontSize: 13 }}>Capital Retained (Saved + Invested):</span>
-            <div style={{ color: savingsDelta >= 0 ? C.green : C.red, fontWeight: 700, fontSize: 18, marginTop: 2 }}>{fmt(savingsDelta, data.settings.currency)}</div>
-          </div>
+          <div><span style={{ color: C.text2, fontSize: 13 }}>Income for Period:</span><div style={{ color: C.green, fontWeight: 700, fontSize: 18, marginTop: 2 }}>{fmt(periodIncome, data.settings.currency)}</div></div>
+          <div><span style={{ color: C.text2, fontSize: 13 }}>Capital Retained (Saved + Invested):</span><div style={{ color: savingsDelta >= 0 ? C.green : C.red, fontWeight: 700, fontSize: 18, marginTop: 2 }}>{fmt(savingsDelta, data.settings.currency)}</div></div>
         </div>
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Net Retention Rate:</span>
-            <span style={{ fontSize: 12, color: C.textW, fontWeight: 700 }}>{savingsRate.toFixed(0)}%</span>
-          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Net Retention Rate:</span><span style={{ fontSize: 12, color: C.textW, fontWeight: 700 }}>{savingsRate.toFixed(0)}%</span></div>
           <ProgressBar pct={savingsRate} color={C.green} height={8} />
         </div>
       </Card>
 
-      {/* Target Budgets & Expense Distribution Cards */}
       <Card>
         <SectionTitle>Lifestyle Category Allocation Breakdown</SectionTitle>
-        {topCats.length === 0 && (
-          <p style={{ color: C.muted, fontSize: 13 }}>No lifestyle expenses found matching current criteria.</p>
-        )}
+        {topCats.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>No lifestyle expenses found matching current criteria.</p>}
         {topCats.map(([cat, amt]) => {
           const budget = data.settings.budgets[cat];
           const over = budget && amt > budget;
@@ -1475,9 +1157,7 @@ function Dashboard({ data, onAddExpense }: any) {
             <div key={cat} style={{ marginBottom: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{ color: C.text1, fontSize: 13 }}>{cat}</span>
-                <span style={{ color: over ? C.red : C.textW, fontSize: 13, fontWeight: 700 }}>
-                  {fmt(amt, data.settings.currency)} {over ? ' ⚠️' : ''}
-                </span>
+                <span style={{ color: over ? C.red : C.textW, fontSize: 13, fontWeight: 700 }}>{fmt(amt, data.settings.currency)} {over ? ' ⚠️' : ''}</span>
               </div>
               <ProgressBar pct={(amt / maxCat) * 100} color={over ? C.red : C.amber} />
             </div>
@@ -1485,46 +1165,17 @@ function Dashboard({ data, onAddExpense }: any) {
         })}
       </Card>
 
-      {/* ⚡ THE LEDGER AUDIT MODAL */}
       {showAudit && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex',
-          justifyContent: 'center', alignItems: 'center', padding: 20
-        }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Card style={{ width: '100%', maxWidth: 500, maxHeight: '85vh', overflowY: 'auto', position: 'relative' }}>
-            <button 
-              onClick={() => setShowAudit(false)}
-              style={{ position: 'absolute', top: 15, right: 15, background: C.surface, border: `1px solid ${C.border}`, color: C.text1, borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontWeight: 'bold' }}
-            >✕</button>
+            <button onClick={() => setShowAudit(false)} style={{ position: 'absolute', top: 15, right: 15, background: C.surface, border: `1px solid ${C.border}`, color: C.text1, borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
             <SectionTitle>Joint Balance Ledger Audit</SectionTitle>
-            <p style={{ fontSize: 13, color: C.text2, marginBottom: 20 }}>
-              This is the exact math used to calculate your All-Time Liquid Joint Balance.
-            </p>
+            <p style={{ fontSize: 13, color: C.text2, marginBottom: 20 }}>This is the exact math used to calculate your All-Time Liquid Joint Balance.</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 8, marginBottom: 8 }}><span style={{ fontWeight: 600, color: C.green }}>[+] Total Seeded Contributions</span><span style={{ fontWeight: 700, color: C.textW }}>{fmt(allTimePool, data.settings.currency)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 8, marginBottom: 8 }}><span style={{ fontWeight: 600, color: C.green }}>[+] Total Joint Income (Refunds/Interest)</span><span style={{ fontWeight: 700, color: C.textW }}>{fmt(allTimeJointIncome, data.settings.currency)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 8, marginBottom: 16 }}><span style={{ fontWeight: 600, color: C.red }}>[-] Total Joint Expenses</span><span style={{ fontWeight: 700, color: C.textW }}>{fmt(allTimeJointSpent, data.settings.currency)}</span></div>
+            <div style={{ background: C.surface, padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}><span style={{ fontWeight: 700, fontSize: 16, color: C.text1 }}>Calculated Balance:</span><span style={{ fontWeight: 800, fontSize: 20, color: currentJointBalance < 0 ? C.red : C.teal }}>{fmt(currentJointBalance, data.settings.currency)}</span></div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 8, marginBottom: 8 }}>
-              <span style={{ fontWeight: 600, color: C.green }}>[+] Total Seeded Contributions</span>
-              <span style={{ fontWeight: 700, color: C.textW }}>{fmt(allTimePool, data.settings.currency)}</span>
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 8, marginBottom: 8 }}>
-              <span style={{ fontWeight: 600, color: C.green }}>[+] Total Joint Income (Refunds/Interest)</span>
-              <span style={{ fontWeight: 700, color: C.textW }}>{fmt(allTimeJointIncome, data.settings.currency)}</span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 8, marginBottom: 16 }}>
-              <span style={{ fontWeight: 600, color: C.red }}>[-] Total Joint Expenses</span>
-              <span style={{ fontWeight: 700, color: C.textW }}>{fmt(allTimeJointSpent, data.settings.currency)}</span>
-            </div>
-
-            <div style={{ background: C.surface, padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <span style={{ fontWeight: 700, fontSize: 16, color: C.text1 }}>Calculated Balance:</span>
-              <span style={{ fontWeight: 800, fontSize: 20, color: currentJointBalance < 0 ? C.red : C.teal }}>
-                {fmt(currentJointBalance, data.settings.currency)}
-              </span>
-            </div>
-
-            {/* ⚡ THE NEW MONTH-BY-MONTH TABLE */}
             <SectionTitle>Month-by-Month Breakdown</SectionTitle>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, marginBottom: 24 }}>
               {monthlyAuditList.map(m => (
@@ -1541,18 +1192,11 @@ function Dashboard({ data, onAddExpense }: any) {
 
             <SectionTitle>Recent Joint Outflows</SectionTitle>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
-              {data.expenses
-                .filter((e: any) => e.account === 'Joint' && e.type !== 'income')
-                .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                .slice(0, 15)
-                .map((e: any) => (
-                  <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '6px 0', borderBottom: `1px solid ${C.border}55` }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ color: C.text1 }}>{e.category}</span>
-                      <span style={{ color: C.muted, fontSize: 11 }}>{e.date} • {e.note || 'No note'}</span>
-                    </div>
-                    <span style={{ color: C.red, fontWeight: 600 }}>{fmt(e.amount, data.settings.currency)}</span>
-                  </div>
+              {data.expenses.filter((e: any) => e.account === 'Joint' && e.type !== 'income').sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 15).map((e: any) => (
+                <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '6px 0', borderBottom: `1px solid ${C.border}55` }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{ color: C.text1 }}>{e.category}</span><span style={{ color: C.muted, fontSize: 11 }}>{e.date} • {e.note || 'No note'}</span></div>
+                  <span style={{ color: C.red, fontWeight: 600 }}>{fmt(e.amount, data.settings.currency)}</span>
+                </div>
               ))}
             </div>
           </Card>
@@ -1583,10 +1227,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   const [flash, setFlash] = useState(false);
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
-  // ─── 🤖 THE TRUE MULTI-TENANT SYSTEMIC IDENTITY CHECK ───
-  // Reads directly from the validated profile record we returned in Step 2!
   const activeRole = data.currentUserRole === 'Partner B' ? 'Partner B' : 'Partner A';
-  
   const loggedInAccount = activeRole === 'Partner B' ? names.b : names.a;
   const loggedInAddedBy = activeRole === 'Partner B' ? 'Partner B' : 'Partner A';
 
@@ -1600,7 +1241,6 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
     }
   }, [duplicateData, loggedInAccount, loggedInAddedBy]);
 
-  // ⚡ FORENSICALLY ROUTED PATTERN RECOGNITION ENGINE
   const { jointPresets, personalPresets } = useMemo(() => {
     if (!data || !data.expenses || data.expenses.length === 0) {
       return { jointPresets: [], personalPresets: [] };
@@ -1615,57 +1255,33 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
       const cleanNote = e.note.trim();
       if (!cleanNote) return;
 
-      // Skip wealth accumulation, SIPs, and insurance lines from quick logs
       const catLower = e.category.toLowerCase();
-      if (catLower.includes('investment') || catLower.includes('insurance') || catLower === 'lic') {
-        return;
-      }
+      if (catLower.includes('investment') || catLower.includes('insurance') || catLower === 'lic') return;
 
-      // Case-insensitive note grouping to eliminate casing duplicates
       const dedupeKey = `${cleanNote.toLowerCase()}▩${e.category}`;
-
-      // ⚡ DETECT SETTLED ARCHAEOLOGY
-      // A transaction was originally yours if it is currently marked as yours, OR if it's settled but was settled FOR you.
       const isPureJoint = e.account === 'Joint' && !e.settled;
-      const isOriginallyMine = e.account === loggedInAccount || 
-                               e.addedBy === loggedInAccount || 
-                               (e.settled && e.settledFor === loggedInAccount);
+      const isOriginallyMine = e.account === loggedInAccount || e.addedBy === loggedInAccount || (e.settled && e.settledFor === loggedInAccount);
 
       if (isPureJoint) {
         if (!jointFreq[dedupeKey]) {
-          jointFreq[dedupeKey] = {
-            count: 0,
-            cat: e.category,
-            note: cleanNote, 
-            shared: false
-          };
+          jointFreq[dedupeKey] = { count: 0, cat: e.category, note: cleanNote, shared: false };
         }
         jointFreq[dedupeKey].count += 1;
-      } 
-      else if (isOriginallyMine) {
+      } else if (isOriginallyMine) {
         if (!personalFreq[dedupeKey]) {
-          personalFreq[dedupeKey] = {
-            count: 0,
-            cat: e.category,
-            note: cleanNote,
-            // Smart flag inheritance: If it was marked to settle or has already been settled historically, default it to true
-            shared: e.toSettle || e.settled || false
-          };
+          personalFreq[dedupeKey] = { count: 0, cat: e.category, note: cleanNote, shared: e.toSettle || e.settled || false };
         }
         personalFreq[dedupeKey].count += 1;
       }
     });
 
-    // Filters out duplicate categories and expands the view viewport layout to 10 slots max
     const processTray = (freqMap: Record<string, any>) => {
       const sortedRaw = Object.values(freqMap).sort((a: any, b: any) => b.count - a.count);
-      
       const uniqueCategories = new Set<string>();
       const finalPresets: any[] = [];
 
       for (const preset of sortedRaw) {
         if (finalPresets.length >= 10) break; 
-        
         if (!uniqueCategories.has(preset.cat)) {
           uniqueCategories.add(preset.cat);
           finalPresets.push({
@@ -1686,7 +1302,6 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   const submit = () => {
     const numericAmount = Number(form.amount);
 
-    // Explicitly catch zero, empty, or negative inputs with user-facing warnings
     if (form.amount === '' || isNaN(numericAmount)) {
       alert('⚠️ Error: Please enter a valid numeric amount before saving.');
       return;
@@ -1713,11 +1328,7 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   };
 
   const cats = form.type === 'income' ? data.settings.incomeCategories : data.settings.expenseCategories;
-  
-  // SCANNABLE MOBILE UPGRADE: Sorted completely alphabetically
-  const sortedCategories = useMemo(() => {
-    return [...cats].sort((a, b) => a.localeCompare(b));
-  }, [cats]);
+  const sortedCategories = useMemo(() => [...cats].sort((a, b) => a.localeCompare(b)), [cats]);
 
   return (
     <div style={{ maxWidth: 560 }}>
@@ -1726,83 +1337,35 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
           <SectionTitle style={{ margin: 0 }}>
             {duplicateData ? '📋 Duplicating Cost Entry' : 'Add New Transaction'}
           </SectionTitle>
-          {onClose && (
-            <Btn variant="ghost" onClick={onClose} style={{ padding: '4px 10px', fontSize: 16 }}>✕</Btn>
-          )}
+          {onClose && <Btn variant="ghost" onClick={onClose} style={{ padding: '4px 10px', fontSize: 16 }}>✕</Btn>}
         </div>
 
-        {/* Tab Switches (Expense vs Income) */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
           {['expense', 'income'].map((t) => (
-            <Btn
-              key={t}
-              variant={form.type === t ? 'primary' : 'ghost'}
-              onClick={() => {
-                set('type', t);
-                set('category', t === 'income' ? data.settings.incomeCategories[0] : data.settings.expenseCategories[0]);
-              }}
-              style={{ flex: 1, textAlign: 'center', textTransform: 'capitalize' }}
-            >
+            <Btn key={t} variant={form.type === t ? 'primary' : 'ghost'} onClick={() => { set('type', t); set('category', t === 'income' ? data.settings.incomeCategories[0] : data.settings.expenseCategories[0]); }} style={{ flex: 1, textAlign: 'center', textTransform: 'capitalize' }}>
               {t === 'expense' ? '💸 Expense' : '💰 Income'}
             </Btn>
           ))}
         </div>
 
-        {/* SCOPED COLLABORATIVE WIZARDS */}
         {form.type === 'expense' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-            
-            {/* TRAY 1: JOINT POOL WIZARD */}
             {jointPresets.length > 0 && (
               <div style={{ background: `${C.bg}60`, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
-                <span style={{ color: C.green, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  👥 Joint Account Quick Add
-                </span>
+                <span style={{ color: C.green, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>👥 Joint Account Quick Add</span>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {jointPresets.map((preset: any) => (
-                    <button
-                      key={`joint-${preset.note}-${preset.cat}`}
-                      type="button"
-                      onClick={() => {
-                        set('category', preset.cat);
-                        set('account', 'Joint'); 
-                        set('addedBy', loggedInAddedBy);
-                        set('note', preset.note);
-                        set('toSettle', false);
-                        set('type', 'expense');
-                      }}
-                      style={presetBtnStyle()}
-                    >
-                      {preset.label} <span style={{ opacity: 0.5, fontSize: 9 }}>({preset.cat})</span>
-                    </button>
+                    <button key={`joint-${preset.note}-${preset.cat}`} type="button" onClick={() => { set('category', preset.cat); set('account', 'Joint'); set('addedBy', loggedInAddedBy); set('note', preset.note); set('toSettle', false); set('type', 'expense'); }} style={presetBtnStyle()}>{preset.label} <span style={{ opacity: 0.5, fontSize: 9 }}>({preset.cat})</span></button>
                   ))}
                 </div>
               </div>
             )}
-
-            {/* TRAY 2: LIVE PERSONAL SESSION WIZARD */}
             {personalPresets.length > 0 && (
               <div style={{ background: `${C.bg}60`, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
-                <span style={{ color: C.blue, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  👤 Personal Out-of-Pocket ({loggedInAccount})
-                </span>
+                <span style={{ color: C.blue, fontSize: 11, fontWeight: 700, display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>👤 Personal Out-of-Pocket ({loggedInAccount})</span>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {personalPresets.map((preset: any) => (
-                    <button
-                      key={`personal-${preset.note}-${preset.cat}`}
-                      type="button"
-                      onClick={() => {
-                        set('category', preset.cat);
-                        set('account', loggedInAccount); 
-                        set('addedBy', loggedInAddedBy);
-                        set('note', preset.note);
-                        set('toSettle', preset.shared); // Automatically checks if this shortcut needs settlement!
-                        set('type', 'expense');
-                      }}
-                      style={presetBtnStyle()}
-                    >
-                      {preset.label} <span style={{ opacity: 0.5, fontSize: 9 }}>({preset.cat})</span>
-                    </button>
+                    <button key={`personal-${preset.note}-${preset.cat}`} type="button" onClick={() => { set('category', preset.cat); set('account', loggedInAccount); set('addedBy', loggedInAddedBy); set('note', preset.note); set('toSettle', preset.shared); set('type', 'expense'); }} style={presetBtnStyle()}>{preset.label} <span style={{ opacity: 0.5, fontSize: 9 }}>({preset.cat})</span></button>
                   ))}
                 </div>
               </div>
@@ -1810,24 +1373,15 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
           </div>
         )}
 
-        {/* Input Form Fields Layout */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <Label>Date</Label>
-              <Inp type="date" value={form.date} onChange={(e: any) => set('date', e.target.value)} />
-            </div>
-            <div>
-              <Label>Amount (₹)</Label>
-              <Inp type="number" placeholder="0" value={form.amount} onChange={(e: any) => set('amount', e.target.value)} />
-            </div>
+            <div><Label>Date</Label><Inp type="date" value={form.date} onChange={(e: any) => set('date', e.target.value)} /></div>
+            <div><Label>Amount (₹)</Label><Inp type="number" placeholder="0" value={form.amount} onChange={(e: any) => set('amount', e.target.value)} /></div>
           </div>
           <div>
             <Label>Category</Label>
             <Sel value={form.category} onChange={(e: any) => set('category', e.target.value)}>
-              {sortedCategories.map((c: string) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
+              {sortedCategories.map((c: string) => <option key={c} value={c}>{c}</option>)}
             </Sel>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -1847,56 +1401,22 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
               </Sel>
             </div>
           </div>
+          <div><Label>Note (optional)</Label><Inp placeholder="What was this for?" value={form.note} onChange={(e: any) => set('note', e.target.value)} /></div>
 
-          <div>
-            <Label>Note (optional)</Label>
-            <Inp placeholder="What was this for?" value={form.note} onChange={(e: any) => set('note', e.target.value)} />
-          </div>
-
-          {/* Settle Parameter Checkbox */}
           {form.type === 'expense' && form.account !== 'Joint' && (
             <div style={{ background: C.bg, borderRadius: 10, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <div>
-                <div style={{ color: C.text1, fontSize: 13, fontWeight: 600 }}>To be settled by Joint Account?</div>
-                <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Reimburse personal expense from joint pool</div>
-              </div>
-              
-              <div 
-                onClick={() => set('toSettle', !form.toSettle)}
-                style={{
-                  width: 44,
-                  height: 24,
-                  borderRadius: 12,
-                  background: form.toSettle ? C.amber : `${C.border}aa`,
-                  position: 'relative',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  flexShrink: 0,
-                  border: `1px solid ${form.toSettle ? C.amber : C.border}`
-                }}
-              >
-                <div style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: '50%',
-                  background: form.toSettle ? C.surface : C.text2,
-                  position: 'absolute',
-                  top: 2,
-                  left: form.toSettle ? 22 : 2,
-                  transition: 'all 0.2s ease'
-                }} />
+              <div><div style={{ color: C.text1, fontSize: 13, fontWeight: 600 }}>To be settled by Joint Account?</div><div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>Reimburse personal expense from joint pool</div></div>
+              <div onClick={() => set('toSettle', !form.toSettle)} style={{ width: 44, height: 24, borderRadius: 12, background: form.toSettle ? C.amber : `${C.border}aa`, position: 'relative', cursor: 'pointer', transition: 'all 0.2s ease', flexShrink: 0, border: `1px solid ${form.toSettle ? C.amber : C.border}` }}>
+                <div style={{ width: 18, height: 18, borderRadius: '50%', background: form.toSettle ? C.surface : C.text2, position: 'absolute', top: 2, left: form.toSettle ? 22 : 2, transition: 'all 0.2s ease' }} />
               </div>
             </div>
           )}
 
-          {/* Form Trigger Buttons */}
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
             <Btn variant={flash ? 'success' : 'primary'} onClick={submit} style={{ flex: 1, padding: 13, fontSize: 15 }}>
               {flash ? '✓ Added Successfully!' : (duplicateData ? '✓ Confirm Duplicate' : `Add ${form.type === 'income' ? 'Income' : 'Expense'}`)}
             </Btn>
-            {onClose && (
-              <Btn variant="ghost" onClick={onClose} style={{ padding: 13, fontSize: 15 }}>Cancel</Btn>
-            )}
+            {onClose && <Btn variant="ghost" onClick={onClose} style={{ padding: 13, fontSize: 15 }}>Cancel</Btn>}
           </div>
         </div>
       </Card>
@@ -1904,105 +1424,50 @@ function AddExpense({ data, session, duplicateData, onAdd, onClose }: any) {
   );
 
   function presetBtnStyle() {
-    return {
-      background: C.bg,
-      border: `1px solid ${C.border}`,
-      color: C.text1,
-      padding: '5px 10px',
-      borderRadius: 16,
-      fontSize: 11,
-      cursor: 'pointer',
-      fontWeight: 500,
-      transition: 'all 0.15s ease-in-out',
-    };
+    return { background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '5px 10px', borderRadius: 16, fontSize: 11, cursor: 'pointer', fontWeight: 500, transition: 'all 0.15s ease-in-out' };
   }
 }
 
-
 // ─── EXPENSE LIST ─────────────────────────────────────────────────────────────
 function ExpenseList({ 
-  data, 
-  onToggleToSettle, 
-  onDelete, 
-  onUpdate, 
-  onBulkDelete, 
-  onDuplicate,
-  // ─── PART 3: RECEIVE NEW BATCH PROPS HOOKS ───────────────────────
-  onBulkFlagToSettle,
-  onBulkMarkAsSettled,
-  onBulkAssignToAccount
+  data, onToggleToSettle, onDelete, onUpdate, onBulkDelete, onDuplicate, onBulkFlagToSettle, onBulkMarkAsSettled, onBulkAssignToAccount
 }: any) {
   const names = {
     a: data.settings.partnerAName,
     b: data.settings.partnerBName,
   };
   const mk = monthKey(today());
-  const [filter, setFilter] = useState({
-    month: mk,
-    account: 'All',
-    category: 'All',
-    type: 'All',
-    settled: 'All', 
-  });
+  const [filter, setFilter] = useState({ month: mk, account: 'All', category: 'All', type: 'All', settled: 'All' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  
-  // ─── LOCAL STATE FOR THE ACCOUNT ASSIGNMENT DROPDOWN ───────────────
   const [selectedTargetAccount, setSelectedTargetAccount] = useState<string>('');
 
   const sf = (k: string, v: string) => setFilter((f) => ({ ...f, [k]: v }));
-  
-  const allMonths = data.expenses
-    .map((e: any) => monthKey(e.date))
-    .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
-    .sort()
-    .reverse();
+  const allMonths = data.expenses.map((e: any) => monthKey(e.date)).filter((value: string, index: number, self: string[]) => self.indexOf(value) === index).sort().reverse();
 
-  const filtered = data.expenses
-    .filter((e: any) => {
-      if (filter.month !== 'All' && monthKey(e.date) !== filter.month)
-        return false;
-      
-      // Dynamic mapping logic adjustment wrapper
-      // Unified multi-tenant safe account filter check
-      const itemAccount = e.account || e.account_used;
-      if (filter.account !== 'All') {
-        const matchesPartnerA = (filter.account === names.a || filter.account === 'Partner A') && (itemAccount === names.a || itemAccount === 'Partner A');
-        const matchesPartnerB = (filter.account === names.b || filter.account === 'Partner B') && (itemAccount === names.b || itemAccount === 'Partner B');
-        const matchesJoint = filter.account === 'Joint' && itemAccount === 'Joint';
-        
-        if (!matchesPartnerA && !matchesPartnerB && !matchesJoint) return false;
-      }
-        
-      if (filter.category !== 'All' && e.category !== filter.category)
-        return false;
-      if (filter.type !== 'All' && (e.type || 'expense') !== filter.type)
-        return false;
-      
-      if (filter.settled === 'pending' && (!e.toSettle || e.settled))
-        return false;
-      if (filter.settled === 'personal' && e.toSettle) 
-        return false;
-      if (filter.settled === 'settledA' && (!e.settled || e.settledFor !== 'Partner A')) 
-        return false;
-      if (filter.settled === 'settledB' && (!e.settled || e.settledFor !== 'Partner B')) 
-        return false;
-        
-      return true;
-    })
-    .sort((a: any, b: any) => {
-      // 1. Primary Check: Sort by calendar date
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
-      
-      if (dateB !== dateA) {
-        return dateB - dateA; 
-      }
-      
-      // 2. Secondary Tie-Breaker: Sort by unique ID footprint if dates match exactly
-      return String(b.id || '').localeCompare(String(a.id || ''));
-    });
+  const filtered = data.expenses.filter((e: any) => {
+    if (filter.month !== 'All' && monthKey(e.date) !== filter.month) return false;
+    const itemAccount = e.account || e.account_used;
+    if (filter.account !== 'All') {
+      const matchesPartnerA = (filter.account === names.a || filter.account === 'Partner A') && (itemAccount === names.a || itemAccount === 'Partner A');
+      const matchesPartnerB = (filter.account === names.b || filter.account === 'Partner B') && (itemAccount === names.b || itemAccount === 'Partner B');
+      const matchesJoint = filter.account === 'Joint' && itemAccount === 'Joint';
+      if (!matchesPartnerA && !matchesPartnerB && !matchesJoint) return false;
+    }
+    if (filter.category !== 'All' && e.category !== filter.category) return false;
+    if (filter.type !== 'All' && (e.type || 'expense') !== filter.type) return false;
+    if (filter.settled === 'pending' && (!e.toSettle || e.settled)) return false;
+    if (filter.settled === 'personal' && e.toSettle) return false;
+    if (filter.settled === 'settledA' && (!e.settled || e.settledFor !== 'Partner A')) return false;
+    if (filter.settled === 'settledB' && (!e.settled || e.settledFor !== 'Partner B')) return false;
+    return true;
+  }).sort((a: any, b: any) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    if (dateB !== dateA) return dateB - dateA; 
+    return String(b.id || '').localeCompare(String(a.id || ''));
+  });
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -2014,11 +1479,8 @@ function ExpenseList({
   };
 
   const toggleAll = () => {
-    if (selectedIds.size === filtered.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filtered.map((e: any) => e.id)));
-    }
+    if (selectedIds.size === filtered.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filtered.map((e: any) => e.id)));
   };
 
   const startEdit = (e: any) => {
@@ -2030,15 +1492,7 @@ function ExpenseList({
     setEditingId(null);
   };
 
-  const selStyle = {
-    background: C.bg,
-    border: `1px solid ${C.border}`,
-    color: C.text1,
-    borderRadius: 8,
-    padding: '6px 10px',
-    fontSize: 12,
-    cursor: 'pointer',
-  };
+  const selStyle = { background: C.bg, border: `1px solid ${C.border}`, color: C.text1, borderRadius: 8, padding: '6px 10px', fontSize: 12, cursor: 'pointer' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -2047,9 +1501,7 @@ function ExpenseList({
           <span style={{ color: C.muted, fontSize: 12 }}>Filter:</span>
           <select style={selStyle} value={filter.month} onChange={(e) => sf('month', e.target.value)}>
             <option value="All">All Months</option>
-            {allMonths.map((m: any) => (
-              <option key={m} value={m}>{monthLabel(m)}</option>
-            ))}
+            {allMonths.map((m: any) => <option key={m} value={m}>{monthLabel(m)}</option>)}
           </select>
           <select style={selStyle} value={filter.type} onChange={(e) => sf('type', e.target.value)}>
             <option value="All">All Types</option>
@@ -2058,15 +1510,11 @@ function ExpenseList({
           </select>
           <select style={selStyle} value={filter.account} onChange={(e) => sf('account', e.target.value)}>
             <option value="All">All Accounts</option>
-            {ACCOUNT_TYPES(names).map((a) => (
-              <option key={a} value={a}>{a}</option>
-            ))}
+            {ACCOUNT_TYPES(names).map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
           <select style={selStyle} value={filter.category} onChange={(e) => sf('category', e.target.value)}>
             <option value="All">All Categories</option>
-            {[...data.settings.expenseCategories, ...data.settings.incomeCategories].map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
+            {[...data.settings.expenseCategories, ...data.settings.incomeCategories].map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <select style={selStyle} value={filter.settled} onChange={(e) => sf('settled', e.target.value)}>
             <option value="All">All Settlement Statuses</option>
@@ -2078,94 +1526,23 @@ function ExpenseList({
         </div>
       </Card>
 
-      {/* ─── UPGRADED BULK PANEL DRAWER MATRIX BLOCK ────────────────── */}
       {selectedIds.size > 0 && (
         <Card style={{ background: C.red + '15', border: `1px solid ${C.red}44`, padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <span style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>💥 {selectedIds.size} entries selected</span>
-          </div>
+          <div><span style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>💥 {selectedIds.size} entries selected</span></div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            
-            {/* 🏧 dynamic dropdown assign engine wrapper */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderRight: `1px solid ${C.border}`, paddingRight: 12, marginRight: 4 }}>
-              <select
-                value={selectedTargetAccount}
-                onChange={(e) => setSelectedTargetAccount(e.target.value)}
-                style={{
-                  background: C.bg,
-                  color: C.text1,
-                  border: `1px solid ${C.border}`,
-                  padding: '6px 10px',
-                  borderRadius: 8,
-                  fontSize: 12,
-                  outline: 'none',
-                  cursor: 'pointer'
-                }}
-              >
+              <select value={selectedTargetAccount} onChange={(e) => setSelectedTargetAccount(e.target.value)} style={{ background: C.bg, color: C.text1, border: `1px solid ${C.border}`, padding: '6px 10px', borderRadius: 8, fontSize: 12, outline: 'none', cursor: 'pointer' }}>
                 <option value="">-- Assign Account --</option>
-                <option value="Partner A">{names.a || 'Partner A'}</option>
-                <option value="Partner B">{names.b || 'Partner B'}</option>
+                <option value="Partner A">{names.a}</option>
+                <option value="Partner B">{names.b}</option>
                 <option value="Joint">Joint Account</option>
               </select>
-              
-              <Btn
-                variant="ghost"
-                disabled={!selectedTargetAccount}
-                style={{ 
-                  fontSize: 12, 
-                  padding: '6px 12px', 
-                  opacity: selectedTargetAccount ? 1 : 0.5,
-                  borderColor: selectedTargetAccount ? C.amber : C.border,
-                  color: selectedTargetAccount ? C.amber : C.muted
-                }}
-                onClick={() => {
-                  const ids: string[] = [];
-                  selectedIds.forEach((id: string) => ids.push(id));
-                  onBulkAssignToAccount(ids, selectedTargetAccount);
-                  setSelectedTargetAccount(''); 
-                  setSelectedIds(new Set());    
-                }}
-              >
-                🔄 Assign
-              </Btn>
+              <Btn variant="ghost" disabled={!selectedTargetAccount} style={{ fontSize: 12, padding: '6px 12px', opacity: selectedTargetAccount ? 1 : 0.5, borderColor: selectedTargetAccount ? C.amber : C.border, color: selectedTargetAccount ? C.amber : C.muted }} onClick={() => { const ids: string[] = []; selectedIds.forEach(id => ids.push(id)); onBulkAssignToAccount(ids, selectedTargetAccount); setSelectedTargetAccount(''); setSelectedIds(new Set()); }}>🔄 Assign</Btn>
             </div>
-
             <Btn variant="ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => setSelectedIds(new Set())}>Deselect All</Btn>
-            
-            <Btn 
-              variant="ghost" 
-              style={{ fontSize: 12, padding: '6px 12px', border: `1px solid ${C.amber}`, color: C.amber }} 
-              onClick={() => {
-                const ids: string[] = [];
-                selectedIds.forEach((id: string) => ids.push(id));
-                onBulkFlagToSettle(ids);
-                setSelectedIds(new Set());
-              }}
-            >
-              ⚖️ Flag to Settle
-            </Btn>
-
-            <Btn 
-              variant="ghost" 
-              style={{ fontSize: 12, padding: '6px 12px', border: `1px solid ${C.green}`, color: C.green }} 
-              onClick={() => {
-                const ids: string[] = [];
-                selectedIds.forEach((id: string) => ids.push(id));
-                onBulkMarkAsSettled(ids);
-                setSelectedIds(new Set());
-              }}
-            >
-              ✅ Mark as Settled
-            </Btn>
-
-            <Btn variant="danger" style={{ fontSize: 12, padding: '6px 14px', fontWeight: 700 }} onClick={() => {
-              if (confirm(`Are you absolutely sure you want to permanently delete these ${selectedIds.size} records?`)) {
-                const idsToDelete: string[] = [];
-                selectedIds.forEach((id: string) => idsToDelete.push(id));
-                onBulkDelete(idsToDelete);
-                setSelectedIds(new Set());
-              }
-            }}>🗑️ Delete Selected</Btn>
+            <Btn variant="ghost" style={{ fontSize: 12, padding: '6px 12px', border: `1px solid ${C.amber}`, color: C.amber }} onClick={() => { const ids: string[] = []; selectedIds.forEach(id => ids.push(id)); onBulkFlagToSettle(ids); setSelectedIds(new Set()); }}>⚖️ Flag to Settle</Btn>
+            <Btn variant="ghost" style={{ fontSize: 12, padding: '6px 12px', border: `1px solid ${C.green}`, color: C.green }} onClick={() => { const ids: string[] = []; selectedIds.forEach(id => ids.push(id)); onBulkMarkAsSettled(ids); setSelectedIds(new Set()); }}>✅ Mark as Settled</Btn>
+            <Btn variant="danger" style={{ fontSize: 12, padding: '6px 14px', fontWeight: 700 }} onClick={() => { if (confirm(`Are you absolutely sure you want to permanently delete these ${selectedIds.size} records?`)) { const idsToDelete: string[] = []; selectedIds.forEach(id => idsToDelete.push(id)); onBulkDelete(idsToDelete); setSelectedIds(new Set()); } }}>🗑️ Delete Selected</Btn>
           </div>
         </Card>
       )}
@@ -2175,13 +1552,9 @@ function ExpenseList({
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: C.bg }}>
-                <th style={{ padding: '11px 14px', width: 40 }}>
-                  <input type="checkbox" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleAll} style={{ cursor: 'pointer', accentColor: C.amber }} />
-                </th>
+                <th style={{ padding: '11px 14px', width: 40 }}><input type="checkbox" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleAll} style={{ cursor: 'pointer', accentColor: C.amber }} /></th>
                 <th style={{ padding: '11px 14px', width: 65, color: C.muted, fontWeight: 600, textAlign: 'left' }}>Copy</th>
-                {['Date', 'Note', 'Category', 'Amount', 'Account', 'Settlement Status', 'Actions'].map((h) => (
-                  <th key={h} style={{ padding: '11px 14px', color: C.muted, fontWeight: 600, textAlign: 'left' }}>{h}</th>
-                ))}
+                {['Date', 'Note', 'Category', 'Amount', 'Account', 'Settlement Status', 'Actions'].map((h) => <th key={h} style={{ padding: '11px 14px', color: C.muted, fontWeight: 600, textAlign: 'left' }}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -2189,98 +1562,56 @@ function ExpenseList({
                 if (editingId === e.id) {
                   return (
                     <tr key={e.id} style={{ background: C.bg + '99', borderTop: `1px solid ${C.amber}` }}>
-                      <td /> 
-                      <td /> 
-                      <td style={{ padding: 8 }}>
-                        <Inp type="date" value={editForm.date} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, date: ev.target.value }))} />
-                      </td>
-                      <td style={{ padding: 8 }}>
-                        <Inp placeholder="Add note..." value={editForm.note} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, note: ev.target.value }))} />
-                      </td>
+                      <td /><td />
+                      <td style={{ padding: 8 }}><Inp type="date" value={editForm.date} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, date: ev.target.value }))} /></td>
+                      <td style={{ padding: 8 }}><Inp placeholder="Add note..." value={editForm.note} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, note: ev.target.value }))} /></td>
                       <td style={{ padding: 8 }}>
                         <Sel value={editForm.category} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, category: ev.target.value }))}>
-                          {[...data.settings.expenseCategories, ...data.settings.incomeCategories].map((c) => (
-                            <option key={c} value={c}>{c}</option>
-                          ))}
+                          {[...data.settings.expenseCategories, ...data.settings.incomeCategories].map((c) => <option key={c} value={c}>{c}</option>)}
                         </Sel>
                       </td>
-                      <td style={{ padding: 8 }}>
-                        <Inp type="number" value={editForm.amount} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, amount: ev.target.value }))} style={{ width: 80 }} />
-                      </td>
+                      <td style={{ padding: 8 }}><Inp type="number" value={editForm.amount} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, amount: ev.target.value }))} style={{ width: 80 }} /></td>
                       <td style={{ padding: 8 }}>
                         <Sel value={editForm.account} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, account: ev.target.value }))}>
-                          {ACCOUNT_TYPES(names).map((a) => (
-                            <option key={a} value={a}>{a}</option>
-                          ))}
+                          {ACCOUNT_TYPES(names).map((a) => <option key={a} value={a}>{a}</option>)}
                         </Sel>
                       </td>
                       <td style={{ padding: 8 }}>
-                        {editForm.type === 'income' || editForm.account === 'Joint' ? (
-                          <span style={{ color: C.muted, fontSize: 12 }}>N/A</span>
-                        ) : (
-                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: C.text1 }}>
-                            <input type="checkbox" checked={editForm.toSettle} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, toSettle: ev.target.checked }))} style={{ accentColor: C.amber }} />
-                            Shared
-                          </label>
+                        {editForm.type === 'income' || editForm.account === 'Joint' ? <span style={{ color: C.muted, fontSize: 12 }}>N/A</span> : (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: C.text1 }}><input type="checkbox" checked={editForm.toSettle} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, toSettle: ev.target.checked }))} style={{ accentColor: C.amber }} />Shared</label>
                         )}
                       </td>
-                      <td style={{ padding: 8, display: 'flex', gap: 6 }}>
-                        <Btn variant="success" onClick={saveEdit} style={{ padding: '6px 10px' }}>✓</Btn>
-                        <Btn variant="ghost" onClick={() => setEditingId(null)} style={{ padding: '6px 10px' }}>✕</Btn>
-                      </td>
+                      <td style={{ padding: 8, display: 'flex', gap: 6 }}><Btn variant="success" onClick={saveEdit} style={{ padding: '6px 10px' }}>✓</Btn><Btn variant="ghost" onClick={() => setEditingId(null)} style={{ padding: '6px 10px' }}>✕</Btn></td>
                     </tr>
                   );
                 }
 
                 return (
                   <tr key={e.id} style={{ borderTop: `1px solid ${C.border}`, background: selectedIds.has(e.id) ? C.red + '08' : (i % 2 === 0 ? 'transparent' : C.bg + '80') }}>
-                    <td style={{ padding: '10px 14px' }}>
-                      <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} style={{ cursor: 'pointer', accentColor: C.amber }} />
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11, color: C.amber, borderColor: `${C.amber}33` }} onClick={() => onDuplicate(e)}>📋 Copy</Btn>
-                    </td>
+                    <td style={{ padding: '10px 14px' }}><input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} style={{ cursor: 'pointer', accentColor: C.amber }} /></td>
+                    <td style={{ padding: '10px 14px' }}><Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11, color: C.amber, borderColor: `${C.amber}33` }} onClick={() => onDuplicate(e)}>📋 Copy</Btn></td>
                     <td style={{ padding: '10px 14px', color: C.text2, whiteSpace: 'nowrap' }}>{e.date}</td>
                     <td style={{ padding: '10px 14px', color: C.muted, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.note || '—'}</td>
                     <td style={{ padding: '10px 14px', color: C.text1 }}>{e.category}</td>
-                    <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>
-                      {e.type === 'income' ? '+' : ''}{fmt(e.amount, data.settings.currency)}
-                    </td>
-                    {/* 7. Account Used Slot */}
+                    <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>{e.type === 'income' ? '+' : ''}{fmt(e.amount, data.settings.currency)}</td>
                     <td style={{ padding: '10px 14px' }}>
                       {(() => {
                         const activeAccount = e.account || e.account_used;
-                        if (!activeAccount) return <Badge color={C.green}>Joint Account</Badge>;
-
-                        // Compare against live household configuration settings values
-                        if (activeAccount === names.a || activeAccount === 'Partner A') {
-                          return <Badge color={C.blue}>{names.a}</Badge>;
-                        }
-                        if (activeAccount === names.b || activeAccount === 'Partner B') {
-                          return <Badge color={C.blue}>{names.b}</Badge>;
-                        }
-                        
+                        if (activeAccount === names.a || activeAccount === 'Partner A') return <Badge color={C.blue}>{names.a}</Badge>;
+                        if (activeAccount === names.b || activeAccount === 'Partner B') return <Badge color={C.blue}>{names.b}</Badge>;
                         return <Badge color={C.green}>Joint Account</Badge>;
                       })()}
                     </td>
-                    
                     <td style={{ padding: '10px 14px' }}>
-                      {e.type === 'income' ? (
-                        <span style={{ color: C.muted }}>—</span>
-                      ) : e.settled ? (
+                      {e.type === 'income' ? <span style={{ color: C.muted }}>—</span> : e.settled ? (
                         <Badge color={C.green}>✓ Settled with {e.settledFor === 'Partner A' ? names.a : names.b}</Badge>
                       ) : e.account === 'Joint' ? (
                         <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Direct Shared</span>
                       ) : !e.toSettle ? (
                         <span style={{ color: C.text2, fontSize: 12 }}>Personal (No Settlement)</span>
-                      ) : (
-                        <Badge color={C.amber}>⏳ Pending</Badge>
-                      )}
+                      ) : <Badge color={C.amber}>⏳ Pending</Badge>}
                     </td>
-                    <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>
-                      <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => startEdit(e)}>Edit</Btn>
-                      <Btn variant="danger" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => onDelete(e.id)}>✕</Btn>
-                    </td>
+                    <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}><Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => startEdit(e)}>Edit</Btn><Btn variant="danger" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => onDelete(e.id)}>✕</Btn></td>
                   </tr>
                 );
               })}
@@ -2299,38 +1630,17 @@ function SettleDashboard({ data, onBulkSettle }: any) {
     b: data.settings.partnerBName,
   };
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const pending = data.expenses.filter(
-    (e: any) => e.toSettle && !e.settled && e.account !== 'Joint'
-  );
-  const pendingA = pending.filter(
-    (e: any) => e.account.includes(names.a) || e.account.includes('Partner A')
-  );
-  const pendingB = pending.filter(
-    (e: any) => e.account.includes(names.b) || e.account.includes('Partner B')
-  );
+  const pending = data.expenses.filter((e: any) => e.toSettle && !e.settled && e.account !== 'Joint');
+  const pendingA = pending.filter((e: any) => e.account.includes(names.a) || e.account.includes('Partner A'));
+  const pendingB = pending.filter((e: any) => e.account.includes(names.b) || e.account.includes('Partner B'));
   const totalA = pendingA.reduce((s: number, e: any) => s + e.amount, 0);
   const totalB = pendingB.reduce((s: number, e: any) => s + e.amount, 0);
 
-  const toggle = (id: string) =>
-    setSelected((s) => {
-      const n = new Set(s);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
-  const selectAll = (arr: any[]) =>
-    setSelected((s) => {
-      const n = new Set(s);
-      arr.forEach((e) => n.add(e.id));
-      return n;
-    });
-  const clearGroup = (arr: any[]) =>
-    setSelected((s) => {
-      const n = new Set(s);
-      arr.forEach((e) => n.delete(e.id));
-      return n;
-    });
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const selectAll = (arr: any[]) => setSelected((s) => { const n = new Set(s); arr.forEach((e) => n.add(e.id)); return n; });
+  const clearGroup = (arr: any[]) => setSelected((s) => { const n = new Set(s); arr.forEach((e) => n.delete(e.id)); return n; });
 
-const settleSelected = () => {
+  const settleSelected = () => {
     const selectedArr: string[] = [];
     selected.forEach((id: string) => selectedArr.push(id));
     onBulkSettle(selectedArr);
@@ -2339,106 +1649,29 @@ const settleSelected = () => {
 
   const SettleTable = ({ items, partner, color }: any) => (
     <Card style={{ marginBottom: 0 }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 14,
-        }}
-      >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div>
           <SectionTitle style={{ margin: 0 }}>{partner}</SectionTitle>
-          <div
-            style={{
-              color: color,
-              fontWeight: 800,
-              fontSize: 18,
-              marginTop: 2,
-            }}
-          >
-            {fmt(
-              items.reduce((s: number, e: any) => s + e.amount, 0),
-              data.settings.currency
-            )}{' '}
-            pending
-          </div>
+          <div style={{ color: color, fontWeight: 800, fontSize: 18, marginTop: 2 }}>{fmt(items.reduce((s: number, e: any) => s + e.amount, 0), data.settings.currency)} pending</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Btn
-            variant="ghost"
-            style={{ fontSize: 12, padding: '5px 10px' }}
-            onClick={() => selectAll(items)}
-          >
-            Select All
-          </Btn>
-          <Btn
-            variant="ghost"
-            style={{ fontSize: 12, padding: '5px 10px' }}
-            onClick={() => clearGroup(items)}
-          >
-            Clear
-          </Btn>
+          <Btn variant="ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => selectAll(items)}>Select All</Btn>
+          <Btn variant="ghost" style={{ fontSize: 12, padding: '5px 10px' }} onClick={() => clearGroup(items)}>Clear</Btn>
         </div>
       </div>
-      {items.length === 0 ? (
-        <p style={{ color: C.muted, fontSize: 13 }}>🎉 All settled!</p>
-      ) : (
-        <table
-          style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}
-        >
+      {items.length === 0 ? <p style={{ color: C.muted, fontSize: 13 }}>🎉 All settled!</p> : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ background: C.bg }}>
-              {['', 'Date', 'Category', 'Amount', 'Note'].map((h) => (
-                <th
-                  key={h}
-                  style={{
-                    padding: '9px 12px',
-                    color: C.muted,
-                    fontWeight: 600,
-                    textAlign: 'left',
-                  }}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
+            <tr style={{ background: C.bg }}>{['', 'Date', 'Category', 'Amount', 'Note'].map((h) => <th key={h} style={{ padding: '9px 12px', color: C.muted, fontWeight: 600, textAlign: 'left' }}>{h}</th>)}</tr>
           </thead>
           <tbody>
             {items.map((e: any) => (
-              <tr
-                key={e.id}
-                style={{
-                  borderTop: `1px solid ${C.border}`,
-                  background: selected.has(e.id) ? color + '11' : 'transparent',
-                }}
-              >
-                <td style={{ padding: '9px 12px' }}>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(e.id)}
-                    onChange={() => toggle(e.id)}
-                    style={{ cursor: 'pointer', accentColor: color }}
-                  />
-                </td>
-                <td style={{ padding: '9px 12px', color: C.text2 }}>
-                  {e.date}
-                </td>
-                <td style={{ padding: '9px 12px', color: C.text1 }}>
-                  {e.category}
-                </td>
-                <td
-                  style={{
-                    padding: '9px 12px',
-                    color: C.textW,
-                    fontWeight: 700,
-                  }}
-                >
-                  {fmt(e.amount, data.settings.currency)}
-                </td>
-                <td style={{ padding: '9px 12px', color: C.muted }}>
-                  {e.note || '—'}
-                </td>
+              <tr key={e.id} style={{ borderTop: `1px solid ${C.border}`, background: selected.has(e.id) ? color + '11' : 'transparent' }}>
+                <td style={{ padding: '9px 12px' }}><input type="checkbox" checked={selected.has(e.id)} onChange={() => toggle(e.id)} style={{ cursor: 'pointer', accentColor: color }} /></td>
+                <td style={{ padding: '9px 12px', color: C.text2 }}>{e.date}</td>
+                <td style={{ padding: '9px 12px', color: C.text1 }}>{e.category}</td>
+                <td style={{ padding: '9px 12px', color: C.textW, fontWeight: 700 }}>{fmt(e.amount, data.settings.currency)}</td>
+                <td style={{ padding: '9px 12px', color: C.muted }}>{e.note || '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -2450,131 +1683,47 @@ const settleSelected = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <StatCard
-          label={`${names.a} — Pending`}
-          value={fmt(totalA, data.settings.currency)}
-          accent={C.purple}
-          icon="👤"
-          sub={`${pendingA.length} transactions`}
-        />
-        <StatCard
-          label={`${names.b} — Pending`}
-          value={fmt(totalB, data.settings.currency)}
-          accent={C.blue}
-          icon="👤"
-          sub={`${pendingB.length} transactions`}
-        />
+        <StatCard label={`${names.a} — Pending`} value={fmt(totalA, data.settings.currency)} accent={C.purple} icon="👤" sub={`${pendingA.length} transactions`} />
+        <StatCard label={`${names.b} — Pending`} value={fmt(totalB, data.settings.currency)} accent={C.blue} icon="👤" sub={`${pendingB.length} transactions`} />
       </div>
 
       {selected.size > 0 && (
-        <Card
-          style={{
-            background: C.green + '11',
-            border: `1px solid ${C.green}44`,
-            padding: '14px 18px',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}
-          >
+        <Card style={{ background: C.green + '11', border: `1px solid ${C.green}44`, padding: '14px 18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <span style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>
-                {selected.size} transactions selected
-              </span>
-<span style={{ color: C.text1, fontSize: 13, marginLeft: 10 }}>
-                Total:{' '}
-                {fmt(
-                  data.expenses.reduce((s: number, e: any) => selected.has(e.id) ? s + (e.amount || 0) : s, 0),
-                  data.settings.currency
-                )}
-              </span>
+              <span style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>{selected.size} transactions selected</span>
+              <span style={{ color: C.text1, fontSize: 13, marginLeft: 10 }}>Total: {fmt(data.expenses.reduce((s: number, e: any) => selected.has(e.id) ? s + (e.amount || 0) : s, 0), data.settings.currency)}</span>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Btn
-                variant="ghost"
-                onClick={() => setSelected(new Set())}
-                style={{ fontSize: 12 }}
-              >
-                Deselect All
-              </Btn>
-              <Btn
-                variant="success"
-                onClick={settleSelected}
-                style={{ fontSize: 13 }}
-              >
-                ✓ Settle Selected
-              </Btn>
+              <Btn variant="ghost" onClick={() => setSelected(new Set())} style={{ fontSize: 12 }}>Deselect All</Btn>
+              <Btn variant="success" onClick={settleSelected} style={{ fontSize: 13 }}>✓ Settle Selected</Btn>
             </div>
           </div>
         </Card>
       )}
 
-<div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', width: '100%' }}>
-  <div style={{ flex: '1 1 340px', minWidth: 300 }}>
-    <SettleTable
-      items={pendingA}
-      partner={`${names.a}'s Expenses`}
-      color={C.purple}
-    />
-  </div>
-  <div style={{ flex: '1 1 340px', minWidth: 300 }}>
-    <SettleTable
-      items={pendingB}
-      partner={`${names.b}'s Expenses`}
-      color={C.blue}
-    />
-  </div>
-</div>
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', width: '100%' }}>
+        <div style={{ flex: '1 1 340px', minWidth: 300 }}><SettleTable items={pendingA} partner={`${names.a}'s Expenses`} color={C.purple} /></div>
+        <div style={{ flex: '1 1 340px', minWidth: 300 }}><SettleTable items={pendingB} partner={`${names.b}'s Expenses`} color={C.blue} /></div>
+      </div>
 
       <Card>
-  <SectionTitle>Recently Settled</SectionTitle>
-  {(() => {
-    const recent = data.expenses
-      .filter((e: any) => e.settled)
-      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5);
-
-    if (!recent.length)
-      return (
-        <p style={{ color: C.muted, fontSize: 13 }}>
-          No settlements yet.
-        </p>
-      );
-    return recent.map((e: any) => (
-      <div
-        key={e.id}
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '8px 0',
-          borderBottom: `1px solid ${C.border}`,
-        }}
-      >
-        <div>
-          <span style={{ color: C.text1, fontSize: 13 }}>
-            {e.category}
-          </span>
-          <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>
-            {e.date}
-          </span>
-          {e.settledFor && (
-            <Badge color={C.teal} style={{ marginLeft: 8 }}>
-              ↩ {e.settledFor === 'Partner A' ? names.a : names.b}
-            </Badge>
-          )}
-        </div>
-        <span style={{ color: C.green, fontWeight: 700 }}>
-          {fmt(e.amount, data.settings.currency)}
-        </span>
-      </div>
-    ));
-  })()}
-</Card>
+        <SectionTitle>Recently Settled</SectionTitle>
+        {(() => {
+          const recent = data.expenses.filter((e: any) => e.settled).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+          if (!recent.length) return <p style={{ color: C.muted, fontSize: 13 }}>No settlements yet.</p>;
+          return recent.map((e: any) => (
+            <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+              <div>
+                <span style={{ color: C.text1, fontSize: 13 }}>{e.category}</span>
+                <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>{e.date}</span>
+                {e.settledFor && <Badge color={C.teal} style={{ marginLeft: 8 }}>↩ {e.settledFor === 'Partner A' ? names.a : names.b}</Badge>}
+              </div>
+              <span style={{ color: C.green, fontWeight: 700 }}>{fmt(e.amount, data.settings.currency)}</span>
+            </div>
+          ));
+        })()}
+      </Card>
     </div>
   );
 }
@@ -2589,27 +1738,16 @@ function Contributions({ data, onUpdate }: any) {
     b: data.settings.partnerBName,
   };
 
-  // Generate a list of the last 12 months for the dropdown
   const monthOptions = Array.from({ length: 18 }).map((_, i) => {
-  const d = new Date();
-  d.setMonth(d.getMonth() - i);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-});
-
-  const existing = data.contributions.find(
-    (c: any) => c.month === selectedMonth
-  ) || {
-    partnerA: 0,
-    partnerB: 0,
-  };
-
-  const [vals, setVals] = useState({
-    partnerA: existing.partnerA,
-    partnerB: existing.partnerB,
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+
+  const existing = data.contributions.find((c: any) => c.month === selectedMonth) || { partnerA: 0, partnerB: 0 };
+  const [vals, setVals] = useState({ partnerA: existing.partnerA, partnerB: existing.partnerB });
   const [flash, setFlash] = useState(false);
 
-  // Update inputs if the selected month changes
   useEffect(() => {
     setVals({ partnerA: existing.partnerA, partnerB: existing.partnerB });
   }, [selectedMonth, data.contributions, existing.partnerA, existing.partnerB]);
@@ -2621,168 +1759,44 @@ function Contributions({ data, onUpdate }: any) {
   };
 
   const pool = (Number(vals.partnerA) || 0) + (Number(vals.partnerB) || 0);
-  const history = [...data.contributions].sort((a: any, b: any) =>
-    b.month.localeCompare(a.month)
-  );
+  const history = [...data.contributions].sort((a: any, b: any) => b.month.localeCompare(a.month));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <Card style={{ maxWidth: 520 }}>
-        {/* HEADER WITH DROPDOWN */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 16,
-          }}
-        >
-          <SectionTitle style={{ margin: 0 }}>
-            Monthly Contributions
-          </SectionTitle>
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            style={{
-              background: C.bg,
-              border: `1px solid ${C.border}`,
-              color: C.text1,
-              padding: '6px 12px',
-              borderRadius: 8,
-              fontSize: 13,
-              cursor: 'pointer',
-              outline: 'none',
-            }}
-          >
-            {monthOptions.map((m) => (
-              <option key={m} value={m}>
-                {monthLabel(m)} {m === currentMonth ? '(Current)' : ''}
-              </option>
-            ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <SectionTitle style={{ margin: 0 }}>Monthly Contributions</SectionTitle>
+          <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', outline: 'none' }}>
+            {monthOptions.map((m) => <option key={m} value={m}>{monthLabel(m)} {m === currentMonth ? '(Current)' : ''}</option>)}
           </select>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 14,
-            marginBottom: 14,
-          }}
-        >
-          <div>
-            <Label>{names.a} (₹)</Label>
-            <Inp
-              type="number"
-              value={vals.partnerA}
-              onChange={(e: any) =>
-                setVals((v) => ({ ...v, partnerA: e.target.value }))
-              }
-            />
-          </div>
-          <div>
-            <Label>{names.b} (₹)</Label>
-            <Inp
-              type="number"
-              value={vals.partnerB}
-              onChange={(e: any) =>
-                setVals((v) => ({ ...v, partnerB: e.target.value }))
-              }
-            />
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+          <div><Label>{names.a} (₹)</Label><Inp type="number" value={vals.partnerA} onChange={(e: any) => setVals((v) => ({ ...v, partnerA: e.target.value }))} /></div>
+          <div><Label>{names.b} (₹)</Label><Inp type="number" value={vals.partnerB} onChange={(e: any) => setVals((v) => ({ ...v, partnerB: e.target.value }))} /></div>
         </div>
 
-        <div
-          style={{
-            background: C.bg,
-            borderRadius: 10,
-            padding: '11px 14px',
-            marginBottom: 14,
-          }}
-        >
+        <div style={{ background: C.bg, borderRadius: 10, padding: '11px 14px', marginBottom: 14 }}>
           <span style={{ color: C.text2, fontSize: 13 }}>Joint Pool: </span>
-          <span style={{ color: C.green, fontWeight: 800, fontSize: 18 }}>
-            {fmt(pool, data.settings.currency)}
-          </span>
+          <span style={{ color: C.green, fontWeight: 800, fontSize: 18 }}>{fmt(pool, data.settings.currency)}</span>
         </div>
-
-        <Btn
-          variant={flash ? 'success' : 'primary'}
-          onClick={save}
-          style={{ width: '100%', padding: 12 }}
-        >
-          {flash ? '✓ Saved!' : 'Save Contributions'}
-        </Btn>
+        <Btn variant={flash ? 'success' : 'primary'} onClick={save} style={{ width: '100%', padding: 12 }}>{flash ? '✓ Saved!' : 'Save Contributions'}</Btn>
       </Card>
 
       {history.length > 0 && (
         <Card>
           <SectionTitle>History</SectionTitle>
-          <table
-            style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}
-          >
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: C.bg }}>
-                {['Month', names.a, names.b, 'Total Pool'].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: '10px 14px',
-                      color: C.muted,
-                      fontWeight: 600,
-                      textAlign: 'left',
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
+              <tr style={{ background: C.bg }}>{['Month', names.a, names.b, 'Total Pool'].map((h) => <th key={h} style={{ padding: '10px 14px', color: C.muted, fontWeight: 600, textAlign: 'left' }}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {history.map((c: any, i: number) => (
-                <tr
-                  key={c.month}
-                  style={{
-                    borderTop: `1px solid ${C.border}`,
-                    background: i % 2 === 0 ? 'transparent' : C.bg + '80',
-                  }}
-                >
-                  <td
-                    style={{
-                      padding: '10px 14px',
-                      color: C.text1,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {monthLabel(c.month)}
-                  </td>
-                  <td
-                    style={{
-                      padding: '10px 14px',
-                      color: C.purple,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {fmt(c.partnerA, data.settings.currency)}
-                  </td>
-                  <td
-                    style={{
-                      padding: '10px 14px',
-                      color: C.blue,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {fmt(c.partnerB, data.settings.currency)}
-                  </td>
-                  <td
-                    style={{
-                      padding: '10px 14px',
-                      color: C.green,
-                      fontWeight: 800,
-                    }}
-                  >
-                    {fmt(c.partnerA + c.partnerB, data.settings.currency)}
-                  </td>
+                <tr key={c.month} style={{ borderTop: `1px solid ${C.border}`, background: i % 2 === 0 ? 'transparent' : C.bg + '80' }}>
+                  <td style={{ padding: '10px 14px', color: C.text1, fontWeight: 600 }}>{monthLabel(c.month)}</td>
+                  <td style={{ padding: '10px 14px', color: C.purple, fontWeight: 600 }}>{fmt(c.partnerA, data.settings.currency)}</td>
+                  <td style={{ padding: '10px 14px', color: C.blue, fontWeight: 600 }}>{fmt(c.partnerB, data.settings.currency)}</td>
+                  <td style={{ padding: '10px 14px', color: C.green, fontWeight: 800 }}>{fmt(c.partnerA + c.partnerB, data.settings.currency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -2799,22 +1813,11 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
   const [form, setForm] = useState<any>({});
   const [adding, setAdding] = useState(false);
 
-  // ⚡ TRUE MULTI-TENANT ENGINE: Erased hardcoded personal names from the code framework.
-  const nameA = data.settings?.partnerA || data.settings?.partnerAName || data.settings?.partner_a_name || data.names?.a || 'Partner A';
-  const nameB = data.settings?.partnerB || data.settings?.partnerBName || data.settings?.partner_b_name || data.names?.b || 'Partner B';
+  const nameA = data.settings?.partnerAName || 'Partner A';
+  const nameB = data.settings?.partnerBName || 'Partner B';
   
   const [newGoal, setNewGoal] = useState({
-    name: '',
-// ... remaining code stays exactly the same
-    target: '',
-    partnerATarget: '',
-    partnerBTarget: '',
-    partnerACurrent: '',
-    partnerBCurrent: '',
-    targetDate: '',
-    strategy: 'Short-Term',
-    icon: '🎯',
-    color: C.amber,
+    name: '', target: '', partnerATarget: '', partnerBTarget: '', partnerACurrent: '', partnerBCurrent: '', targetDate: '', strategy: 'Short-Term', icon: '🎯', color: C.amber,
   });
 
   const COLORS = [C.amber, C.green, C.blue, C.purple, C.red, C.teal, '#f97316', '#ec4899'];
@@ -2826,21 +1829,10 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
   const startEditing = (g: any) => {
     setEditing(g.id);
     setForm({
-      id: g.id,
-      name: g.name,
-      target: g.target,
-      partnerATarget: g.partnerATarget,
-      partnerBTarget: g.partnerBTarget,
-      partnerACurrent: g.partnerACurrent,
-      partnerBCurrent: g.partnerBCurrent,
-      targetDate: g.targetDate || '',
-      strategy: g.strategy || 'Short-Term',
-      icon: g.icon || '🎯',
-      color: g.color || C.amber,
+      id: g.id, name: g.name, target: g.target, partnerATarget: g.partnerATarget, partnerBTarget: g.partnerBTarget, partnerACurrent: g.partnerACurrent, partnerBCurrent: g.partnerBCurrent, targetDate: g.targetDate || '', strategy: g.strategy || 'Short-Term', icon: g.icon || '🎯', color: g.color || C.amber,
     });
   };
 
-  // Helper to sync total target when typing individual splits
   const syncNewGoalTotal = (updatedFields: any) => {
     setNewGoal((prev) => {
       const next = { ...prev, ...updatedFields };
@@ -2863,68 +1855,39 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
         <Btn variant="primary" onClick={() => setAdding(true)}>+ Add New Goal</Btn>
       </div>
 
-      {/* NEW GOAL CREATION WIDGET */}
       {adding && (
         <Card style={{ border: `1px solid ${C.amber}44` }}>
           <SectionTitle>Establish Split-Funding Milestone</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
-              <div>
-                <Label>Goal Title Name</Label>
-                <Inp value={newGoal.name} placeholder="e.g. Next-Gen Motorcycle Fund" onChange={(e: any) => setNewGoal((g) => ({ ...g, name: e.target.value }))} />
-              </div>
+              <div><Label>Goal Title Name</Label><Inp value={newGoal.name} placeholder="e.g. Next-Gen Motorcycle Fund" onChange={(e: any) => setNewGoal((g) => ({ ...g, name: e.target.value }))} /></div>
               <div>
                 <Label>Horizon Strategy</Label>
                 <select value={newGoal.strategy} onChange={(e) => setNewGoal((g) => ({ ...g, strategy: e.target.value }))} style={{ width: '100%', background: C.bg, color: C.text1, border: `1px solid ${C.border}`, padding: '8px 10px', borderRadius: 8, fontSize: 13 }}>
                   {HORIZONS.map(h => <option key={h} value={h}>{h}</option>)}
                 </select>
               </div>
-              <div>
-                <Label>Icon Emoji</Label>
-                <Inp value={newGoal.icon} onChange={(e: any) => setNewGoal((g) => ({ ...g, icon: e.target.value }))} />
-              </div>
+              <div><Label>Icon Emoji</Label><Inp value={newGoal.icon} onChange={(e: any) => setNewGoal((g) => ({ ...g, icon: e.target.value }))} /></div>
             </div>
             
-            {/* Split Allocation Matrix */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px', background: `${C.border}22`, borderRadius: 8 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                <div>
-                  <Label><span style={{ color: C.textW }}>Total Target Budget</span></Label>
-                  <Inp type="number" placeholder="Auto-computed total" value={newGoal.target} onChange={(e: any) => setNewGoal((g) => ({ ...g, target: e.target.value }))} />
-                </div>
-                <div>
-                  <Label><span style={{ color: C.teal }}>{nameA}'s Target Share</span></Label>
-                  <Inp type="number" placeholder="e.g. 60000" value={newGoal.partnerATarget} onChange={(e: any) => syncNewGoalTotal({ partnerATarget: e.target.value })} />
-                </div>
-                <div>
-                  <Label><span style={{ color: '#ec4899' }}>{nameB}'s Target Share</span></Label>
-                  <Inp type="number" placeholder="e.g. 40000" value={newGoal.partnerBTarget} onChange={(e: any) => syncNewGoalTotal({ partnerBTarget: e.target.value })} />
-                </div>
+                <div><Label><span style={{ color: C.textW }}>Total Target Budget</span></Label><Inp type="number" placeholder="Auto-computed total" value={newGoal.target} onChange={(e: any) => setNewGoal((g) => ({ ...g, target: e.target.value }))} /></div>
+                <div><Label><span style={{ color: C.teal }}>{nameA}'s Target Share</span></Label><Inp type="number" placeholder="e.g. 60000" value={newGoal.partnerATarget} onChange={(e: any) => syncNewGoalTotal({ partnerATarget: e.target.value })} /></div>
+                <div><Label><span style={{ color: '#ec4899' }}>{nameB}'s Target Share</span></Label><Inp type="number" placeholder="e.g. 40000" value={newGoal.partnerBTarget} onChange={(e: any) => syncNewGoalTotal({ partnerBTarget: e.target.value })} /></div>
               </div>
             </div>
 
-            {/* Split Current Savings Progress Matrix */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <div>
-                <Label>Target Milestone Date</Label>
-                <Inp type="date" value={newGoal.targetDate} onChange={(e: any) => setNewGoal((g) => ({ ...g, targetDate: e.target.value }))} />
-              </div>
-              <div>
-                <Label>{nameA}'s Current Saved</Label>
-                <Inp type="number" placeholder="e.g. 15000" value={newGoal.partnerACurrent} onChange={(e: any) => setNewGoal((g) => ({ ...g, partnerACurrent: e.target.value }))} />
-              </div>
-              <div>
-                <Label>{nameB}'s Current Saved</Label>
-                <Inp type="number" placeholder="e.g. 10000" value={newGoal.partnerBCurrent} onChange={(e: any) => setNewGoal((g) => ({ ...g, partnerBCurrent: e.target.value }))} />
-              </div>
+              <div><Label>Target Milestone Date</Label><Inp type="date" value={newGoal.targetDate} onChange={(e: any) => setNewGoal((g) => ({ ...g, targetDate: e.target.value }))} /></div>
+              <div><Label>{nameA}'s Current Saved</Label><Inp type="number" placeholder="e.g. 15000" value={newGoal.partnerACurrent} onChange={(e: any) => setNewGoal((g) => ({ ...g, partnerACurrent: e.target.value }))} /></div>
+              <div><Label>{nameB}'s Current Saved</Label><Inp type="number" placeholder="e.g. 10000" value={newGoal.partnerBCurrent} onChange={(e: any) => setNewGoal((g) => ({ ...g, partnerBCurrent: e.target.value }))} /></div>
             </div>
 
             <div>
               <Label>Theme Signature Color</Label>
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                {COLORS.map((c) => (
-                  <div key={c} onClick={() => setNewGoal((g) => ({ ...g, color: c }))} style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', border: newGoal.color === c ? `3px solid #fff` : '3px solid transparent' }} />
-                ))}
+                {COLORS.map((c) => <div key={c} onClick={() => setNewGoal((g) => ({ ...g, color: c }))} style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', border: newGoal.color === c ? `3px solid #fff` : '3px solid transparent' }} />)}
               </div>
             </div>
             
@@ -2936,7 +1899,6 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
         </Card>
       )}
       
-      {/* SECTION 1: ACTIVE STRATEGIC HORIZONS */}
       <div>
         <div style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: 6, marginBottom: 14 }}>
           <h3 style={{ margin: 0, fontSize: 13, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Active Split-Funding Horizons ({ongoingGoals.length})</h3>
@@ -2964,18 +1926,14 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
                     <div style={{ fontWeight: 700, color: C.textW, fontSize: 15 }}>{g.name}</div>
                   </div>
                   
-                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>
-                    Target: {g.targetDate ? new Date(g.targetDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short' }) : 'Flexible Deadline'}
-                  </div>
+                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 14 }}>Target: {g.targetDate ? new Date(g.targetDate).toLocaleDateString('en-IN', { year: 'numeric', month: 'short' }) : 'Flexible Deadline'}</div>
 
-                  {/* MASTER SEEDED PROGRESS */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4, fontWeight: 600, color: C.text1 }}>
                     <span>Combined Progress</span>
                     <span>{fmt(g.current, data.settings.currency)} / {fmt(g.target, data.settings.currency)} ({pct.toFixed(0)}%)</span>
                   </div>
                   <ProgressBar pct={pct} color={g.color || statusColor} height={8} />
 
-                  {/* SPLIT PARTNER WORKSPACES */}
                   <div style={{ marginTop: 14, background: `${C.bg}66`, padding: 10, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
@@ -2993,7 +1951,6 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
                     </div>
                   </div>
 
-                  {/* TWIN CASH-FLOW VELOCITY CALCULATIONS */}
                   {g.shortfall > 0 && g.monthsRemaining > 0 && (
                     <div style={{ marginTop: 14, paddingTop: 10, borderTop: `1px solid ${C.border}22` }}>
                       <span style={{ color: C.muted, display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.02em', marginBottom: 6 }}>⚠️ Required Monthly Savings Impact ({g.monthsRemaining} mos left):</span>
@@ -3011,7 +1968,6 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
         </div>
       </div>
 
-      {/* SECTION 2: ARCHIVED TROPHY GALLERY */}
       <div>
         <div style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: 6, marginBottom: 14 }}>
           <h3 style={{ margin: 0, fontSize: 13, color: C.green, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Achieved Trophies & Past Household Wins ({completedGoals.length})</h3>
@@ -3020,23 +1976,15 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(310px,1fr))', gap: 16 }}>
           {completedGoals.map((g: any) => {
             if (editing === g.id) return renderEditCard(g.id);
-
             return (
               <Card key={g.id} style={{ position: 'relative', background: `${C.surface}66`, border: `1px solid ${C.green}33`, padding: 16 }}>
                 <span style={{ position: 'absolute', top: 12, right: 12, fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: `${C.green}20`, color: C.green, border: `1px solid ${C.green}44` }}>🏆 Capitalized</span>
-                
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
                   <span style={{ fontSize: 18 }}>{g.icon || '🎉'}</span>
                   <div style={{ fontWeight: 700, color: C.text1, fontSize: 14, textDecoration: 'line-through' }}>{g.name}</div>
                 </div>
-                
-                <p style={{ margin: '4px 0 10px 0', fontSize: 12, color: C.muted }}>
-                  Fully funded at **{fmt(g.target, data.settings.currency)}**! Split distribution: {nameA} ({fmt(g.partnerATarget, data.settings.currency)}) • {nameB} ({fmt(g.partnerBTarget, data.settings.currency)})
-                </p>
-
-                <div style={{ background: `${C.green}11`, padding: '6px 10px', borderRadius: 6, fontSize: 11, color: C.green, fontWeight: 600, textAlign: 'center' }}>
-                  100% Fully Capitalized Milestone Assets
-                </div>
+                <p style={{ margin: '4px 0 10px 0', fontSize: 12, color: C.muted }}>Fully funded at **{fmt(g.target, data.settings.currency)}**! Split distribution: {nameA} ({fmt(g.partnerATarget, data.settings.currency)}) • {nameB} ({fmt(g.partnerBTarget, data.settings.currency)})</p>
+                <div style={{ background: `${C.green}11`, padding: '6px 10px', borderRadius: 6, fontSize: 11, color: C.green, fontWeight: 600, textAlign: 'center' }}>100% Fully Capitalized Milestone Assets</div>
                 {renderEditFooter(g)}
               </Card>
             );
@@ -3046,43 +1994,21 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
     </div>
   );
 
-  // EDIT STATE MODAL VIEW GENERATOR
   function renderEditCard(id: string) {
     return (
       <Card key={id} style={{ border: `1px solid ${C.teal}44`, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <Label><span style={{ fontWeight: 700, color: C.teal }}>Modify Split Metrics</span></Label>
-        <div>
-          <Label>Goal Title</Label>
-          <Inp value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} />
-        </div>
-        
+        <div><Label>Goal Title</Label><Inp value={form.name} onChange={(e: any) => setForm({ ...form, name: e.target.value })} /></div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-          <div>
-            <Label>{nameA}'s Target Split (₹)</Label>
-            <Inp type="number" value={form.partnerATarget} onChange={(e: any) => syncFormTotal({ partnerATarget: e.target.value })} />
-          </div>
-          <div>
-            <Label>{nameB}'s Target Split (₹)</Label>
-            <Inp type="number" value={form.partnerBTarget} onChange={(e: any) => syncFormTotal({ partnerBTarget: e.target.value })} />
-          </div>
+          <div><Label>{nameA}'s Target Split (₹)</Label><Inp type="number" value={form.partnerATarget} onChange={(e: any) => syncFormTotal({ partnerATarget: e.target.value })} /></div>
+          <div><Label>{nameB}'s Target Split (₹)</Label><Inp type="number" value={form.partnerBTarget} onChange={(e: any) => syncFormTotal({ partnerBTarget: e.target.value })} /></div>
         </div>
-
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-          <div>
-            <Label>{nameA}'s Saved (₹)</Label>
-            <Inp type="number" value={form.partnerACurrent} onChange={(e: any) => setForm({ ...form, partnerACurrent: e.target.value })} />
-          </div>
-          <div>
-            <Label>{nameB}'s Saved (₹)</Label>
-            <Inp type="number" value={form.partnerBCurrent} onChange={(e: any) => setForm({ ...form, partnerBCurrent: e.target.value })} />
-          </div>
+          <div><Label>{nameA}'s Saved (₹)</Label><Inp type="number" value={form.partnerACurrent} onChange={(e: any) => setForm({ ...form, partnerACurrent: e.target.value })} /></div>
+          <div><Label>{nameB}'s Saved (₹)</Label><Inp type="number" value={form.partnerBCurrent} onChange={(e: any) => setForm({ ...form, partnerBCurrent: e.target.value })} /></div>
         </div>
-
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-          <div>
-            <Label>Milestone Deadline</Label>
-            <Inp type="date" value={form.targetDate} onChange={(e: any) => setForm({ ...form, targetDate: e.target.value })} style={{ width: '100%' }} />
-          </div>
+          <div><Label>Milestone Deadline</Label><Inp type="date" value={form.targetDate} onChange={(e: any) => setForm({ ...form, targetDate: e.target.value })} style={{ width: '100%' }} /></div>
           <div>
             <Label>Strategy</Label>
             <select value={form.strategy} onChange={(e) => setForm({ ...form, strategy: e.target.value })} style={{ width: '100%', background: C.bg, color: C.text1, border: `1px solid ${C.border}`, padding: '8px 10px', borderRadius: 6, fontSize: 13 }}>
@@ -3090,12 +2016,8 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
             </select>
           </div>
         </div>
-
         <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <Btn variant="primary" onClick={() => { onUpdate(id, form); setEditing(null); }}>Update</Btn>
-            <Btn variant="ghost" onClick={() => setEditing(null)}>Cancel</Btn>
-          </div>
+          <div style={{ display: 'flex', gap: 6 }}><Btn variant="primary" onClick={() => { onUpdate(id, form); setEditing(null); }}>Update</Btn><Btn variant="ghost" onClick={() => setEditing(null)}>Cancel</Btn></div>
           <span style={{ color: C.red, fontSize: 12, cursor: 'pointer', alignSelf: 'center' }} onClick={() => { if(confirm('Permanently delete goal parameters?')) { onDelete(id); setEditing(null); } }}>🗑️ Delete</span>
         </div>
       </Card>
@@ -3104,30 +2026,16 @@ function Goals({ data, onUpdate, onAdd, onDelete }: any) {
 
   function renderEditFooter(g: any) {
     return (
-      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${C.border}11`, paddingTop: 8 }}>
-        <span onClick={() => startEditing(g)} style={{ fontSize: 10, fontWeight: 600, color: C.muted, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, background: `${C.border}22` }}>
-          ⚙️ Parameters
-        </span>
-      </div>
+      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${C.border}11`, paddingTop: 8 }}><span onClick={() => startEditing(g)} style={{ fontSize: 10, fontWeight: 600, color: C.muted, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, background: `${C.border}22` }}>⚙️ Parameters</span></div>
     );
   }
 }
+
 // ─── EMI TRACKER ─────────────────────────────────────────────────────────────
 function LoanTracker({ data, onAdd, onUpdate, onDelete }: any) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
-  const blank = {
-    name: '',
-    lender: '',
-    principal: '',
-    outstanding: '',
-    emi: '',
-    interestRate: '',
-    startDate: today(),
-    tenureMonths: '',
-    paymentDay: 1,
-    icon: '🏠',
-  };
+  const blank = { name: '', lender: '', principal: '', outstanding: '', emi: '', interestRate: '', startDate: today(), tenureMonths: '', paymentDay: 1, icon: '🏠' };
   const [form, setForm] = useState<any>(blank);
   const cur = data.settings.currency;
 
@@ -3137,176 +2045,41 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }: any) {
   const LoanForm = ({ val, onChange, onSave, onCancel }: any) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <div>
-          <Label>Loan Name</Label>
-          <Inp
-            value={val.name}
-            onChange={(e: any) => onChange('name', e.target.value)}
-            placeholder="e.g. Home Loan"
-          />
-        </div>
-        <div>
-          <Label>Icon</Label>
-          <Inp
-            value={val.icon}
-            onChange={(e: any) => onChange('icon', e.target.value)}
-          />
-        </div>
+        <div><Label>Loan Name</Label><Inp value={val.name} onChange={(e: any) => onChange('name', e.target.value)} placeholder="e.g. Home Loan" /></div>
+        <div><Label>Icon</Label><Inp value={val.icon} onChange={(e: any) => onChange('icon', e.target.value)} /></div>
       </div>
-      <div>
-        <Label>Lender</Label>
-        <Inp
-          value={val.lender}
-          onChange={(e: any) => onChange('lender', e.target.value)}
-          placeholder="Bank name"
-        />
-      </div>
+      <div><Label>Lender</Label><Inp value={val.lender} onChange={(e: any) => onChange('lender', e.target.value)} placeholder="Bank name" /></div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <div>
-          <Label>Principal Amount (₹)</Label>
-          <Inp
-            type="number"
-            value={val.principal}
-            onChange={(e: any) => onChange('principal', e.target.value)}
-          />
-        </div>
-        <div>
-          <Label>Outstanding (₹)</Label>
-          <Inp
-            type="number"
-            value={val.outstanding}
-            onChange={(e: any) => onChange('outstanding', e.target.value)}
-          />
-        </div>
+        <div><Label>Principal Amount (₹)</Label><Inp type="number" value={val.principal} onChange={(e: any) => onChange('principal', e.target.value)} /></div>
+        <div><Label>Outstanding (₹)</Label><Inp type="number" value={val.outstanding} onChange={(e: any) => onChange('outstanding', e.target.value)} /></div>
       </div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr 1fr',
-          gap: 10,
-        }}
-      >
-        <div>
-          <Label>Monthly EMI (₹)</Label>
-          <Inp
-            type="number"
-            value={val.emi}
-            onChange={(e: any) => onChange('emi', e.target.value)}
-          />
-        </div>
-        <div>
-          <Label>Rate (%)</Label>
-          <Inp
-            type="number"
-            step="0.1"
-            value={val.interestRate}
-            onChange={(e: any) => onChange('interestRate', e.target.value)}
-          />
-        </div>
-        <div>
-          <Label>Tenure (mo)</Label>
-          <Inp
-            type="number"
-            value={val.tenureMonths}
-            onChange={(e: any) => onChange('tenureMonths', e.target.value)}
-          />
-        </div>
-        <div>
-          <Label>EMI Day (1-31)</Label>
-          <Inp
-            type="number"
-            min="1"
-            max="31"
-            value={val.paymentDay || ''}
-            onChange={(e: any) => onChange('paymentDay', Number(e.target.value))}
-          />
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+        <div><Label>Monthly EMI (₹)</Label><Inp type="number" value={val.emi} onChange={(e: any) => onChange('emi', e.target.value)} /></div>
+        <div><Label>Rate (%)</Label><Inp type="number" step="0.1" value={val.interestRate} onChange={(e: any) => onChange('interestRate', e.target.value)} /></div>
+        <div><Label>Tenure (mo)</Label><Inp type="number" value={val.tenureMonths} onChange={(e: any) => onChange('tenureMonths', e.target.value)} /></div>
+        <div><Label>EMI Day (1-31)</Label><Inp type="number" min="1" max="31" value={val.paymentDay || ''} onChange={(e: any) => onChange('paymentDay', Number(e.target.value))} /></div>
       </div>
-      <div>
-        <Label>Start Date</Label>
-        <Inp
-          type="date"
-          value={val.startDate}
-          onChange={(e: any) => onChange('startDate', e.target.value)}
-        />
-      </div>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <Btn variant="primary" style={{ flex: 1 }} onClick={onSave}>
-          Save Loan
-        </Btn>
-        <Btn variant="ghost" style={{ flex: 1 }} onClick={onCancel}>
-          Cancel
-        </Btn>
-      </div>
+      <div><Label>Start Date</Label><Inp type="date" value={val.startDate} onChange={(e: any) => onChange('startDate', e.target.value)} /></div>
+      <div style={{ display: 'flex', gap: 8 }}><Btn variant="primary" style={{ flex: 1 }} onClick={onSave}>Save Loan</Btn><Btn variant="ghost" style={{ flex: 1 }} onClick={onCancel}>Cancel</Btn></div>
     </div>
   );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))',
-          gap: 12,
-        }}
-      >
-        <StatCard
-          label="Total Monthly EMI"
-          value={fmt(totalEMI, cur)}
-          accent={C.teal}
-          icon="📅"
-          sub={`${data.loans.length} active loans`}
-        />
-        <StatCard
-          label="Total Outstanding"
-          value={fmt(totalOutstanding, cur)}
-          accent={C.red}
-          icon="💳"
-        />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
+        <StatCard label="Total Monthly EMI" value={fmt(totalEMI, cur)} accent={C.teal} icon="📅" sub={`${data.loans.length} active loans`} />
+        <StatCard label="Total Outstanding" value={fmt(totalOutstanding, cur)} accent={C.red} icon="💳" />
       </div>
-
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Btn
-          variant="primary"
-          onClick={() => {
-            setAdding(true);
-            setForm(blank);
-          }}
-        >
-          + Add Loan
-        </Btn>
-      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}><Btn variant="primary" onClick={() => { setAdding(true); setForm(blank); }}>+ Add Loan</Btn></div>
 
       {adding && (
         <Card style={{ border: `1px solid ${C.teal}44` }}>
           <SectionTitle>New Loan / EMI</SectionTitle>
-          <LoanForm
-            val={form}
-            onChange={(k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }))}
-            onSave={() => {
-              onAdd({
-                ...form,
-                id: uid(),
-                principal: Number(form.principal),
-                outstanding: Number(form.outstanding),
-                emi: Number(form.emi),
-                interestRate: Number(form.interestRate),
-                tenureMonths: Number(form.tenureMonths),
-              });
-              setAdding(false);
-            }}
-            onCancel={() => setAdding(false)}
-          />
+          <LoanForm val={form} onChange={(k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }))} onSave={() => { onAdd({ ...form, id: uid(), principal: Number(form.principal), outstanding: Number(form.outstanding), emi: Number(form.emi), interestRate: Number(form.interestRate), tenureMonths: Number(form.tenureMonths), }); setAdding(false); }} onCancel={() => setAdding(false)} />
         </Card>
       )}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))',
-          gap: 16,
-        }}
-      >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
         {data.loans.map((l: any) => {
           const paidPct = ((l.principal - l.outstanding) / l.principal) * 100;
           const monthsLeft = Math.ceil(l.outstanding / l.emi);
@@ -3315,135 +2088,33 @@ function LoanTracker({ data, onAdd, onUpdate, onDelete }: any) {
               {editing === l.id ? (
                 <>
                   <SectionTitle>Edit — {l.name}</SectionTitle>
-                  <LoanForm
-                    val={form}
-                    onChange={(k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }))}
-                    onSave={() => {
-                      onUpdate(l.id, {
-                        ...form,
-                        principal: Number(form.principal),
-                        outstanding: Number(form.outstanding),
-                        emi: Number(form.emi),
-                        interestRate: Number(form.interestRate),
-                        tenureMonths: Number(form.tenureMonths),
-                      });
-                      setEditing(null);
-                    }}
-                    onCancel={() => setEditing(null)}
-                  />
+                  <LoanForm val={form} onChange={(k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }))} onSave={() => { onUpdate(l.id, { ...form, principal: Number(form.principal), outstanding: Number(form.outstanding), emi: Number(form.emi), interestRate: Number(form.interestRate), tenureMonths: Number(form.tenureMonths), }); setEditing(null); }} onCancel={() => setEditing(null)} />
                 </>
               ) : (
                 <>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      marginBottom: 14,
-                    }}
-                  >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                     <div>
-                      <span style={{ fontSize: 28, marginRight: 8 }}>
-                        {l.icon}
-                      </span>
-                      <span
-                        style={{
-                          color: C.textW,
-                          fontWeight: 700,
-                          fontSize: 17,
-                        }}
-                      >
-                        {l.name}
-                      </span>
-                      <div
-                        style={{ color: C.muted, fontSize: 12, marginTop: 2 }}
-                      >
-                        {l.lender} · {l.interestRate}% p.a.
-                      </div>
+                      <span style={{ fontSize: 28, marginRight: 8 }}>{l.icon}</span>
+                      <span style={{ color: C.textW, fontWeight: 700, fontSize: 17 }}>{l.name}</span>
+                      <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{l.lender} · {l.interestRate}% p.a.</div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <Btn
-                        variant="ghost"
-                        style={{ fontSize: 11, padding: '4px 9px' }}
-                        onClick={() => {
-                          setEditing(l.id);
-                          setForm({ ...l });
-                        }}
-                      >
-                        Edit
-                      </Btn>
-                      <Btn
-                        variant="danger"
-                        style={{ fontSize: 11, padding: '4px 9px' }}
-                        onClick={() => onDelete(l.id)}
-                      >
-                        ✕
-                      </Btn>
-                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}><Btn variant="ghost" style={{ fontSize: 11, padding: '4px 9px' }} onClick={() => { setEditing(l.id); setForm({ ...l }); }}>Edit</Btn><Btn variant="danger" style={{ fontSize: 11, padding: '4px 9px' }} onClick={() => onDelete(l.id)}>✕</Btn></div>
                   </div>
                   <ProgressBar pct={paidPct} color={C.teal} height={10} />
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      margin: '8px 0 14px',
-                    }}
-                  >
-                    <span style={{ color: C.muted, fontSize: 12 }}>
-                      {paidPct.toFixed(1)}% paid off
-                    </span>
-                    <span
-                      style={{ color: C.teal, fontSize: 12, fontWeight: 600 }}
-                    >
-                      ~{monthsLeft} months left
-                    </span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', margin: '8px 0 14px' }}>
+                    <span style={{ color: C.muted, fontSize: 12 }}>{paidPct.toFixed(1)}% paid off</span>
+                    <span style={{ color: C.teal, fontSize: 12, fontWeight: 600 }}>~{monthsLeft} months left</span>
                   </div>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 1fr',
-                      gap: 10,
-                    }}
-                  >
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     {[
-                      {
-                        label: 'Outstanding',
-                        val: fmt(l.outstanding, cur),
-                        color: C.red,
-                      },
-                      {
-                        label: 'Monthly EMI',
-                        val: fmt(l.emi, cur),
-                        color: C.teal,
-                      },
-                      {
-                        label: 'Principal',
-                        val: fmt(l.principal, cur),
-                        color: C.text1,
-                      },
+                      { label: 'Outstanding', val: fmt(l.outstanding, cur), color: C.red },
+                      { label: 'Monthly EMI', val: fmt(l.emi, cur), color: C.teal },
+                      { label: 'Principal', val: fmt(l.principal, cur), color: C.text1 },
                       { label: 'Started', val: l.startDate, color: C.text1 },
                     ].map(({ label, val, color }) => (
-                      <div
-                        key={label}
-                        style={{
-                          background: C.bg,
-                          borderRadius: 8,
-                          padding: '10px 12px',
-                        }}
-                      >
-                        <div style={{ color: C.muted, fontSize: 11 }}>
-                          {label}
-                        </div>
-                        <div
-                          style={{
-                            color,
-                            fontWeight: 700,
-                            fontSize: 14,
-                            marginTop: 2,
-                          }}
-                        >
-                          {val}
-                        </div>
+                      <div key={label} style={{ background: C.bg, borderRadius: 8, padding: '10px 12px' }}>
+                        <div style={{ color: C.muted, fontSize: 11 }}>{label}</div>
+                        <div style={{ color, fontWeight: 700, fontSize: 14, marginTop: 2 }}>{val}</div>
                       </div>
                     ))}
                   </div>
@@ -3464,7 +2135,6 @@ function AIInsights({ data }: any) {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState('monthly');
 
-  // ⚡ UPGRADED: Expanded analytical engine modules
   const MODES = [
     { id: 'monthly', label: '📊 Monthly Summary' },
     { id: 'anomalies', label: '🔍 Unusual Spending' },
@@ -3490,80 +2160,19 @@ function AIInsights({ data }: any) {
     monthExp.forEach((e: any) => {
       catTotals[e.category] = (catTotals[e.category] || 0) + e.amount;
     });
-    const contrib = data.contributions.find((c: any) => c.month === mk) || {
-      partnerA: 0,
-      partnerB: 0,
-    };
+    const contrib = data.contributions.find((c: any) => c.month === mk) || { partnerA: 0, partnerB: 0 };
     const totalEMI = data.loans.reduce((s: number, l: any) => s + l.emi, 0);
 
-    // ⚡ CONTEXT INJECTION: Explicit system prompt updates regarding late-month paycheck alignment
-    const TIMING_CONTEXT = `CRUCIAL HOUSEHOLD CASH-FLOW CONTEXT: In this family ecosystem, primary salary/income inflows are credited strictly at the very end of the calendar month. Do not interpret mid-month liquid balance drawdowns, early-month lifestyle costs, or temporary account deficits as financial failure, overspending, or budgeting emergencies. Spending is intentionally sustained by existing capital reserves until the end-of-month paycheck lands. Evaluate all cash availability, pacing speeds, and optimization strategies with this month-end timing loop explicitly in mind.`;
+    const TIMING_CONTEXT = `CRUCIAL HOUSEHOLD CASH-FLOW CONTEXT: In this family ecosystem, salary inflows are credited strictly at the end of the calendar month. Do not interpret early-month spending drawdowns as budgeting emergencies. Existing capital reserves hold operations dynamically until payday.`;
 
     const prompts: Record<string, string> = {
-      monthly: `You are a personal finance advisor for a couple in India. Analyze their spending data and write a warm, practical monthly summary. Couple: ${
-        names.a
-      } and ${names.b}. Month: ${monthLabel(mk)}. Joint contributions: ${
-        names.a
-      }: ₹${contrib.partnerA}, ${names.b}: ₹${
-        contrib.partnerB
-      }. Spending by category: ${JSON.stringify(
-        catTotals
-      )}. Total monthly EMI commitment: ₹${totalEMI}. Goals progress: ${data.goals
-        .map((g: any) => `${g.name}: ${((g.current / g.target) * 100).toFixed(0)}%`)
-        .join(', ')}. Category budgets: ${JSON.stringify(
-        data.settings.budgets
-      )}. ${TIMING_CONTEXT} Write a 3-4 paragraph summary covering: (1) overall spending health factoring in the salary cycle, (2) notable patterns or concerns by category, (3) how they're tracking against budgets, (4) one actionable recommendation for next month. Be specific with numbers and direct. Format with clear paragraphs, no bullet points.`,
-      
-      anomalies: `You are a sharp financial analyst. Look at this couple's spending data and identify genuinely unusual patterns, spikes, or concerns. Names: ${
-        names.a
-      } and ${names.b}. This month's category spending: ${JSON.stringify(
-        catTotals
-      )}. Budgets set: ${JSON.stringify(
-        data.settings.budgets
-      )}. Monthly EMI: ₹${totalEMI}. ${TIMING_CONTEXT} Ignore expected mid-month wallet dips. Focus strictly on category overruns that breach predefined limits or random anomalous transaction spikes compared to their standard spending bounds. Identify 3-4 specific anomalies or structural patterns worth their attention. Be concrete — mention actual numbers and categories. Write in clear paragraphs.`,
-      
-      advice: `You are a trusted personal finance advisor for an Indian couple managing a shared household budget. Give them 4-5 specific, actionable pieces of advice based on their actual data. Combined monthly joint contributions: ₹${
-        contrib.partnerA + contrib.partnerB
-      }. This month's spending by category: ${JSON.stringify(
-        catTotals
-      )}. Active loans: ${data.loans
-        .map(
-          (l: any) => `${l.name}: ₹${l.outstanding} outstanding @ ${l.interestRate}%`
-        )
-        .join('; ')}. Financial goals: ${data.goals
-        .map(
-          (g: any) => `${g.name}: ${((g.current / g.target) * 100).toFixed(0)}% done`
-        )
-        .join(
-          '; '
-        )}. ${TIMING_CONTEXT} Structure your financial advice to ensure liquid liquidity pools bridge the month smoothly until pay day without friction. Reference their specific numbers. Write in clear paragraphs.`,
-      
-      loans: `You are a debt management expert. Analyze this couple's loan portfolio and give strategic advice. Loans: ${data.loans
-        .map(
-          (l: any) =>
-            `- ${l.name}: Principal ₹${l.principal}, Outstanding ₹${l.outstanding}, EMI ₹${l.emi}/month @ ${l.interestRate}%, started ${l.startDate}`
-        )
-        .join(
-          '\n'
-        )}. Total monthly EMI burden: ₹${totalEMI}. Monthly joint contribution: ₹${
-        contrib.partnerA + contrib.partnerB
-      }. Cover: (1) which loan to prioritize for prepayment and why, (2) overall debt-to-income health, (3) estimated time to debt freedom with current EMIs, (4) one concrete strategy to reduce total interest. Be specific with numbers.`,
-
-      runway: `You are a predictive cash-flow modeling engineer. Evaluate this couple's spending velocity and capital buffer longevity. Names: ${
-        names.a
-      } and ${names.b}. Current Month spending: ${JSON.stringify(
-        catTotals
-      )}. Active EMIs: ₹${totalEMI}. ${TIMING_CONTEXT} Based on their average spending trajectory, assess their liquid household flexibility and capital preservation strength. Project their retention performance over upcoming cycles and give guidance on optimizing cash velocity. Write in clear, structured paragraphs without bullet points.`,
-
-      milestones: `You are a strategic wealth consultant. Analyze this couple's shared savings milestones and individual split targets. Goals profiles: ${data.goals
-        .map((g: any) => `- ${g.name}: Target ₹${g.target}, Saved ₹${g.current}, Split targets: ${names.a} (₹${g.partnerATarget}), ${names.b} (₹${g.partnerBTarget}), Current individual accumulation: ${names.a} (₹${g.partnerACurrent}), ${names.b} (₹${g.partnerBCurrent}), Pace: ${g.paceStatus}, Months Left: ${g.monthsRemaining}, Required Monthly Speed: ${names.a} (₹${g.velocityA}/mo), ${names.b} (₹${g.velocityB}/mo)`)
-        .join('\n')}. Provide a deep tactical audit of their milestone completion tracks. Evaluate if their individual accumulation paces line up with active deadlines, flag fields that need reallocation, and outline strategies for both partners to optimize their combined funding velocity. Write in clear paragraphs.`,
-
-      discretionary: `You are an expert expense rationalization coach. Audit the structural division between this household's fixed core overhead and variable discretionary choices. Current metrics: ${JSON.stringify(
-        catTotals
-      )}. Budget targets: ${JSON.stringify(
-        data.settings.budgets
-      )}. Audit their transactions by segregating Core Fixed Commitments (Rent, Utilities, EMIs, Insurance) from Variable Discretionary Choices (Dining Out, Coffee & Snacks, Entertainment, Apparel). Identify specific categories where impulse spends are approaching limits and suggest realistic adjustment points to reclaim capital for investment pools. Write in clear paragraphs.`
+      monthly: `Advising couple ${names.a} and ${names.b}. Month: ${monthLabel(mk)}. Contributions: ${names.a}: ₹${contrib.partnerA}, ${names.b}: ₹${contrib.partnerB}. Category Spending: ${JSON.stringify(catTotals)}. Monthly EMI: ₹${totalEMI}. Goals: ${data.goals.map((g: any) => `${g.name}: ${((g.current / g.target) * 100).toFixed(0)}%`).join(', ')}. Budgets: ${JSON.stringify(data.settings.budgets)}. ${TIMING_CONTEXT} Synthesize a concise 3-4 paragraph status health summary. No bullets.`,
+      anomalies: `Audit expenditures for anomalies. Categories: ${JSON.stringify(catTotals)}. Budgets: ${JSON.stringify(data.settings.budgets)}. EMI total: ₹${totalEMI}. Identify 3-4 structural breaches or spikes.`,
+      advice: `Provide 4-5 core strategic optimization tasks. Monthly pool pool seed: ₹${contrib.partnerA + contrib.partnerB}. Expenses: ${JSON.stringify(catTotals)}. Active debt: ${data.loans.map((l: any) => `${l.name}: ₹${l.outstanding} @ ${l.interestRate}%`).join('; ')}. ${TIMING_CONTEXT} Outline dynamic liquidity measures.`,
+      loans: `Analyze loan array structure: ${data.loans.map((l: any) => `- ${l.name}: Principal ₹${l.principal}, Outstanding ₹${l.outstanding}, EMI ₹${l.emi} @ ${l.interestRate}%`).join('\n')}. Provide a strict pre-payment blueprint prioritization track.`,
+      runway: `Predictive execution modeling. Current spend values: ${JSON.stringify(catTotals)}. Overheads: ₹${totalEMI}. ${TIMING_CONTEXT} Map overall budget runway lifespan.`,
+      milestones: `Milestone track calculations: ${data.goals.map((g: any) => `- ${g.name}: Target ₹${g.target}, Current combined saved ₹${g.current}, Split velocities: ${names.a} (₹${g.velocityA}/mo), ${names.b} (₹${g.velocityB}/mo)`).join('\n')}. Evaluate timeframe completion horizons.`,
+      discretionary: `Segregate Core Fixed bills from Discretionary variables inside matching dataset: ${JSON.stringify(catTotals)}. Budgets: ${JSON.stringify(data.settings.budgets)}. Advise parameters to prune to recycle wealth pipelines.`
     };
 
     try {
@@ -3572,11 +2181,9 @@ function AIInsights({ data }: any) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: prompts[mode] }),
       });
-
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || 'Failed to generate insights');
-
-      setReport(d.text);
+      const dData = await res.json();
+      if (!res.ok) throw new Error(dData.error || 'Failed to generate insights');
+      setReport(dData.text);
     } catch (e: any) {
       setError('Could not generate insights: ' + e.message);
     }
@@ -3587,70 +2194,29 @@ function AIInsights({ data }: any) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <Card>
         <SectionTitle>AI-Powered Financial Insights</SectionTitle>
-        <p style={{ color: C.text1, fontSize: 14, margin: '0 0 18px', lineHeight: 1.6 }}>
-          Get personalised insights generated by Gemini based on your actual spending data, goals, and loans.
-        </p>
+        <p style={{ color: C.text1, fontSize: 14, margin: '0 0 18px', lineHeight: 1.6 }}>Get personalised insights generated by Gemini based on your actual spending data, goals, and loans.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-          {MODES.map((m) => (
-            <Btn
-              key={m.id}
-              variant={mode === m.id ? 'primary' : 'ghost'}
-              onClick={() => setMode(m.id)}
-              style={{ fontSize: 13 }}
-            >
-              {m.label}
-            </Btn>
-          ))}
+          {MODES.map((m) => <Btn key={m.id} variant={mode === m.id ? 'primary' : 'ghost'} onClick={() => setMode(m.id)} style={{ fontSize: 13 }}>{m.label}</Btn>)}
         </div>
-        <Btn variant="primary" onClick={generate} style={{ padding: '11px 24px', fontSize: 14 }} disabled={loading}>
-          {loading ? 'Generating…' : '✨ Generate Insight'}
-        </Btn>
+        <Btn variant="primary" onClick={generate} style={{ padding: '11px 24px', fontSize: 14 }} disabled={loading}>{loading ? 'Generating…' : '✨ Generate Insight'}</Btn>
       </Card>
 
       {loading && (
         <Card style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ color: C.amber, fontSize: 32, marginBottom: 12, animation: 'spin 1.2s linear infinite' }}>
-            ✨
-          </div>
+          <div style={{ color: C.amber, fontSize: 32, marginBottom: 12, animation: 'spin 1.2s linear infinite' }}>✨</div>
           <div style={{ color: C.text1, fontSize: 15 }}>Gemini is analysing your finances…</div>
           <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
         </Card>
       )}
-
-      {error && (
-        <Card style={{ border: `1px solid ${C.red}44`, background: C.red + '11' }}>
-          <p style={{ color: C.red, margin: 0 }}>{error}</p>
-        </Card>
-      )}
-
-      {report && (
-        <Card style={{ border: `1px solid ${C.amber}33` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <span style={{ fontSize: 20 }}>✨</span>
-            <span style={{ color: C.textW, fontWeight: 700, fontSize: 15 }}>
-              {MODES.find((m) => m.id === mode)?.label}
-            </span>
-            <span style={{ color: C.muted, fontSize: 12, marginLeft: 'auto' }}>
-              {monthLabel(monthKey(today()))}
-            </span>
-          </div>
-          <div style={{ color: C.text1, fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
-            {report}
-          </div>
-        </Card>
-      )}
+      {error && <Card style={{ border: `1px solid ${C.red}44`, background: C.red + '11' }}><p style={{ color: C.red, margin: 0 }}>{error}</p></Card>}
+      {report && <Card style={{ border: `1px solid ${C.amber}33` }}><div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}><span style={{ fontSize: 20 }}>✨</span><span style={{ color: C.textW, fontWeight: 700, fontSize: 15 }}>{MODES.find((m) => m.id === mode)?.label}</span><span style={{ color: C.muted, fontSize: 12, marginLeft: 'auto' }}>{monthLabel(monthKey(today()))}</span></div><div style={{ color: C.text1, fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{report}</div></Card>}
     </div>
   );
 }
 
 // ─── SETTINGS ────────────────────────────────────────────────────────────────
 function Settings({
-  data,
-  householdId,
-  onSave,
-  onExport,
-  onImport,
-  onJoinHousehold,
+  data, householdId, onSave, onExport, onImport, onJoinHousehold,
 }: any) {
   const [s, setS] = useState(JSON.parse(JSON.stringify(data.settings)));
   const [flash, setFlash] = useState(false);
@@ -3659,289 +2225,161 @@ function Settings({
   const [newIncCat, setNewIncCat] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // 🩹 THE SYNC HOOK: Instantly populates the local state form whenever settings data finishes loading
   useEffect(() => {
-    if (data?.settings) {
-      setS(JSON.parse(JSON.stringify(data.settings)));
-    }
+    if (data?.settings) setS(JSON.parse(JSON.stringify(data.settings)));
   }, [data.settings]);
 
-  const save = () => {
-    onSave(s);
-    setFlash(true);
-    setTimeout(() => setFlash(false), 2000);
+  // ─── ATOMIC CONCURRENCY REFACTOR: PREVENTS MULTI-PLAYER OVERWRITES ───
+  const handleAtomicSave = async (updatedFieldKey: string, valuePayload: any) => {
+    try {
+      const { data: liveRow, error: fetchError } = await supabase
+        .from('household_settings')
+        .select('settings_data')
+        .eq('household_id', householdId)
+        .single();
+
+      if (fetchError || !liveRow) throw new Error("Failed to capture database synchronization state.");
+
+      let currentServerSettings = typeof liveRow.settings_data === 'string' 
+        ? JSON.parse(liveRow.settings_data) 
+        : (liveRow.settings_data || {});
+
+      const localizedPatchedSettings = {
+        ...currentServerSettings,
+        [updatedFieldKey]: valuePayload
+      };
+
+      const { error: updateError } = await supabase
+        .from('household_settings')
+        .update({ settings_data: localizedPatchedSettings })
+        .eq('household_id', householdId);
+
+      if (updateError) throw updateError;
+
+      setS(localizedPatchedSettings);
+      setFlash(true);
+      setTimeout(() => setFlash(false), 2500);
+    } catch (err: any) {
+      alert("Settings Concurrency Collision Blocked: " + err.message);
+    }
   };
+
+  const handleGlobalProfileSync = async () => {
+    const deviceRole = typeof window !== 'undefined' ? localStorage.getItem('active_partner_role') || 'Partner A' : 'Partner A';
+    const { error: pErr } = await supabase.from('profiles').update({ display_name: deviceRole, telegram_username: s.telegramUsername }).eq('id', (await supabase.auth.getUser()).data.user?.id);
+    if (pErr) alert('Failed to sync profile handle configurations: ' + pErr.message);
+    
+    const { error: sErr } = await supabase.from('household_settings').update({ settings_data: s }).eq('household_id', householdId);
+    if (sErr) alert('Failed to sync system configurations: ' + sErr.message);
+    else {
+      setFlash(true);
+      setTimeout(() => setFlash(false), 2000);
+    }
+  };
+
   const addExpCat = () => {
-    if (newExpCat.trim()) {
-      setS((x: any) => ({
-        ...x,
-        expenseCategories: [...x.expenseCategories, newExpCat.trim()],
-      }));
-      setNewExpCat('');
-    }
+    const trimmed = newExpCat.trim();
+    if (!trimmed) return;
+    if (s.expenseCategories.includes(trimmed)) return alert("Category already exists.");
+    const updatedArray = [...s.expenseCategories, trimmed];
+    setNewExpCat('');
+    handleAtomicSave('expenseCategories', updatedArray);
   };
+
   const addIncCat = () => {
-    if (newIncCat.trim()) {
-      setS((x: any) => ({
-        ...x,
-        incomeCategories: [...x.incomeCategories, newIncCat.trim()],
-      }));
-      setNewIncCat('');
-    }
+    const trimmed = newIncCat.trim();
+    if (!trimmed) return;
+    if (s.incomeCategories.includes(trimmed)) return alert("Category already exists.");
+    const updatedArray = [...s.incomeCategories, trimmed];
+    setNewIncCat('');
+    handleAtomicSave('incomeCategories', updatedArray);
   };
-  const removeExpCat = (c: string) =>
-    setS((x: any) => ({
-      ...x,
-      expenseCategories: x.expenseCategories.filter((e: string) => e !== c),
-    }));
-  const removeIncCat = (c: string) =>
-    setS((x: any) => ({
-      ...x,
-      incomeCategories: x.incomeCategories.filter((e: string) => e !== c),
-    }));
+
+  const removeExpCat = (c: string) => {
+    const updatedArray = s.expenseCategories.filter((e: string) => e !== c);
+    handleAtomicSave('expenseCategories', updatedArray);
+  };
+
+  const removeIncCat = (c: string) => {
+    const updatedArray = s.incomeCategories.filter((e: string) => e !== c);
+    handleAtomicSave('incomeCategories', updatedArray);
+  };
 
   const handleImport = (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
     parseImport(file, (result: any, err: any) => {
-      if (err) {
-        setImportMsg({ type: 'error', text: err });
-        return;
-      }
+      if (err) { setImportMsg({ type: 'error', text: err }); return; }
       onImport(result);
-      setImportMsg({
-        type: 'success',
-        text: `Imported ${result.expenses.length} transactions successfully!`,
-      });
+      setImportMsg({ type: 'success', text: `Imported ${result.expenses.length} transactions successfully!`, });
       setTimeout(() => setImportMsg(null), 4000);
     });
     e.target.value = '';
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 18,
-        maxWidth: 720,
-      }}
-    >
-      {/* Partner names */}
-      <Card>
-        <SectionTitle>Partner Names</SectionTitle>
-        <div
-          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}
-        >
-          <div>
-            <Label>Partner A Name</Label>
-            <Inp
-              value={s.partnerAName}
-              onChange={(e: any) =>
-                setS((x: any) => ({ ...x, partnerAName: e.target.value }))
-              }
-            />
-          </div>
-          <div>
-            <Label>Partner B Name</Label>
-            <Inp
-              value={s.partnerBName}
-              onChange={(e: any) =>
-                setS((x: any) => ({ ...x, partnerBName: e.target.value }))
-              }
-            />
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 720 }}>
+      {/* 🎫 SECURE HOUSEHOLD INVITATION UTILITY CARD */}
+      <Card style={{ border: `1px solid ${C.border}`, background: `${C.bg}60` }}>
+        <SectionTitle>Household Pairing Invitation Link</SectionTitle>
+        <p style={{ color: C.text2, fontSize: 13, margin: '0 0 12px', lineHeight: 1.5 }}>
+          Share this private system identification token with your partner. They can paste it into their onboarding landing loop screen to instantly pair accounts.
+        </p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: C.bg, borderRadius: 8, padding: '8px 12px', border: `1px solid ${C.border}` }}>
+          <code style={{ color: C.amber, fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all', flex: 1 }}>{householdId}</code>
+          <Btn variant="ghost" style={{ fontSize: 11, padding: '4px 10px', background: `${C.border}60` }} onClick={() => { navigator.clipboard.writeText(householdId); alert("Invitation token copied safely to clipboard! ✓"); }}>📋 Copy Token</Btn>
         </div>
       </Card>
 
-      {/* 👤 ACTIVE PROFILE SELECTION */}
+      <Card>
+        <SectionTitle>Partner Names</SectionTitle>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div><Label>Partner A Name</Label><Inp value={s.partnerAName} onChange={(e: any) => setS({ ...s, partnerAName: e.target.value })} onBlur={() => handleAtomicSave('partnerAName', s.partnerAName)} /></div>
+          <div><Label>Partner B Name</Label><Inp value={s.partnerBName} onChange={(e: any) => setS({ ...s, partnerBName: e.target.value })} onBlur={() => handleAtomicSave('partnerBName', s.partnerBName)} /></div>
+        </div>
+      </Card>
+
       <Card style={{ border: `1px solid ${C.purple}44` }}>
         <SectionTitle>Active Device Profile</SectionTitle>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 12px' }}>
-          Select which partner profile is actively using this device. This automates your expense logging tags.
-        </p>
+        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 12px' }}>Select which partner profile is actively using this device. This automates your expense logging tags.</p>
         <div style={{ display: 'flex', gap: 10 }}>
-          <Btn 
-            variant={typeof window !== 'undefined' && localStorage.getItem('active_partner_role') === 'Partner A' ? 'primary' : 'ghost'}
-            style={{ flex: 1 }}
-            onClick={() => {
-              localStorage.setItem('active_partner_role', 'Partner A');
-              alert(`Device profile successfully locked to: ${s.partnerAName}`);
-              window.location.reload(); // Refresh to broadcast state shifts
-            }}
-          >
+          <Btn variant={typeof window !== 'undefined' && localStorage.getItem('active_partner_role') === 'Partner A' ? 'primary' : 'ghost'} style={{ flex: 1 }} onClick={() => { localStorage.setItem('active_partner_role', 'Partner A'); alert(`Device profile locked to: ${s.partnerAName}`); window.location.reload(); }}>
             👤 {s.partnerAName || 'Partner A'}
           </Btn>
-          <Btn 
-            variant={typeof window !== 'undefined' && localStorage.getItem('active_partner_role') === 'Partner B' ? 'primary' : 'ghost'}
-            style={{ flex: 1 }}
-            onClick={() => {
-              localStorage.setItem('active_partner_role', 'Partner B');
-              alert(`Device profile successfully locked to: ${s.partnerBName}`);
-              window.location.reload();
-            }}
-          >
+          <Btn variant={typeof window !== 'undefined' && localStorage.getItem('active_partner_role') === 'Partner B' ? 'primary' : 'ghost'} style={{ flex: 1 }} onClick={() => { localStorage.setItem('active_partner_role', 'Partner B'); alert(`Device profile locked to: ${s.partnerBName}`); window.location.reload(); }}>
             👤 {s.partnerBName || 'Partner B'}
           </Btn>
         </div>
       </Card>
 
-      {/* ✈️ TELEGRAM BOT USERNAME LINK */}
       <Card style={{ border: `1px solid ${C.teal}44` }}>
         <SectionTitle>Account Identity & Telegram Sync</SectionTitle>
-        
         {(() => {
-          const linkedHandle = (s.telegramUsername || s.telegram_username || '').trim();
+          const linkedHandle = (s.telegramUsername || '').trim();
           const hasLinked = linkedHandle.length > 0;
-          
-          // Read the current live validated profile role loaded from the cloud database
           const currentCloudRole = data.currentUserRole || 'Partner A';
 
           return (
             <>
-              {/* 👥 SYSTEM IDENTITY SWITCHER SECTION */}
               <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${C.border}` }}>
-                <div style={{ marginBottom: 4 }}>
-                  <Label>System Household Profile Role</Label>
-                </div>
-                <p style={{ color: C.muted, fontSize: 12, margin: '0 0 10px' }}>
-                  Your device is registered as <b>{currentCloudRole === 'Partner A' ? data.settings.partnerAName : data.settings.partnerBName}</b> ({currentCloudRole}) in the cloud ledger databases.
-                </p>
-                
+                <div style={{ marginBottom: 4 }}><Label>System Household Profile Role</Label></div>
+                <p style={{ color: C.muted, fontSize: 12, margin: '0 0 10px' }}>Your device is registered as <b>{currentCloudRole === 'Partner A' ? data.settings.partnerAName : data.settings.partnerBName}</b> ({currentCloudRole}) in the cloud ledger databases.</p>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <Btn
-                    variant={currentCloudRole === 'Partner A' ? 'primary' : 'ghost'}
-                    style={{ flex: 1, fontSize: 12, padding: '8px' }}
-                    onClick={async () => {
-                      if (currentCloudRole === 'Partner A') return;
-                      if (confirm(`Switch system profile role to Partner A (${data.settings.partnerAName})?`)) {
-                        const { error } = await supabase
-                          .from('profiles')
-                          .update({ display_name: 'Partner A' })
-                          .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
-                        
-                        if (error) alert(error.message);
-                        else {
-                          if (typeof window !== 'undefined') localStorage.setItem('active_partner_role', 'Partner A');
-                          alert("System profile successfully updated to Partner A!");
-                          window.location.reload();
-                        }
-                      }
-                    }}
-                  >
-                    👤 Set as {data.settings.partnerAName} (Partner A)
-                  </Btn>
-                  
-                  <Btn
-                    variant={currentCloudRole === 'Partner B' ? 'primary' : 'ghost'}
-                    style={{ flex: 1, fontSize: 12, padding: '8px' }}
-                    onClick={async () => {
-                      if (currentCloudRole === 'Partner B') return;
-                      if (confirm(`Switch system profile role to Partner B (${data.settings.partnerBName})?`)) {
-                        const { error } = await supabase
-                          .from('profiles')
-                          .update({ display_name: 'Partner B' })
-                          .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
-                        
-                        if (error) alert(error.message);
-                        else {
-                          if (typeof window !== 'undefined') localStorage.setItem('active_partner_role', 'Partner B');
-                          alert("System profile successfully updated to Partner B!");
-                          window.location.reload();
-                        }
-                      }
-                    }}
-                  >
-                    👥 Set as {data.settings.partnerBName} (Partner B)
-                  </Btn>
+                  <Btn variant={currentCloudRole === 'Partner A' ? 'primary' : 'ghost'} style={{ flex: 1, fontSize: 12, padding: '8px' }} onClick={async () => { if (currentCloudRole === 'Partner A') return; if (confirm(`Switch profile role to Partner A?`)) { const { error } = await supabase.from('profiles').update({ display_name: 'Partner A' }).eq('id', (await supabase.auth.getUser()).data.user?.id); if (error) alert(error.message); else { localStorage.setItem('active_partner_role', 'Partner A'); window.location.reload(); } } }}>👤 Set as {data.settings.partnerAName} (Partner A)</Btn>
+                  <Btn variant={currentCloudRole === 'Partner B' ? 'primary' : 'ghost'} style={{ flex: 1, fontSize: 12, padding: '8px' }} onClick={async () => { if (currentCloudRole === 'Partner B') return; if (confirm(`Switch profile role to Partner B?`)) { const { error } = await supabase.from('profiles').update({ display_name: 'Partner B' }).eq('id', (await supabase.auth.getUser()).data.user?.id); if (error) alert(error.message); else { localStorage.setItem('active_partner_role', 'Partner B'); window.location.reload(); } } }}>👥 Set as {data.settings.partnerBName} (Partner B)</Btn>
                 </div>
               </div>
 
-              {/* ✈️ TELEGRAM INTEGRATION HANDLING SECTION */}
-              <p style={{ color: C.text1, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
-                {hasLinked ? (
-                  <span>Your account is securely connected to the conversational AI tracking bot. Text the bot directly to log expenses on the go.</span>
-                ) : (
-                  <span>Link your public Telegram handle to enable conversational AI transaction logging. Do not include the <code>@</code> symbol.</span>
-                )}
-              </p>
-
+              <p style={{ color: C.text1, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>{hasLinked ? <span>Your account is connected to the bot.</span> : <span>Link your public Telegram handle. Do not include the <code>@</code> symbol.</span>}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <Label>Telegram Username Status</Label>
-                    {hasLinked && (
-                      <Badge color={C.green} style={{ fontSize: 10, padding: '1px 6px' }}>
-                        ✓ Bound & Active
-                      </Badge>
-                    )}
-                  </div>
-
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}><Label>Telegram Username Status</Label>{hasLinked && <Badge color={C.green} style={{ fontSize: 10, padding: '1px 6px' }}>✓ Bound & Active</Badge>}</div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    <input
-                      type="text"
-                      disabled={hasLinked}
-                      placeholder={hasLinked ? `@${linkedHandle}` : "e.g. goku_ops"}
-                      value={hasLinked ? `@${linkedHandle}` : (s.telegramUsername || '')}
-                      onChange={(e: any) =>
-                        setS((x: any) => ({ ...x, telegramUsername: e.target.value.replace(/@/g, '').trim() }))
-                      }
-                      style={{
-                        background: hasLinked ? `${C.bg}80` : C.bg,
-                        border: `1px solid ${hasLinked ? C.border : C.teal}`,
-                        color: hasLinked ? C.text2 : C.textW,
-                        borderRadius: 8, padding: '10px 14px', width: '100%', boxSizing: 'border-box', outline: 'none',
-                        fontFamily: 'monospace', opacity: hasLinked ? 0.7 : 1, cursor: hasLinked ? 'not-allowed' : 'text'
-                      }}
-                    />
-                    
+                    <input type="text" disabled={hasLinked} placeholder={hasLinked ? `@${linkedHandle}` : "e.g. goku_ops"} value={hasLinked ? `@${linkedHandle}` : (s.telegramUsername || '')} onChange={(e: any) => setS({ ...s, telegramUsername: e.target.value.replace(/@/g, '').trim() })} style={{ background: hasLinked ? `${C.bg}80` : C.bg, border: `1px solid ${hasLinked ? C.border : C.teal}`, color: hasLinked ? C.text2 : C.textW, borderRadius: 8, padding: '10px 14px', width: '100%', boxSizing: 'border-box', outline: 'none', fontFamily: 'monospace', opacity: hasLinked ? 0.7 : 1, cursor: hasLinked ? 'not-allowed' : 'text' }} />
                     {hasLinked ? (
-                      <Btn
-                        variant="danger"
-                        style={{ padding: '10px 14px', fontSize: 13, whiteSpace: 'nowrap' }}
-                        onClick={async () => {
-                          if (confirm('Are you sure you want to disconnect this Telegram account?')) {
-                            const { error } = await supabase
-                              .from('profiles')
-                              .update({ telegram_username: null })
-                              .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
-
-                            if (error) alert('Failed to sever link: ' + error.message);
-                            else {
-                              setS((x: any) => ({ ...x, telegramUsername: '' }));
-                              alert('Telegram link successfully severed!');
-                              window.location.reload();
-                            }
-                          }
-                        }}
-                      >
-                        Disconnect
-                      </Btn>
+                      <Btn variant="danger" style={{ padding: '10px 14px', fontSize: 13, whiteSpace: 'nowrap' }} onClick={async () => { if (confirm('Disconnect this Telegram account?')) { const { error } = await supabase.from('profiles').update({ telegram_username: null }).eq('id', (await supabase.auth.getUser()).data.user?.id); if (error) alert(error.message); else { setS({ ...s, telegramUsername: '' }); window.location.reload(); } } }}>Disconnect</Btn>
                     ) : (
-                      <Btn
-                        variant="primary"
-                        style={{ background: `linear-gradient(135deg, ${C.teal}, #0284c7)`, color: C.bg, fontWeight: 700 }}
-                        onClick={async () => {
-                          const handle = s.telegramUsername;
-                          if (!handle) {
-                            alert('Please input a valid username handle first.');
-                            return;
-                          }
-                          
-                          const { error } = await supabase
-                            .from('profiles')
-                              .update({ telegram_username: handle })
-                              .eq('id', data.session?.user?.id || (await supabase.auth.getUser()).data.user?.id);
-
-                          if (error) alert('Failed to link Telegram username: ' + error.message);
-                          else {
-                            alert(`Successfully linked @${handle} to your ledger profile!`);
-                            window.location.reload();
-                          }
-                        }}
-                      >
-                        Link Handle
-                      </Btn>
+                      <Btn variant="primary" style={{ background: `linear-gradient(135deg, ${C.teal}, #0284c7)`, color: C.bg, fontWeight: 700 }} onClick={async () => { if (!s.telegramUsername) return alert('Please input a handle.'); const { error } = await supabase.from('profiles').update({ telegram_username: s.telegramUsername }).eq('id', (await supabase.auth.getUser()).data.user?.id); if (error) alert(error.message); else window.location.reload(); }}>Link Handle</Btn>
                     )}
                   </div>
                 </div>
@@ -3951,419 +2389,62 @@ function Settings({
         })()}
       </Card>
 
+      <Card style={{ display: 'none' }}><SectionTitle>Legacy Sync Placeholder</SectionTitle></Card>
 
-      
-      {/* Multiplayer / Household Sync */}
-      <Card style={{ border: `1px solid ${C.teal}44` }}>
-        <SectionTitle>Household Sync (Multiplayer)</SectionTitle>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
-          Link accounts with your partner to share the same dashboard. One of
-          you should copy your code, and the other should paste it below.
-        </p>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Share Code */}
-          <div style={{ background: C.bg, padding: 14, borderRadius: 10 }}>
-            <Label>Your Household Code</Label>
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <Inp
-                readOnly
-                value={householdId}
-                style={{ color: C.teal, fontFamily: 'monospace' }}
-              />
-              <Btn
-                variant="ghost"
-                onClick={() => {
-                  navigator.clipboard.writeText(householdId);
-                  alert('Code copied to clipboard!');
-                }}
-              >
-                Copy
-              </Btn>
-            </div>
-          </div>
-
-          {/* Join Partner */}
-          <div style={{ background: C.bg, padding: 14, borderRadius: 10 }}>
-            <Label>{"Join a Partner's Household"}</Label>
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <Inp
-                id="join-code-input"
-                placeholder="Paste their code here..."
-                style={{ fontFamily: 'monospace' }}
-              />
-              <Btn
-                variant="primary"
-                onClick={() => {
-                  const el = document.getElementById('join-code-input') as HTMLInputElement;
-                  const val = el?.value;
-                  if (val && val.length > 20) {
-                    if (
-                      confirm(
-                        'Warning: Joining a new household will disconnect you from your current data. Continue?'
-                      )
-                    ) {
-                      onJoinHousehold(val.trim());
-                    }
-                  } else {
-                    alert('Please enter a valid Household Code.');
-                  }
-                }}
-              >
-                Join
-              </Btn>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Categories */}
       <Card>
         <SectionTitle>Expense Categories</SectionTitle>
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 7,
-            marginBottom: 12,
-          }}
-        >
-          {s.expenseCategories.map((c: string) => (
-            <span
-              key={c}
-              style={{
-                background: C.bg,
-                border: `1px solid ${C.border}`,
-                borderRadius: 7,
-                padding: '4px 10px',
-                fontSize: 13,
-                color: C.text1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              {c}
-              <span
-                onClick={() => removeExpCat(c)}
-                style={{
-                  color: C.red,
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  fontSize: 15,
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </span>
-            </span>
-          ))}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
+          {s.expenseCategories.map((c: string) => <span key={c} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: '4px 10px', fontSize: 13, color: C.text1, display: 'flex', alignItems: 'center', gap: 6 }}>{c}<span onClick={() => removeExpCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span></span>)}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Inp
-            value={newExpCat}
-            onChange={(e: any) => setNewExpCat(e.target.value)}
-            placeholder="Add new category…"
-            onKeyDown={(e: any) => e.key === 'Enter' && addExpCat()}
-            style={{ flex: 1 }}
-          />
-          <Btn variant="ghost" onClick={addExpCat}>
-            Add
-          </Btn>
-        </div>
+        <div style={{ display: 'flex', gap: 8 }}><Inp value={newExpCat} onChange={(e: any) => setNewExpCat(e.target.value)} placeholder="Add new category…" onKeyDown={(e: any) => e.key === 'Enter' && addExpCat()} style={{ flex: 1 }} /><Btn variant="ghost" onClick={addExpCat}>Add</Btn></div>
       </Card>
 
       <Card>
         <SectionTitle>Income Categories</SectionTitle>
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 7,
-            marginBottom: 12,
-          }}
-        >
-          {s.incomeCategories.map((c: string) => (
-            <span
-              key={c}
-              style={{
-                background: C.bg,
-                border: `1px solid ${C.border}`,
-                borderRadius: 7,
-                padding: '4px 10px',
-                fontSize: 13,
-                color: C.text1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              {c}
-              <span
-                onClick={() => removeIncCat(c)}
-                style={{
-                  color: C.red,
-                  cursor: 'pointer',
-                  fontWeight: 700,
-                  fontSize: 15,
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </span>
-            </span>
-          ))}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
+          {s.incomeCategories.map((c: string) => <span key={c} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7, padding: '4px 10px', fontSize: 13, color: C.text1, display: 'flex', alignItems: 'center', gap: 6 }}>{c}<span onClick={() => removeIncCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span></span>)}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Inp
-            value={newIncCat}
-            onChange={(e: any) => setNewIncCat(e.target.value)}
-            placeholder="Add income category…"
-            onKeyDown={(e: any) => e.key === 'Enter' && addIncCat()}
-            style={{ flex: 1 }}
-          />
-          <Btn variant="ghost" onClick={addIncCat}>
-            Add
-          </Btn>
-        </div>
+        <div style={{ display: 'flex', gap: 8 }}><Inp value={newIncCat} onChange={(e: any) => setNewIncCat(e.target.value)} placeholder="Add income category…" onKeyDown={(e: any) => e.key === 'Enter' && addIncCat()} style={{ flex: 1 }} /><Btn variant="ghost" onClick={addIncCat}>Add</Btn></div>
       </Card>
 
-      {/* Category Budgets */}
       <Card>
         <SectionTitle>Category Budgets (Monthly)</SectionTitle>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
-          Set monthly spending limits per category. Overages will be flagged on
-          the dashboard.
-        </p>
-        <div
-          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}
-        >
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {s.expenseCategories.map((c: string) => (
-            <div
-              key={c}
-              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-            >
-              <span
-                style={{
-                  color: C.text1,
-                  fontSize: 13,
-                  flex: 1,
-                  minWidth: 0,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {c}
-              </span>
-              <Inp
-                type="number"
-                value={s.budgets[c] || ''}
-                onChange={(e: any) => {
-                  const v = e.target.value;
-                  setS((x: any) => ({
-                    ...x,
-                    budgets: { ...x.budgets, [c]: v ? Number(v) : undefined },
-                  }));
-                }}
-                placeholder="No limit"
-                style={{ width: 100, padding: '6px 10px', fontSize: 12 }}
-              />
+            <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: C.text1, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c}</span>
+              <Inp type="number" value={s.budgets[c] || ''} onChange={(e: any) => { const v = e.target.value; const nextBudgets = { ...s.budgets, [c]: v ? Number(v) : undefined }; setS({ ...s, budgets: nextBudgets }); handleAtomicSave('budgets', nextBudgets); }} placeholder="No limit" style={{ width: 100, padding: '6px 10px', fontSize: 12 }} />
             </div>
           ))}
         </div>
       </Card>
 
-      {/* Notifications */}
       <Card>
         <SectionTitle>Push Notifications</SectionTitle>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Toggle
-            checked={s.notifications.enabled}
-            onChange={(v: boolean) =>
-              setS((x: any) => ({
-                ...x,
-                notifications: { ...x.notifications, enabled: v },
-              }))
-            }
-            label="Enable push notifications (browser permission required)"
-          />
+          <Toggle checked={s.notifications.enabled} onChange={(v: boolean) => setS({ ...s, notifications: { ...s.notifications, enabled: v } })} label="Enable push notifications" />
           {s.notifications.enabled && (
             <>
-              <Toggle
-                checked={s.notifications.newExpense}
-                onChange={(v: boolean) =>
-                  setS((x: any) => ({
-                    ...x,
-                    notifications: { ...x.notifications, newExpense: v },
-                  }))
-                }
-                label="Notify when partner adds an expense"
-              />
-              <Toggle
-                checked={s.notifications.settlement}
-                onChange={(v: boolean) =>
-                  setS((x: any) => ({
-                    ...x,
-                    notifications: { ...x.notifications, settlement: v },
-                  }))
-                }
-                label="Notify on settlement actions"
-              />
-              <Toggle
-                checked={s.notifications.budgetAlert}
-                onChange={(v: boolean) =>
-                  setS((x: any) => ({
-                    ...x,
-                    notifications: { ...x.notifications, budgetAlert: v },
-                  }))
-                }
-                label="Alert when approaching budget limit"
-              />
+              <Toggle checked={s.notifications.newExpense} onChange={(v: boolean) => setS({ ...s, notifications: { ...s.notifications, newExpense: v } })} label="Notify when partner adds an expense" />
+              <Toggle checked={s.notifications.settlement} onChange={(v: boolean) => setS({ ...s, notifications: { ...s.notifications, settlement: v } })} label="Notify on settlement actions" />
+              <Toggle checked={s.notifications.budgetAlert} onChange={(v: boolean) => setS({ ...s, notifications: { ...s.notifications, budgetAlert: v } })} label="Alert when approaching budget limit" />
               {s.notifications.budgetAlert && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Label>Alert at</Label>
-                  <Inp
-                    type="number"
-                    value={s.notifications.budgetThreshold}
-                    onChange={(e: any) =>
-                      setS((x: any) => ({
-                        ...x,
-                        notifications: {
-                          ...x.notifications,
-                          budgetThreshold: Number(e.target.value),
-                        },
-                      }))
-                    }
-                    style={{ width: 70 }}
-                  />
-                  <span style={{ color: C.text1, fontSize: 13 }}>
-                    % of budget used
-                  </span>
-                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Label>Alert at</Label><Inp type="number" value={s.notifications.budgetThreshold} onChange={(e: any) => setS({ ...s, notifications: { ...s.notifications, budgetThreshold: Number(e.target.value) } })} style={{ width: 70 }} /><span style={{ color: C.text1, fontSize: 13 }}>% of budget used</span></div>
               )}
-              <Btn
-                variant="ghost"
-                style={{ alignSelf: 'flex-start' }}
-                onClick={async () => {
-                  if ('Notification' in window) {
-                    const p = await Notification.requestPermission();
-                    if (p === 'granted')
-                      new Notification('FamilyFinance', {
-                        body: 'Notifications are working! ✓',
-                      });
-                    else
-                      alert(
-                        'Please allow notifications in your browser settings.'
-                      );
-                  }
-                }}
-              >
-                Test Notification
-              </Btn>
             </>
           )}
         </div>
       </Card>
 
-      {/* Data */}
       <Card>
         <SectionTitle>Data Management</SectionTitle>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <div
-              style={{
-                color: C.text1,
-                fontSize: 14,
-                fontWeight: 600,
-                marginBottom: 4,
-              }}
-            >
-              Export to Excel
-            </div>
-            <div style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>
-              Download all your data as a formatted .xlsx file with separate
-              sheets for expenses, contributions, goals, and loans.
-            </div>
-            <Btn variant="success" onClick={onExport}>
-              ⬇ Export to Excel
-            </Btn>
-          </div>
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
-            <div
-              style={{
-                color: C.text1,
-                fontSize: 14,
-                fontWeight: 600,
-                marginBottom: 4,
-              }}
-            >
-              Import from Excel / CSV
-            </div>
-            <div style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>
-              Import your existing expense data. The file should have an
-              "Expenses" sheet matching the exported format. Existing data will
-              be merged (not replaced).
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleImport}
-              style={{ display: 'none' }}
-            />
-            <Btn variant="purple" onClick={() => fileRef.current?.click()}>
-              ⬆ Import File
-            </Btn>
-            {importMsg && (
-              <div
-                style={{
-                  marginTop: 10,
-                  padding: '9px 14px',
-                  background:
-                    importMsg.type === 'success'
-                      ? C.green + '22'
-                      : C.red + '22',
-                  border: `1px solid ${
-                    importMsg.type === 'success' ? C.green : C.red
-                  }44`,
-                  borderRadius: 8,
-                  color: importMsg.type === 'success' ? C.green : C.red,
-                  fontSize: 13,
-                }}
-              >
-                {importMsg.text}
-              </div>
-            )}
-            <div
-              style={{
-                marginTop: 10,
-                padding: '10px 14px',
-                background: C.bg,
-                borderRadius: 8,
-                fontSize: 12,
-                color: C.muted,
-              }}
-            >
-              <strong style={{ color: C.text1 }}>
-                Import format (Expenses sheet columns):
-              </strong>
-              <br />
-              ID, Date (YYYY-MM-DD), Type (expense/income), Category, Amount,
-              Account, Added By, Note, To Settle (Yes/No), Settled (Yes/No),
-              Settled For
-            </div>
-          </div>
+          <div><SectionTitle style={{ fontSize: 14 }}>Export to Excel</SectionTitle><Btn variant="success" onClick={onExport}>⬇ Export to Excel</Btn></div>
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}><SectionTitle style={{ fontSize: 14 }}>Import File</SectionTitle><input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} style={{ display: 'none' }} /><Btn variant="purple" onClick={() => fileRef.current?.click()}>环境 Import File</Btn></div>
         </div>
       </Card>
 
-      <Btn
-        variant={flash ? 'success' : 'primary'}
-        onClick={save}
-        style={{ alignSelf: 'flex-start', padding: '12px 28px', fontSize: 15 }}
-      >
-        {flash ? '✓ Settings Saved!' : 'Save All Settings'}
-      </Btn>
+      <Btn variant={flash ? 'success' : 'primary'} onClick={handleGlobalProfileSync} style={{ alignSelf: 'flex-start', padding: '12px 28px', fontSize: 15 }}>{flash ? '✓ Settings Saved!' : 'Save All Settings'}</Btn>
     </div>
   );
 }
@@ -4372,19 +2453,19 @@ function Settings({
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [data, setData] = useState<any>(null);
-
   const [privacyMode, setPrivacyMode] = useState(false);
-  const togglePrivacy = () => {
-    GLOBAL_PRIVACY_MASK = !GLOBAL_PRIVACY_MASK;
-    setPrivacyMode(GLOBAL_PRIVACY_MASK); // Forces React to instantly re-render every tab on screen
-  };
-
   const [view, setView] = useState('dashboard');
   const [prevView, setPrevView] = useState('dashboard'); 
   const [sidebarOpen, setSidebarOpen] = useState(true); 
   const [isMobile, setIsMobile] = useState(false);
-
   const [duplicateData, setDuplicateData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const togglePrivacy = () => {
+    GLOBAL_PRIVACY_MASK = !GLOBAL_PRIVACY_MASK;
+    setPrivacyMode(GLOBAL_PRIVACY_MASK);
+  };
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -4392,26 +2473,13 @@ export default function App() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-  
-  const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Check for login status on load
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load data ONLY if a session exists
   useEffect(() => {
     if (session) {
       loadData(session.user.id).then((d) => {
@@ -4421,59 +2489,86 @@ export default function App() {
     }
   }, [session]);
 
-  // ─── PART 2: MANUAL REFRESH HANDLER (PASTE THIS RIGHT HERE) ───────────
   const handleManualRefresh = async () => {
     if (!session || isRefreshing) return;
     setIsRefreshing(true);
-    
     try {
-      // Re-triggers your file's existing data loading function
       const freshData = await loadData(session.user.id);
       setData(freshData);
     } catch (err) {
-      console.error("Manual refresh data load failed:", err);
+      console.error(err);
     } finally {
-      // Hold the spinning state briefly (500ms) for a clean visual animation
-      setTimeout(() => {
-        setIsRefreshing(false);
-      }, 500);
+      setTimeout(() => setIsRefreshing(false), 500);
     }
   };
 
-  const persist = useCallback((nd: any) => {
-    setData(nd);
-  }, []);
-
   const notify = (title: string, body: string, settings: any) => {
-    if (
-      settings?.notifications?.enabled &&
-      'Notification' in window &&
-      Notification.permission === 'granted'
-    ) {
+    if (settings?.notifications?.enabled && 'Notification' in window && Notification.permission === 'granted') {
       new Notification(title, { body });
     }
   };
 
-  if (!session) {
-    return <Auth />;
-  }
+  if (!session) return <Auth />;
 
   if (loading || !data) {
     return (
-      <div
-        style={{
-          background: C.bg,
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'column',
-          gap: 16,
-        }}
-      >
+      <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
         <div style={{ fontSize: 40 }}>💰</div>
-        <div style={{ color: C.amber, fontSize: 17, fontWeight: 700 }}>
-          Loading FamilyFinance…
+        <div style={{ color: C.amber, fontSize: 17, fontWeight: 700 }}>Loading FamilyFinance…</div>
+      </div>
+    );
+  }
+
+  // ─── 🛑 ONBOARDING GATEWAY LAYER INTERCEPTOR ───
+  if (data.isNewUser) {
+    return (
+      <div style={{ background: '#0f172a', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ background: '#1e293b', padding: 32, borderRadius: 16, maxWidth: 450, width: '100%', border: '1px solid #334155' }}>
+          <h2 style={{ color: '#fff', fontSize: 24, margin: '0 0 8px', fontWeight: 700 }}>Welcome to Ledger Pool</h2>
+          <p style={{ color: '#94a3b8', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>To begin tracking your finances, please establish a brand-new isolated household or link up with an existing partner ledger.</p>
+
+          <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: '1px solid #334155' }}>
+            <h3 style={{ color: '#38bdf8', fontSize: 15, margin: '0 0 6px', fontWeight: 600 }}>Option 1: Initialize Fresh Household</h3>
+            <button
+              onClick={async () => {
+                if (confirm("Initialize a brand new household environment?")) {
+                  const newHouseholdId = crypto.randomUUID();
+                  const userId = session.user.id;
+                  const { error: sErr } = await supabase.from('household_settings').insert([{ household_id: newHouseholdId }]);
+                  if (sErr) return alert(sErr.message);
+
+                  const { error: pErr } = await supabase.from('profiles').insert([{ id: userId, household_id: newHouseholdId, display_name: 'Partner A' }]);
+                  if (pErr) alert(pErr.message);
+                  else window.location.reload();
+                }
+              }}
+              style={{ background: 'linear-gradient(135deg, #0284c7, #0369a1)', color: '#fff', border: 'none', padding: '12px 16px', borderRadius: 8, width: '100%', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+            >
+              🚀 Create New Household Pool
+            </button>
+          </div>
+
+          <div>
+            <h3 style={{ color: '#fbbf24', fontSize: 15, margin: '0 0 6px', fontWeight: 600 }}>Option 2: Join Existing Partner Pool</h3>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="text" id="join-token" placeholder="Paste unique Household ID token..." style={{ background: '#0f172a', border: '1px solid #475569', color: '#fff', borderRadius: 8, padding: '10px 14px', fontSize: 13, width: '100%', outline: 'none' }} />
+              <button
+                onClick={async () => {
+                  const token = (document.getElementById('join-token') as HTMLInputElement)?.value?.trim();
+                  if (!token) return alert("Please paste a token.");
+                  const { data: targetVault } = await supabase.from('household_settings').select('household_id').eq('household_id', token).maybeSingle();
+                  if (!targetVault) return alert("Invalid Invite Token.");
+
+                  const { error } = await supabase.from('profiles').insert([{ id: session.user.id, household_id: token, display_name: 'Partner B' }]);
+                  if (error) alert(error.message);
+                  else window.location.reload();
+                }}
+                style={{ background: '#fbbf24', color: '#0f172a', border: 'none', padding: '10px 18px', borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+              >
+                Join
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -4484,7 +2579,6 @@ export default function App() {
     b: data.settings.partnerBName,
   };
 
-  // ─── MASTER CONTROLLER BLOCK RE-BALANCING ─────────────────────────────────
   const actions = {
     addExpense: async (e: any) => {
       const toSystemKey = (val: string) => {
@@ -4494,28 +2588,12 @@ export default function App() {
       };
 
       const newTx = {
-        id: e.id,
-        household_id: data.householdId,
-        date: e.date,
-        amount: e.amount,
-        category: e.category,
-        type: e.type,
-        account_used: toSystemKey(e.account),
-        added_by: toSystemKey(e.addedBy),
-        note: e.note,
-        to_settle: e.toSettle,
-        settled: e.settled,
-        settled_with: toSystemKey(e.settledFor),
+        id: e.id, household_id: data.householdId, date: e.date, amount: e.amount, category: e.category, type: e.type, account_used: toSystemKey(e.account), added_by: toSystemKey(e.addedBy), note: e.note, to_settle: e.toSettle, settled: e.settled, settled_with: toSystemKey(e.settledFor),
       };
 
       setData((prev: any) => ({
         ...prev,
-        expenses: [{
-          ...e,
-          account: e.account,
-          addedBy: e.addedBy,
-          settledFor: e.settledFor
-        }, ...prev.expenses]
+        expenses: [{ ...e, account: e.account, addedBy: e.addedBy, settledFor: e.settledFor }, ...prev.expenses]
       }));
 
       const { error } = await supabase.from('transactions').insert([newTx]);
@@ -4524,144 +2602,51 @@ export default function App() {
     },
     
     updateExpense: async (id: string, updated: any) => {
-      setData((prev: any) => ({
-        ...prev,
-        expenses: prev.expenses.map((e: any) => (e.id === id ? updated : e)),
-      }));
-
+      setData((prev: any) => ({ ...prev, expenses: prev.expenses.map((e: any) => (e.id === id ? updated : e)) }));
       const toSystemKey = (val: string) => {
         if (val === data.settings.partnerAName) return 'Partner A';
         if (val === data.settings.partnerBName) return 'Partner B';
         return val;
       };
-
-      const { error } = await supabase
-        .from('transactions')
-        .update({
-          date: updated.date,
-          amount: updated.amount,
-          category: updated.category,
-          type: updated.type,
-          account_used: toSystemKey(updated.account),
-          added_by: toSystemKey(updated.addedBy),
-          note: updated.note,
-          to_settle: updated.toSettle,
-          settled: updated.settled,
-          settled_with: toSystemKey(updated.settledFor),
-        })
-        .eq('id', id);
-        
-      if (error) alert('Failed to update: ' + error.message);
+      const { error } = await supabase.from('transactions').update({ date: updated.date, amount: updated.amount, category: updated.category, type: updated.type, account_used: toSystemKey(updated.account), added_by: toSystemKey(updated.addedBy), note: updated.note, to_settle: updated.toSettle, settled: updated.settled, settled_with: toSystemKey(updated.settledFor) }).eq('id', id);
+      if (error) alert(error.message);
     },
 
     deleteExpense: async (id: string) => {
-      setData((prev: any) => ({
-        ...prev,
-        expenses: prev.expenses.filter((e: any) => e.id !== id),
-      }));
+      setData((prev: any) => ({ ...prev, expenses: prev.expenses.filter((e: any) => e.id !== id) }));
       const { error } = await supabase.from('transactions').delete().eq('id', id);
-      if (error) alert('Failed to delete: ' + error.message);
+      if (error) alert(error.message);
     },
 
     bulkDeleteExpense: async (ids: string[]) => {
-      if (!confirm(`Are you sure you want to permanently clear these ${ids.length} entries from the database?`)) return;
-
-      setData((prev: any) => ({
-        ...prev,
-        expenses: prev.expenses.filter((e: any) => !ids.includes(e.id)),
-      }));
-
-      const { error } = await supabase
-        .from('transactions')
-        .delete()
-        .in('id', ids);
-
-      if (error) {
-        alert('Local view cleared, but cloud synchronization bounced: ' + error.message);
-      }
+      setData((prev: any) => ({ ...prev, expenses: prev.expenses.filter((e: any) => !ids.includes(e.id)) }));
+      const { error } = await supabase.from('transactions').delete().in('id', ids);
+      if (error) alert(error.message);
     },
 
     bulkAssignToAccount: async (targetIds: string[], targetAccount: string) => {
-      if (!targetIds || targetIds.length === 0 || !targetAccount) return;
-      
-      try {
-        setLoading(true);
-        const { error } = await supabase
-          .from('transactions')
-          .update({ account_used: targetAccount })
-          .in('id', targetIds);
-
-        if (error) throw error;
-
-        // Force reactive background state refresh
-        const freshData = await loadData(session.user.id);
-        setData(freshData);
-      } catch (err) {
-        console.error("Bulk account re-allocation pipeline failure:", err);
-      } finally {
-        setLoading(false);
-      }
+      const { error } = await supabase.from('transactions').update({ account_used: targetAccount }).in('id', targetIds);
+      if (error) alert(error.message);
+      else setData(await loadData(session.user.id));
     },
 
-    // ─── BULK ACTION 1: MASS FLAG MUTUAL SPLIT ───────────────────────
     bulkFlagToSettle: async (targetIds: string[]) => {
-      if (!targetIds || targetIds.length === 0) return;
-      
-      try {
-        setLoading(true);
-        const { error } = await supabase
-          .from('transactions')
-          .update({ to_settle: true })
-          .in('id', targetIds);
-
-        if (error) throw error;
-        
-        // Instant background sync reload
-        const freshData = await loadData(session.user.id);
-        setData(freshData);
-      } catch (err) {
-        console.error("Bulk operational split modification failure:", err);
-      } finally {
-        setLoading(false);
-      }
+      const { error } = await supabase.from('transactions').update({ to_settle: true }).in('id', targetIds);
+      if (error) alert(error.message);
+      else setData(await loadData(session.user.id));
     },
 
-    // ─── BULK ACTION 2: MASS CLEAR & SETTLE ENTRIES ──────────────────
     bulkMarkAsSettled: async (targetIds: string[]) => {
-      if (!targetIds || targetIds.length === 0) return;
-      
-      try {
-        setLoading(true);
-        const { error } = await supabase
-          .from('transactions')
-          .update({ settled: true })
-          .in('id', targetIds);
-
-        if (error) throw error;
-
-        const freshData = await loadData(session.user.id);
-        setData(freshData);
-      } catch (err) {
-        console.error("Bulk clearing ledger state update failure:", err);
-      } finally {
-        setLoading(false);
-      }
+      const { error } = await supabase.from('transactions').update({ settled: true }).in('id', targetIds);
+      if (error) alert(error.message);
+      else setData(await loadData(session.user.id));
     },
 
     toggleToSettle: async (id: string) => {
       const expense = data.expenses.find((e: any) => e.id === id);
       const newValue = !expense.toSettle;
-      setData((prev: any) => ({
-        ...prev,
-        expenses: prev.expenses.map((e: any) =>
-          e.id === id ? { ...e, toSettle: newValue } : e
-        ),
-      }));
-      const { error } = await supabase
-        .from('transactions')
-        .update({ to_settle: newValue })
-        .eq('id', id);
-      if (error) alert('Failed to update status: ' + error.message);
+      setData((prev: any) => ({ ...prev, expenses: prev.expenses.map((e: any) => e.id === id ? { ...e, toSettle: newValue } : e) }));
+      await supabase.from('transactions').update({ to_settle: newValue }).eq('id', id);
     },
 
     bulkSettle: async (ids: string[]) => {
@@ -4671,809 +2656,131 @@ export default function App() {
         const partner = e.account.includes(names.a) || e.account.includes('Partner A') ? 'Partner A' : 'Partner B';
         return { ...e, settled: true, settledFor: partner, account: 'Joint' };
       });
-
       setData((prev: any) => ({ ...prev, expenses: updatedExpenses }));
-
-      try {
-        const promises = ids.map((id) => {
-          const e = data.expenses.find((x: any) => x.id === id);
-          const partner = e?.account.includes(names.a) || e?.account.includes('Partner A') ? 'Partner A' : 'Partner B';
-          return supabase
-            .from('transactions')
-            .update({ settled: true, settled_with: partner, account_used: 'Joint' })
-            .eq('id', id);
-        });
-
-        const results = await Promise.all(promises);
-        const primaryError = results.find(r => r.error);
-        if (primaryError) throw primaryError.error;
-
-        notify('Settlements Processed', `${ids.length} expenses successfully synchronized to cloud!`, data.settings);
-      } catch (err: any) {
-        alert('UI updated locally, but cloud settlement failed to persist: ' + err.message);
-      }
+      const promises = ids.map((id) => {
+        const e = data.expenses.find((x: any) => x.id === id);
+        const partner = e?.account.includes(names.a) || e?.account.includes('Partner A') ? 'Partner A' : 'Partner B';
+        return supabase.from('transactions').update({ settled: true, settled_with: partner, account_used: 'Joint' }).eq('id', id);
+      });
+      await Promise.all(promises);
     },
 
     updateContrib: async (month: string, pA: number, pB: number) => {
       const existing = data.contributions.find((c: any) => c.month === month);
-      const isCleanUUID = existing && existing.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(existing.id);
-      const dbId = isCleanUUID ? existing.id : uid();
-
-      setData((prev: any) => ({
-        ...prev,
-        contributions: [
-          ...prev.contributions.filter((c: any) => c.month !== month),
-          { id: dbId, month, partnerA: pA, partnerB: pB },
-        ],
-      }));
-      
-      const { error } = await supabase.from('contributions').upsert({
-        id: dbId,
-        household_id: data.householdId,
-        month: month,
-        partner_a_amount: pA,
-        partner_b_amount: pB,
-      }, { onConflict: 'household_id,month' });
-
-      if (error) alert('Cloud contribution sync failed: ' + error.message);
+      const dbId = existing?.id || uid();
+      setData((prev: any) => ({ ...prev, contributions: [...prev.contributions.filter((c: any) => c.month !== month), { id: dbId, month, partnerA: pA, partnerB: pB }] }));
+      await supabase.from('contributions').upsert({ id: dbId, household_id: data.householdId, month, partner_a_amount: pA, partner_b_amount: pB });
     },
 
     addGoal: async (g: any) => {
       const goalId = g.id || crypto.randomUUID(); 
-      const freshGoal = { 
-        ...g, 
-        id: goalId,
-        current: Number(g.partnerACurrent || 0) + Number(g.partnerBCurrent || 0)
-      };
-
+      const freshGoal = { ...g, id: goalId, current: Number(g.partnerACurrent || 0) + Number(g.partnerBCurrent || 0) };
       setData((prev: any) => ({ ...prev, goals: [...prev.goals, freshGoal] }));
-
-      const { error } = await supabase.from('goals').insert([
-        {
-          id: goalId,
-          household_id: data.householdId,
-          name: g.name,
-          target_amount: Number(g.target || 0),
-          partner_a_target: Number(g.partnerATarget || 0),
-          partner_b_target: Number(g.partnerBTarget || 0),
-          partner_a_current: Number(g.partnerACurrent || 0),
-          partner_b_current: Number(g.partnerBCurrent || 0),
-          target_date: g.targetDate || null, 
-          strategy: g.strategy || 'Short-Term',
-          icon: g.icon || '🎯',
-          color: g.color || '#00e5ff'
-        },
-      ]);
-      if (error) alert('Failed to save goal to cloud: ' + error.message);
+      await supabase.from('goals').insert([{ id: goalId, household_id: data.householdId, name: g.name, target_amount: Number(g.target || 0), partner_a_target: Number(g.partnerATarget || 0), partner_b_target: Number(g.partnerBTarget || 0), partner_a_current: Number(g.partnerACurrent || 0), partner_b_current: Number(g.partnerBCurrent || 0), target_date: g.targetDate || null, strategy: g.strategy || 'Short-Term', icon: g.icon || '🎯', color: g.color || '#00e5ff' }]);
     },
 
     updateGoal: async (id: string, updated: any) => {
-      setData((prev: any) => ({
-        ...prev,
-        goals: prev.goals.map((g: any) => (g.id === id ? {
-          ...updated,
-          current: Number(updated.partnerACurrent || 0) + Number(updated.partnerBCurrent || 0)
-        } : g)),
-      }));
-
-      const { error } = await supabase
-        .from('goals')
-        .update({
-          name: updated.name,
-          target_amount: Number(updated.target || 0),
-          partner_a_target: Number(updated.partnerATarget || 0),
-          partner_b_target: Number(updated.partnerBTarget || 0),
-          partner_a_current: Number(updated.partnerACurrent || 0),
-          partner_b_current: Number(updated.partnerBCurrent || 0),
-          target_date: updated.targetDate || null, 
-          strategy: updated.strategy || 'Short-Term',
-          icon: updated.icon,
-          color: updated.color
-        })
-        .eq('id', id);
-      if (error) alert('Failed to update goal to cloud: ' + error.message);
+      setData((prev: any) => ({ ...prev, goals: prev.goals.map((g: any) => g.id === id ? { ...updated, current: Number(updated.partnerACurrent || 0) + Number(updated.partnerBCurrent || 0) } : g) }));
+      await supabase.from('goals').update({ name: updated.name, target_amount: Number(updated.target || 0), partner_a_target: Number(updated.partnerATarget || 0), partner_b_target: Number(updated.partnerBTarget || 0), partner_a_current: Number(updated.partnerACurrent || 0), partner_b_current: Number(updated.partnerBCurrent || 0), target_date: updated.targetDate || null, strategy: updated.strategy || 'Short-Term', icon: updated.icon, color: updated.color }).eq('id', id);
     },
 
     deleteGoal: async (id: string) => {
-      setData((prev: any) => ({
-        ...prev,
-        goals: prev.goals.filter((g: any) => g.id !== id),
-      }));
-      const { error } = await supabase.from('goals').delete().eq('id', id);
-      if (error) alert('Failed to delete goal: ' + error.message);
+      setData((prev: any) => ({ ...prev, goals: prev.goals.filter((g: any) => g.id !== id) }));
+      await supabase.from('goals').delete().eq('id', id);
     },
 
     addLoan: async (l: any) => {
-      setData((prev: any) => ({
-        ...prev,
-        loans: [...prev.loans, {
-          ...l,
-          interestRate: l.interestRate,
-          startDate: l.startDate,
-          tenureMonths: l.tenureMonths,
-          paymentDay: l.paymentDay || 1
-        }]
-      }));
-
-      const { error } = await supabase.from('loans').insert([
-        {
-          id: l.id,
-          household_id: data.householdId,
-          name: l.name,
-          principal: Number(l.principal || 0),
-          interest_rate: Number(l.interestRate || 0),
-          emi: Number(l.emi || 0),
-          outstanding: Number(l.outstanding || 0),
-          start_date: l.startDate,
-          tenure_months: Number(l.tenureMonths || 0),
-          payment_day: Number(l.paymentDay || 1),
-        },
-      ]);
-      if (error) alert('Failed to save loan to cloud: ' + error.message);
+      setData((prev: any) => ({ ...prev, loans: [...prev.loans, l] }));
+      await supabase.from('loans').insert([{ id: l.id, household_id: data.householdId, name: l.name, principal: Number(l.principal || 0), interest_rate: Number(l.interestRate || 0), emi: Number(l.emi || 0), outstanding: Number(l.outstanding || 0), start_date: l.startDate, tenure_months: Number(l.tenureMonths || 0), payment_day: Number(l.paymentDay || 1) }]);
     },
 
     updateLoan: async (id: string, updated: any) => {
-      setData((prev: any) => ({
-        ...prev,
-        loans: prev.loans.map((l: any) => (l.id === id ? updated : l)),
-      }));
-
-      const { error } = await supabase
-        .from('loans')
-        .update({
-          name: updated.name,
-          principal: Number(updated.principal || 0),
-          interest_rate: Number(updated.interestRate || 0),
-          emi: Number(updated.emi || 0),
-          outstanding: Number(updated.outstanding || 0),
-          start_date: updated.startDate,
-          tenure_months: Number(updated.tenureMonths || 0),
-          payment_day: Number(updated.paymentDay || 1),
-        })
-        .eq('id', id);
-
-      if (error) alert('Failed to update loan in cloud: ' + error.message);
+      setData((prev: any) => ({ ...prev, loans: prev.loans.map((l: any) => l.id === id ? updated : l) }));
+      await supabase.from('loans').update({ name: updated.name, principal: Number(updated.principal || 0), interest_rate: Number(updated.interestRate || 0), emi: Number(updated.emi || 0), outstanding: Number(updated.outstanding || 0), start_date: updated.startDate, tenure_months: Number(updated.tenureMonths || 0), payment_day: Number(updated.paymentDay || 1) }).eq('id', id);
     },
 
     deleteLoan: async (id: string) => {
-      setData((prev: any) => ({
-        ...prev,
-        loans: prev.loans.filter((l: any) => l.id !== id),
-      }));
-      const { error } = await supabase.from('loans').delete().eq('id', id);
-      if (error) alert('Failed to delete loan: ' + error.message);
+      setData((prev: any) => ({ ...prev, loans: prev.loans.filter((l: any) => l.id !== id) }));
+      await supabase.from('loans').delete().eq('id', id);
     },
 
     saveSettings: async (s: any) => {
       setData((prev: any) => ({ ...prev, settings: s }));
-
-      const deviceRole = typeof window !== 'undefined' 
-        ? localStorage.getItem('active_partner_role') || 'Partner A' 
-        : 'Partner A';
-
-      try {
-        const promises = [
-          // A. Save household settings configurations
-          supabase.from('household_settings').upsert({
-            household_id: data.householdId,
-            settings_data: s,
-          }, { onConflict: 'household_id' }),
-
-          // B. Sync individual user profile attributes seamlessly!
-          supabase.from('profiles')
-            .update({ 
-              display_name: deviceRole,
-              telegram_username: s.telegramUsername // ✨ ENSURE THIS LINE IS ADDED HERE
-            })
-            .eq('id', session.user.id)
-        ];
-
-        const results = await Promise.all(promises);
-        const primaryError = results.find(r => r.error);
-        if (primaryError) throw primaryError.error;
-
-      } catch (err: any) {
-        console.error("Failed to sync settings changes to Supabase:", err);
-        alert('Settings saved locally, but database sync failed: ' + err.message);
-      }
     },
 
     joinHousehold: async (newHouseholdId: string) => {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ household_id: newHouseholdId })
-        .eq('id', session.user.id);
-      if (error) {
-        alert('Failed to join household: ' + error.message);
-        return;
-      }
-      setLoading(true);
-      const d = await loadData(session.user.id);
-      setData(d);
-      setLoading(false);
-      alert("Successfully joined partner's household!");
+      const { error } = await supabase.from('profiles').update({ household_id: newHouseholdId }).eq('id', session.user.id);
+      if (!error) setData(await loadData(session.user.id));
     },
 
     importData: async ({ expenses, contributions }: any) => {
-      const sanitizedExpenses = (expenses || [])
-        .filter((e: any) => e && e.date && e.amount)
-        .map((e: any) => {
-          const isValidUUID = e.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.id);
-          return { ...e, id: isValidUUID ? e.id : uid() };
-        });
-
-      const existingIds = new Set(data.expenses.map((e: any) => e.id));
-      const newExp = sanitizedExpenses.filter((e: any) => !existingIds.has(e.id));
-      
-      const validImportedContribs = (contributions || []).filter(
-        (c: any) => c && c.month && String(c.month).trim()
-      );
-
-      const sanitizedImportedContribs = validImportedContribs.map((c: any) => {
-        const cleanMonth = String(c.month).trim();
-        const existing = data.contributions.find((x: any) => x.month === cleanMonth);
-        return {
-          id: existing ? existing.id : uid(),
-          month: cleanMonth,
-          partnerA: c.partnerA,
-          partnerB: c.partnerB
-        };
-      });
-
-      const mergedContribs = contributions
-        ? [
-            ...data.contributions.filter(
-              (c: any) => !sanitizedImportedContribs.find((nc: any) => nc.month === c.month)
-            ),
-            ...sanitizedImportedContribs,
-          ]
-        : data.contributions;
-
-      setData((prev: any) => ({
-        ...prev,
-        expenses: [...prev.expenses, ...newExp],
-        contributions: mergedContribs,
-      }));
-
-      if (newExp.length > 0) {
-        const rowsToInsert = newExp.map((e: any) => ({
-          id: e.id,
-          household_id: data.householdId,
-          date: e.date,
-          amount: e.amount,
-          category: e.category,
-          type: e.type,
-          account_used: e.account,
-          added_by: e.addedBy,
-          note: e.note,
-          to_settle: e.toSettle,
-          settled: e.settled,
-          settled_with: e.settledFor
-        }));
-
-        const { error: txError } = await supabase.from('transactions').insert(rowsToInsert);
-        if (txError) alert('Cloud expense synchronization failed: ' + txError.message);
-      }
-
-      if (sanitizedImportedContribs.length > 0) {
-        const contribRowsToUpsert = sanitizedImportedContribs.map((c: any) => ({
-          id: c.id,
-          household_id: data.householdId,
-          month: c.month,
-          partner_a_amount: c.partnerA || 0,
-          partner_b_amount: c.partnerB || 0
-        }));
-
-        const { error: cbError } = await supabase.from('contributions').upsert(contribRowsToUpsert, { onConflict: 'household_id,month' });
-        if (cbError) {
-          alert('Local state updated, but cloud contribution synchronization bounced: ' + cbError.message);
-        } else {
-          alert(`Successfully synced ${newExp.length} transactions and ${sanitizedImportedContribs.length} monthly funding configurations to cloud database!`);
-        }
-      } else if (newExp.length > 0) {
-        alert(`Successfully synced ${newExp.length} transaction rows to your cloud profile!`);
-      } else {
-        alert('No new unique records found to import.');
-      }
+      const sanitizedExpenses = (expenses || []).map((e: any) => ({ ...e, id: e.id || uid() }));
+      setData((prev: any) => ({ ...prev, expenses: [...prev.expenses, ...sanitizedExpenses] }));
+      const rows = sanitizedExpenses.map((e: any) => ({ id: e.id, household_id: data.householdId, date: e.date, amount: e.amount, category: e.category, type: e.type, account_used: e.account, added_by: e.addedBy, note: e.note, to_settle: e.toSettle, settled: e.settled, settled_with: e.settledFor }));
+      await supabase.from('transactions').insert(rows);
     },
-  }; // ⚡ CLOSES THE ACTIONS DICTIONARY OBJECT CLEANLY
+  };
 
-  // ─── MASTER LAYOUT MARKUP RENDER TUNNEL ───────────────────────────────────
   return (
-    <div
-      style={{
-        background: C.bg,
-        minHeight: '100vh',
-        fontFamily: "'DM Sans','Segoe UI',system-ui,sans-serif",
-        color: C.textW,
-        display: 'flex',
-        flexDirection: isMobile ? 'column' : 'row',
-      }}
-    >
-      {/* DESKTOP SIDEBAR */}
+    <div style={{ background: C.bg, minHeight: '100vh', fontFamily: "'DM Sans','Segoe UI',system-ui,sans-serif", color: C.textW, display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       {!isMobile && (
-        <div
-          style={{
-            width: sidebarOpen ? 240 : 80,
-            transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-            background: C.surface,
-            borderRight: `1px solid ${C.border}`,
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'sticky',
-            top: 0,
-            height: '100vh',
-            overflowX: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              padding: sidebarOpen ? '24px 20px' : '24px 0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: sidebarOpen ? 'space-between' : 'center',
-              borderBottom: `1px solid ${C.border}`,
-            }}
-          >
-            {sidebarOpen && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  minWidth: 150,
-                }}
-              >
-                <span style={{ fontSize: 26 }}>💰</span>
-                <span
-                  style={{
-                    color: C.amber,
-                    fontWeight: 900,
-                    fontSize: 18,
-                    letterSpacing: -0.5,
-                  }}
-                >
-                  FamilyFinance
-                </span>
-              </div>
-            )}
-            
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: C.text1,
-                cursor: 'pointer',
-                fontSize: 20,
-                padding: 4,
-              }}
-            >
-              {sidebarOpen ? '◀' : '☰'}
-            </button>
+        <div style={{ width: sidebarOpen ? 240 : 80, transition: 'width 0.25s cubic-bezier(0.4, 0, 0.2, 1)', background: C.surface, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', overflowX: 'hidden' }}>
+          <div style={{ padding: sidebarOpen ? '24px 20px' : '24px 0', display: 'flex', alignItems: 'center', justifyContent: sidebarOpen ? 'space-between' : 'center', borderBottom: `1px solid ${C.border}` }}>
+            {sidebarOpen && <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 150 }}><span style={{ fontSize: 26 }}>💰</span><span style={{ color: C.amber, fontWeight: 900, fontSize: 18, letterSpacing: -0.5 }}>FamilyFinance</span></div>}
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} style={{ background: 'transparent', border: 'none', color: C.text1, cursor: 'pointer', fontSize: 20, padding: 4 }}>{sidebarOpen ? '◀' : '☰'}</button>
           </div>
-
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-              padding: '20px 12px',
-              flex: 1,
-              overflowY: 'auto',
-            }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '20px 12px', flex: 1, overflowY: 'auto' }}>
             {NAV.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => setView(n.id)}
-                title={n.label}
-                style={{
-                  background: view === n.id ? C.amber + '22' : 'transparent',
-                  border: 'none',
-                  color: view === n.id ? C.amber : C.text2,
-                  borderRadius: 10,
-                  padding: sidebarOpen ? '12px 16px' : '12px',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: view === n.id ? 700 : 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: sidebarOpen ? 'flex-start' : 'center',
-                  gap: 12,
-                  transition: 'all .2s',
-                  textAlign: 'left',
-                }}
-              >
-                <span style={{ fontSize: 18 }}>{n.icon}</span>
-                {sidebarOpen && (
-                  <span style={{ whiteSpace: 'nowrap' }}>{n.label}</span>
-                )}
-              </button>
+              <button key={n.id} onClick={() => setView(n.id)} title={n.label} style={{ background: view === n.id ? C.amber + '22' : 'transparent', border: 'none', color: view === n.id ? C.amber : C.text2, borderRadius: 10, padding: sidebarOpen ? '12px 16px' : '12px', cursor: 'pointer', fontSize: 14, fontWeight: view === n.id ? 700 : 600, display: 'flex', alignItems: 'center', justifyContent: sidebarOpen ? 'flex-start' : 'center', gap: 12, transition: 'all .2s', textAlign: 'left' }}><span style={{ fontSize: 18 }}>{n.icon}</span>{sidebarOpen && <span style={{ whiteSpace: 'nowrap' }}>{n.label}</span>}</button>
             ))}
           </div>
-
-          <div style={{ padding: '0 20px 10px', fontSize: 11, color: C.text2, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            👤 Logged in as: {session.user.email}
-          </div>
-
-          <div
-            style={{
-              padding: '20px',
-              borderTop: `1px solid ${C.border}`,
-              display: 'flex',
-              flexDirection: sidebarOpen ? 'row' : 'column',
-              gap: 10,
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}
-          >
-            {/* PRIVACY EYE DOCK TRIGGER */}
-            <button
-              onClick={togglePrivacy}
-              title={privacyMode ? "Reveal Financial Data" : "Mask Private Data"}
-              style={{
-                width: sidebarOpen ? 'auto' : '100%',
-                background: 'transparent',
-                border: `1px solid ${C.border}`,
-                color: privacyMode ? C.amber : C.text2,
-                borderRadius: 8,
-                padding: '10px 14px',
-                fontSize: 16,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s',
-              }}
-            >
-              {privacyMode ? '🙈' : '👁️'}
-            </button>
-
-            <button
-              onClick={() => supabase.auth.signOut()}
-              title="Log Out"
-              style={{
-                flex: 1,
-                width: '100%',
-                background: 'transparent',
-                border: sidebarOpen ? `1px solid ${C.border}` : 'none',
-                color: C.text2,
-                borderRadius: 8,
-                padding: '10px',
-                fontSize: 14,
-                cursor: 'pointer',
-                fontWeight: 600,
-                textAlign: 'center',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {sidebarOpen ? 'Log Out' : '🚪'}
-            </button>
+          <div style={{ padding: '0 20px 10px', fontSize: 11, color: C.text2, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>👤 Logged in as: {session.user.email}</div>
+          <div style={{ padding: '20px', borderTop: `1px solid ${C.border}`, display: 'flex', flexDirection: sidebarOpen ? 'row' : 'column', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
+            <button onClick={togglePrivacy} title={privacyMode ? "Reveal Financial Data" : "Mask Private Data"} style={{ width: sidebarOpen ? 'auto' : '100%', background: 'transparent', border: `1px solid ${C.border}`, color: privacyMode ? C.amber : C.text2, borderRadius: 8, padding: '10px 14px', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>{privacyMode ? '🙈' : '👁️'}</button>
+            <button onClick={() => supabase.auth.signOut()} title="Log Out" style={{ flex: 1, width: '100%', background: 'transparent', border: sidebarOpen ? `1px solid ${C.border}` : 'none', color: C.text2, borderRadius: 8, padding: '10px', fontSize: 14, cursor: 'pointer', fontWeight: 600, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{sidebarOpen ? 'Log Out' : '🚪'}</button>
           </div>
         </div>
       )}
 
-      {/* MAIN AREA */}
-      <div
-        style={{
-          flex: 1,
-          position: 'relative',
-          height: isMobile ? 'calc(100vh - 70px)' : '100vh',
-          overflowY: 'auto',
-        }}
-      >
-        {/* MOBILE TOP HEADER */}
+      <div style={{ flex: 1, position: 'relative', height: isMobile ? 'calc(100vh - 70px)' : '100vh', overflowY: 'auto' }}>
         {isMobile && (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '16px 20px',
-              borderBottom: `1px solid ${C.border}`,
-              background: C.surface,
-              position: 'sticky',
-              top: 0,
-              zIndex: 50,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 22 }}>💰</span>
-              <span style={{ color: C.amber, fontWeight: 900, fontSize: 16 }}>
-                FamilyFinance
-              </span>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-              <span style={{ fontSize: 10, color: C.text2, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {session.user.email}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <button
-                  onClick={togglePrivacy}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: 16,
-                    padding: '2px 4px',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                >
-                  {privacyMode ? '🙈' : '👁️'}
-                </button>
-                <button
-                  onClick={() => supabase.auth.signOut()}
-                  style={{
-                    background: 'transparent',
-                    border: `1px solid ${C.border}`,
-                    color: C.text2,
-                    borderRadius: 6,
-                    padding: '2px 6px',
-                    fontSize: 10,
-                  }}
-                >
-                  Log Out
-                </button>
-              </div>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: `1px solid ${C.border}`, background: C.surface, position: 'sticky', top: 0, zIndex: 50 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 22 }}>💰</span><span style={{ color: C.amber, fontWeight: 900, fontSize: 16 }}>FamilyFinance</span></div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}><span style={{ fontSize: 10, color: C.text2, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.user.email}</span><div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><button onClick={togglePrivacy} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16, padding: '2px 4px', display: 'flex', alignItems: 'center' }}>{privacyMode ? '🙈' : '👁️'}</button><button onClick={() => supabase.auth.signOut()} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, borderRadius: 6, padding: '2px 6px', fontSize: 10 }}>Log Out</button></div></div>
           </div>
         )}
 
-        <div
-          style={{
-            maxWidth: 1000,
-            margin: '0 auto',
-            padding: isMobile ? '20px 20px 100px' : '40px 40px 100px',
-          }}
-        >
-          {/* DYNAMIC HEADER CONTROLS DOCK */}
-          <div 
-            style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              marginBottom: 24,
-              gap: 12
-            }}
-          >
-            <h2
-              style={{
-                color: C.textW,
-                fontSize: 28,
-                fontWeight: 800,
-                margin: 0,
-                letterSpacing: -0.5,
-              }}
-            >
-              {NAV.find((n) => n.id === view)?.label}
-            </h2>
-
-            {/* 🔄 THE GLOBAL REFRESH UTILITY (Stays active across Dashboard, Income, Expenses, & Settlements) */}
+        <div style={{ maxWidth: 1000, margin: '0 auto', padding: isMobile ? '20px 20px 100px' : '40px 40px 100px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 12 }}><h2 style={{ color: C.textW, fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: -0.5 }}>{NAV.find((n) => n.id === view)?.label}</h2>
             {view !== 'add' && view !== 'settings' && (
-              <button
-                onClick={handleManualRefresh}
-                disabled={isRefreshing}
-                style={{
-                  background: isRefreshing ? C.surface : 'transparent',
-                  border: `1px solid ${C.border}`,
-                  color: isRefreshing ? C.text2 : C.text1,
-                  padding: '6px 14px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  cursor: isRefreshing ? 'not-allowed' : 'pointer',
-                  opacity: isRefreshing ? 0.6 : 1,
-                  transition: 'all 0.2s ease',
-                  outline: 'none',
-                }}
-              >
-                <svg
-                  style={{
-                    width: 13,
-                    height: 13,
-                    color: C.amber,
-                    transform: isRefreshing ? 'rotate(360deg)' : 'none',
-                    transition: isRefreshing ? 'transform 0.5s linear infinite' : 'none',
-                    animation: isRefreshing ? 'spin 1s linear infinite' : 'none',
-                  }}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <style>{`
-                    @keyframes spin {
-                      0% { transform: rotate(0deg); }
-                      100% { transform: rotate(360deg); }
-                    }
-                  `}</style>
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2.5}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.253 8H18"
-                  />
-                </svg>
-                {isRefreshing ? 'Syncing Vault...' : 'Refresh Data'}
-              </button>
+              <button onClick={handleManualRefresh} disabled={isRefreshing} style={{ background: isRefreshing ? C.surface : 'transparent', border: `1px solid ${C.border}`, color: isRefreshing ? C.text2 : C.text1, padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, cursor: isRefreshing ? 'not-allowed' : 'pointer', opacity: isRefreshing ? 0.6 : 1, transition: 'all 0.2s ease', outline: 'none' }}><svg style={{ width: 13, height: 13, color: C.amber, transform: isRefreshing ? 'rotate(360deg)' : 'none', transition: isRefreshing ? 'transform 0.5s linear infinite' : 'none', animation: isRefreshing ? 'spin 1s linear infinite' : 'none' }} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.253 8H18" /></svg>{isRefreshing ? 'Syncing Vault...' : 'Refresh Data'}</button>
             )}
           </div>
 
-          {/* VIEW ROUTER */}
-
-          {/* VIEW ROUTER */}
-          {view === 'dashboard' && (
-            <Dashboard data={data} onAddExpense={actions.addExpense} />
-          )}
-          
-          {view === 'add' && (
-            <AddExpense
-              data={data}
-              session={session}
-              duplicateData={duplicateData}
-              onAdd={actions.addExpense}
-              onClose={() => {
-                setDuplicateData(null);
-                setView(prevView);
-              }}
-            />
-          )}
-
+          {view === 'dashboard' && <Dashboard data={data} onAddExpense={actions.addExpense} />}
+          {view === 'add' && <AddExpense data={data} session={session} duplicateData={duplicateData} onAdd={actions.addExpense} onClose={() => { setDuplicateData(null); setView(prevView); }} />}
           {view === 'income' && <IncomeTracker data={data} />}
-
-          {view === 'expenses' && (
-            <ExpenseList
-              data={data}
-              onToggleToSettle={actions.toggleToSettle}
-              onDelete={actions.deleteExpense}
-              onUpdate={actions.updateExpense}
-              onBulkDelete={actions.bulkDeleteExpense}
-              onBulkFlagToSettle={actions.bulkFlagToSettle}
-              onBulkMarkAsSettled={actions.bulkMarkAsSettled}
-              onBulkAssignToAccount={actions.bulkAssignToAccount}
-              onDuplicate={(e: any) => {
-                setDuplicateData({
-                  ...e,
-                  date: today(), 
-                  amount: e.amount.toString(),
-                  id: null
-                });
-                setPrevView(view);
-                setView('add');
-              }}
-            />
-          )}
-          {view === 'settle' && (
-            <SettleDashboard data={data} onBulkSettle={actions.bulkSettle} />
-          )}
-          {view === 'contributions' && (
-            <Contributions data={data} onUpdate={actions.updateContrib} />
-          )}
-          {view === 'goals' && (
-            <Goals
-              data={data}
-              onUpdate={actions.updateGoal}
-              onAdd={actions.addGoal}
-              onDelete={actions.deleteGoal}
-            />
-          )}
-          {view === 'loans' && (
-            <LoanTracker
-              data={data}
-              onAdd={actions.addLoan}
-              onUpdate={actions.updateLoan}
-              onDelete={actions.deleteLoan}
-            />
-          )}
+          {view === 'expenses' && <ExpenseList data={data} onToggleToSettle={actions.toggleToSettle} onDelete={actions.deleteExpense} onUpdate={actions.updateExpense} onBulkDelete={actions.bulkDeleteExpense} onBulkFlagToSettle={actions.bulkFlagToSettle} onBulkMarkAsSettled={actions.bulkMarkAsSettled} onBulkAssignToAccount={actions.bulkAssignToAccount} onDuplicate={(e: any) => { setDuplicateData({ ...e, date: today(), amount: e.amount.toString(), id: null }); setPrevView(view); setView('add'); }} />}
+          {view === 'settle' && <SettleDashboard data={data} onBulkSettle={actions.bulkSettle} />}
+          {view === 'contributions' && <Contributions data={data} onUpdate={actions.updateContrib} />}
+          {view === 'goals' && <Goals data={data} onUpdate={actions.updateGoal} onAdd={actions.addGoal} onDelete={actions.deleteGoal} />}
+          {view === 'loans' && <LoanTracker data={data} onAdd={actions.addLoan} onUpdate={actions.updateLoan} onDelete={actions.deleteLoan} />}
           {view === 'insights' && <AIInsights data={data} />}
-          {view === 'settings' && (
-            <Settings
-              data={data}
-              householdId={data.householdId}
-              onSave={actions.saveSettings}
-              onExport={() => exportToExcel(data)}
-              onImport={actions.importData}
-              onJoinHousehold={actions.joinHousehold}
-            />
-          )}
+          {view === 'settings' && <Settings data={data} householdId={data.householdId} onSave={actions.saveSettings} onExport={() => exportToExcel(data)} onImport={actions.importData} onJoinHousehold={actions.joinHousehold} />}
         </div>
 
-        {/* FLOATING ACTION BUTTON */}
         {view !== 'add' && (
-          <button
-            onClick={() => {
-              setPrevView(view);
-              setView('add');
-            }}
-            style={{
-              position: 'fixed',
-              bottom: isMobile ? 90 : 40,
-              right: isMobile ? 20 : 40,
-              width: 64,
-              height: 64,
-              borderRadius: '50%',
-              background: `linear-gradient(135deg, ${C.amber}, #d97706)`,
-              color: '#0b0f1a',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 32,
-              boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4)',
-              transition: 'transform .2s',
-              zIndex: 1000,
-            }}
-            onMouseOver={(e) =>
-              (e.currentTarget.style.transform = 'scale(1.05)')
-            }
-            onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-          >
-            +
-          </button>
+          <button onClick={() => { setPrevView(view); setView('add'); }} style={{ position: 'fixed', bottom: isMobile ? 90 : 40, right: isMobile ? 20 : 40, width: 64, height: 64, borderRadius: '50%', background: `linear-gradient(135deg, ${C.amber}, #d97706)`, color: '#0b0f1a', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4)', transition: 'transform .2s', zIndex: 1000 }} onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.05)')} onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}>+</button>
         )}
       </div>
 
-      {/* MOBILE BOTTOM NAVIGATION */}
       {isMobile && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 70,
-            background: C.surface,
-            borderTop: `1px solid ${C.border}`,
-            display: 'flex',
-            overflowX: 'auto',
-            padding: '0 10px',
-            alignItems: 'center',
-            gap: 10,
-            zIndex: 900,
-            WebkitOverflowScrolling: 'touch',
-          }}
-        >
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 70, background: C.surface, borderTop: `1px solid ${C.border}`, display: 'flex', overflowX: 'auto', padding: '0 10px', alignItems: 'center', gap: 10, zIndex: 900, WebkitOverflowScrolling: 'touch' }}>
           {NAV.filter((n) => n.id !== 'add').map((n) => (
-            <button
-              key={n.id}
-              onClick={() => setView(n.id)}
-              style={{
-                background: view === n.id ? C.amber + '11' : 'transparent',
-                border: 'none',
-                color: view === n.id ? C.amber : C.text2,
-                borderRadius: 10,
-                padding: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
-                minWidth: 64,
-              }}
-            >
-              <span style={{ fontSize: 20 }}>{n.icon}</span>
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: view === n.id ? 700 : 500,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {n.label}
-              </span>
-            </button>
+            <button key={n.id} onClick={() => setView(n.id)} style={{ background: view === n.id ? C.amber + '11' : 'transparent', border: 'none', color: view === n.id ? C.amber : C.text2, borderRadius: 10, padding: '8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 64 }}><span style={{ fontSize: 20 }}>{n.icon}</span><span style={{ fontSize: 10, fontWeight: view === n.id ? 700 : 500, whiteSpace: 'nowrap' }}>{n.label}</span></button>
           ))}
         </div>
       )}
     </div>
   );
-} // ⚡ SEALS THE MAIN APP PARENT FUNCTION AND COMPILING BALANCES PERFECTLY!
+}
