@@ -1754,367 +1754,248 @@ const submit = () => {
 
   return (
     <div style={{ maxWidth: 560 }}>
-      <Card style={{ border: duplicateData ? `1px solid ${C.amber}55` : `1px solid ${C.border}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-        <SectionTitle style={{ margin: 0 }}>
-          {isEditingMode ? '📝 Modify Expense Parameters' : (duplicateData ? '📋 Duplicating Cost Entry' : 'Add New Transaction')}
-        </SectionTitle>
+  <Card style={{ border: duplicateData ? `1px solid ${C.amber}55` : `1px solid ${C.border}` }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+      <SectionTitle style={{ margin: 0 }}>
+        {isEditingMode ? '📝 Modify Expense Parameters' : (duplicateData ? '📋 Duplicating Cost Entry' : 'Add New Transaction')}
+      </SectionTitle>
+      
+      {onClose && (
+        <Btn variant="ghost" onClick={onClose} style={{ padding: '4px 10px', fontSize: 16 }}>✕</Btn>
+      )}
+    </div>
+
+    {/* Tab Switches (Expense vs Income) */}
+    <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+      {['expense', 'income'].map((t) => (
+        <Btn
+          key={t}
+          variant={form.type === t ? 'primary' : 'ghost'}
+          onClick={() => {
+            set('type', t);
+            set('category', t === 'income' ? data.settings.incomeCategories[0] : data.settings.expenseCategories[0]);
+          }}
+          style={{ flex: 1, textAlign: 'center', textTransform: 'capitalize' }}
+        >
+          {t === 'expense' ? '💸 Expense' : '💰 Income'}
+        </Btn>
+      ))}
+    </div>
+
+    {/* Input Form Fields Layout */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
+          <Label>Date</Label>
+          <Inp type="date" value={form.date} onChange={(e: any) => set('date', e.target.value)} />
+        </div>
+        <div>
+          <Label>Amount (₹)</Label>
+          <Inp type="number" placeholder="0" value={form.amount} onChange={(e: any) => set('amount', e.target.value)} />
+        </div>
+      </div>
+      
+      <div>
+        <Label>Category</Label>
+        <Sel value={form.category} onChange={(e: any) => set('category', e.target.value)}>
+          {sortedCategories.map((c: string) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </Sel>
+      </div>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
+          <Label>Paid From</Label>
+          <Sel 
+            value={form.account} 
+            onChange={(e: any) => {
+              const selectedAccount = e.target.value;
+              set('account', selectedAccount);
+              
+              // 🛡️ ENFORCE THE BUSINESS RULE:
+              // If paying from Joint, clear out trailing partner settlement variables instantly
+              if (selectedAccount === 'Joint') {
+                set('settleTrack', 'none');
+                set('splitMode', 'equal');
+                set('partnerAShare', 0.50);
+                set('partnerBShare', 0.50);
+              }
+            }}
+          >
+            <option value="Joint">Joint Account</option>
+            <option value={names.a}>{names.a}</option>
+            <option value={names.b}>{names.b}</option>
+          </Sel>
+        </div>
+        <div>
+          <Label>Added By</Label>
+          <Sel value={form.addedBy} onChange={(e: any) => set('addedBy', e.target.value)}>
+            <option value="Partner A">{names.a}</option>
+            <option value="Partner B">{names.b}</option>
+          </Sel>
+        </div>
+      </div>
+
+      <div>
+        <Label>Note (optional)</Label>
+        <Inp placeholder="What was this for?" value={form.note} onChange={(e: any) => set('note', e.target.value)} />
+      </div>
+
+      {/* 🔄 RECURRING COMPONENT PANEL */}
+      <div style={{ background: '#1e284033', padding: 14, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 12, border: `1px solid ${C.border}` }}>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', width: '100%' }}>
+          <span style={{ fontSize: 14, color: C.text1 }}>🔄 Set as Recurring Household Commitment</span>
+          <input 
+            type="checkbox" 
+            checked={form.isRecurring} 
+            onChange={(e) => set('isRecurring', e.target.checked)}
+            style={{ width: 18, height: 18, accentColor: C.amber, cursor: 'pointer' }}
+          />
+        </label>
         
-        {onClose && (
-          <Btn variant="ghost" onClick={onClose} style={{ padding: '4px 10px', fontSize: 16 }}>✕</Btn>
+        {form.isRecurring && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ color: C.text2, fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Execution Interval Pattern</div>
+            <select 
+              value={form.recurrenceInterval} 
+              onChange={(e) => set('recurrenceInterval', e.target.value)}
+              style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 8, padding: '10px 14px', fontSize: 14, width: '100%', cursor: 'pointer', outline: 'none' }}
+            >
+              <option value="daily">Daily Subscription / Allowance</option>
+              <option value="weekly">Weekly Automated Run</option>
+              <option value="monthly">Monthly Fixed Cost (Rent, WiFi, Maid)</option>
+              <option value="yearly">Yearly Commitment (Insurance, Taxes)</option>
+            </select>
+          </div>
         )}
       </div>
 
-        {/* Tab Switches (Expense vs Income) */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-          {['expense', 'income'].map((t) => (
-            <Btn
-              key={t}
-              variant={form.type === t ? 'primary' : 'ghost'}
-              onClick={() => {
-                set('type', t);
-                set('category', t === 'income' ? data.settings.incomeCategories[0] : data.settings.expenseCategories[0]);
-              }}
-              style={{ flex: 1, textAlign: 'center', textTransform: 'capitalize' }}
-            >
-              {t === 'expense' ? '💸 Expense' : '💰 Income'}
-            </Btn>
-          ))}
-        </div>
-
-        {/* SCOPED COLLABORATIVE WIZARDS */}
-        {/* 🔄 STREAMLINED PARALLEL DIRECT SETTLEMENT ENGINE */}
-          {form.type === 'expense' && (
-            <div style={{ background: '#1e284033', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 14, border: `1px solid ${C.border}` }}>
-              <div>
-                <div style={{ marginBottom: 6, display: 'block' }}>
-                  <Label>🎯 Transaction Settlement Track</Label>
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {[
-                    { key: 'none', label: '❌ No Settlement', desc: 'Standard or Joint Pool expense' },
-                    { key: 'partner', label: '🤝 Direct Partner Settlement', desc: 'Peer-to-Peer split directly between both partners' }
-                  ].map((track) => (
-                    <button
-                      key={track.key}
-                      type="button"
-                      disabled={track.key === 'partner' && form.account === 'Joint'}
-                      onClick={() => {
-                        set('settleTrack', track.key);
-                        if (track.key === 'none') {
-                          set('splitMode', 'equal');
-                        }
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '10px 8px',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        fontWeight: form.settleTrack === track.key ? 700 : 500,
-                        background: form.settleTrack === track.key ? C.amber : `${C.bg}80`,
-                        color: form.settleTrack === track.key ? C.surface : C.text2,
-                        border: `1px solid ${form.settleTrack === track.key ? C.amber : C.border}`,
-                        cursor: form.account === 'Joint' && track.key === 'partner' ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.15s ease',
-                        textAlign: 'center',
-                        opacity: form.account === 'Joint' && track.key === 'partner' ? 0.35 : 1
-                      }}
-                      title={form.account === 'Joint' && track.key === 'partner' ? "Joint account items cannot be split with a partner" : track.desc}
-                    >
-                      {track.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 📊 UNEQUAL SPLITTING MATRIX (Revealed only for Partner Splits) */}
-              {form.settleTrack === 'partner' && form.account !== 'Joint' && (
-                <div style={{ background: `${C.bg}60`, padding: 12, borderRadius: 8, border: `1px solid ${C.border}60`, marginTop: 2 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, color: C.text1, fontWeight: 600 }}>Division Architecture</span>
-                    <select
-                      value={form.splitMode}
-                      onChange={(e) => {
-                        const mode = e.target.value;
-                        set('splitMode', mode);
-                        if (mode === 'equal') {
-                          set('partnerAShare', 0.50);
-                          set('partnerBShare', 0.50);
-                        } else if (mode === 'percentage') {
-                          set('partnerAShare', 50);
-                          set('partnerBShare', 50);
-                        } else if (mode === 'fixed') {
-                          set('partnerAShare', '');
-                          set('partnerBShare', '');
-                        }
-                      }}
-                      style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 6, padding: '4px 8px', fontSize: 12 }}
-                    >
-                      <option value="equal">Split Evenly (50/50)</option>
-                      <option value="percentage">Unequal Percentages (%)</option>
-                      <option value="fixed">Fixed Currency Weights (₹)</option>
-                    </select>
-                  </div>
-
-                  {/* Dynamic inputs for Percentages and Fixed Modes */}
-                  {form.splitMode !== 'equal' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
-                      <div>
-                        <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>Gaurav's Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
-                        <Inp
-                          type="number"
-                          placeholder="0"
-                          value={form.partnerAShare}
-                          onChange={(e: any) => {
-                            const val = e.target.value === '' ? '' : Number(e.target.value);
-                            set('partnerAShare', val);
-                            if (form.splitMode === 'percentage' && val !== '' && val <= 100) {
-                              set('partnerBShare', 100 - val);
-                            }
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>Karishma's Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
-                        <Inp
-                          type="number"
-                          placeholder="0"
-                          value={form.partnerBShare}
-                          onChange={(e: any) => {
-                            const val = e.target.value === '' ? '' : Number(e.target.value);
-                            set('partnerBShare', val);
-                            if (form.splitMode === 'percentage' && val !== '' && val <= 100) {
-                              set('partnerAShare', 100 - val);
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-        {/* Input Form Fields Layout */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <Label>Date</Label>
-              <Inp type="date" value={form.date} onChange={(e: any) => set('date', e.target.value)} />
-            </div>
-            <div>
-              <Label>Amount (₹)</Label>
-              <Inp type="number" placeholder="0" value={form.amount} onChange={(e: any) => set('amount', e.target.value)} />
-            </div>
-          </div>
+      {/* 🎯 STREAMLINED SINGLE-TRACK PARTNER SETTLEMENT ENGINE (At Bottom) */}
+      {form.type === 'expense' && (
+        <div style={{ background: '#1e284033', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 14, border: `1px solid ${C.border}` }}>
           <div>
-            <Label>Category</Label>
-            <Sel value={form.category} onChange={(e: any) => set('category', e.target.value)}>
-              {sortedCategories.map((c: string) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </Sel>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <Label>Paid From</Label>
-              <Sel 
-                value={form.account} 
-                onChange={(e: any) => {
-                  const selectedAccount = e.target.value;
-                  set('account', selectedAccount);
-                  
-                  // 🛡️ ENFORCE THE BUSINESS RULE:
-                  // If paying from Joint, clear out trailing partner settlement variables instantly
-                  if (selectedAccount === 'Joint') {
-                    set('settleTrack', 'none');
-                    set('splitMode', 'equal');
-                    set('partnerAShare', 0.50);
-                    set('partnerBShare', 0.50);
-                  }
-                }}
-              >
-                <option value="Joint">Joint Account</option>
-                <option value={names.a}>{names.a}</option>
-                <option value={names.b}>{names.b}</option>
-              </Sel>
+            <div style={{ marginBottom: 6, display: 'block' }}>
+              <Label>🎯 Transaction Settlement Track</Label>
             </div>
-            <div>
-              <Label>Added By</Label>
-              <Sel value={form.addedBy} onChange={(e: any) => set('addedBy', e.target.value)}>
-                <option value="Partner A">{names.a}</option>
-                <option value="Partner B">{names.b}</option>
-              </Sel>
-            </div>
-          </div>
-
-          <div>
-            <Label>Note (optional)</Label>
-            <Inp placeholder="What was this for?" value={form.note} onChange={(e: any) => set('note', e.target.value)} />
-          </div>
-
-          <div style={{ background: '#1e284033', padding: 14, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 12, border: `1px solid ${C.border}` }}>
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', width: '100%' }}>
-              <span style={{ fontSize: 14, color: C.text1 }}>🔄 Set as Recurring Household Commitment</span>
-              <input 
-                type="checkbox" 
-                checked={form.isRecurring} 
-                onChange={(e) => set('isRecurring', e.target.checked)}
-                style={{ width: 18, height: 18, accentColor: C.amber, cursor: 'pointer' }}
-              />
-            </label>
-            
-            {form.isRecurring && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ color: C.text2, fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Execution Interval Pattern</div>
-                <select 
-                  value={form.recurrenceInterval} 
-                  onChange={(e) => set('recurrenceInterval', e.target.value)}
-                  style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 8, padding: '10px 14px', fontSize: 14, width: '100%', cursor: 'pointer', outline: 'none' }}
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[
+                { key: 'none', label: '❌ No Settlement', desc: 'Standard or Joint Pool expense' },
+                { key: 'partner', label: '🤝 Direct Partner Settlement', desc: 'Peer-to-Peer split directly between both partners' }
+              ].map((track) => (
+                <button
+                  key={track.key}
+                  type="button"
+                  disabled={track.key === 'partner' && form.account === 'Joint'}
+                  onClick={() => {
+                    set('settleTrack', track.key);
+                    if (track.key === 'none') {
+                      set('splitMode', 'equal');
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 8px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: form.settleTrack === track.key ? 700 : 500,
+                    background: form.settleTrack === track.key ? C.amber : `${C.bg}80`,
+                    color: form.settleTrack === track.key ? C.surface : C.text2,
+                    border: `1px solid ${form.settleTrack === track.key ? C.amber : C.border}`,
+                    cursor: form.account === 'Joint' && track.key === 'partner' ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.15s ease',
+                    textAlign: 'center',
+                    opacity: form.account === 'Joint' && track.key === 'partner' ? 0.35 : 1
+                  }}
+                  title={form.account === 'Joint' && track.key === 'partner' ? "Joint account items cannot be split with a partner" : track.desc}
                 >
-                  <option value="daily">Daily Subscription / Allowance</option>
-                  <option value="weekly">Weekly Automated Run</option>
-                  <option value="monthly">Monthly Fixed Cost (Rent, WiFi, Maid)</option>
-                  <option value="yearly">Yearly Commitment (Insurance, Taxes)</option>
+                  {track.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 📊 UNEQUAL SPLITTING MATRIX */}
+          {form.settleTrack === 'partner' && form.account !== 'Joint' && (
+            <div style={{ background: `${C.bg}60`, padding: 12, borderRadius: 8, border: `1px solid ${C.border}60`, marginTop: 2 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 13, color: C.text1, fontWeight: 600 }}>Division Architecture</span>
+                <select
+                  value={form.splitMode}
+                  onChange={(e) => {
+                    const mode = e.target.value;
+                    set('splitMode', mode);
+                    if (mode === 'equal') {
+                      set('partnerAShare', 0.50);
+                      set('partnerBShare', 0.50);
+                    } else if (mode === 'percentage') {
+                      set('partnerAShare', 50);
+                      set('partnerBShare', 50);
+                    } else if (mode === 'fixed') {
+                      set('partnerAShare', '');
+                      set('partnerBShare', '');
+                    }
+                  }}
+                  style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 6, padding: '4px 8px', fontSize: 12 }}
+                >
+                  <option value="equal">Split Evenly (50/50)</option>
+                  <option value="percentage">Unequal Percentages (%)</option>
+                  <option value="fixed">Fixed Currency Weights (₹)</option>
                 </select>
               </div>
-            )}
-          </div>
 
-          {/* 🔄 MULTI-TRACK SETTLEMENT ENGINE WIZARD */}
-          {form.type === 'expense' && form.account !== 'Joint' && (
-            <div style={{ background: '#1e284033', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 14, border: `1px solid ${C.border}` }}>
-              <div>
-                
-                {/* 👇 FIX: Wrap the Label cleanly to handle custom spacing without breaking its component properties definition layout */}
-                <div style={{ marginBottom: 6, display: 'block' }}>
-                  <Label>🎯 Settlement Configuration Path</Label>
-                </div>
-                
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {[
-                    { key: 'none', label: '❌ No Settlement', desc: 'Personal or fully paid from matching pool' },
-                    { key: 'joint', label: '👥 Joint Pool', desc: 'Reimburse spending out of the shared Household fund' },
-                    { key: 'partner', label: '🤝 Direct Partner', desc: 'Peer-to-Peer settlement directly between accounts' }
-                  ].map((track) => (
-                    <button
-                      key={track.key}
-                      type="button"
-                      onClick={() => {
-                        set('settleTrack', track.key);
-                        if (track.key === 'none') set('splitMode', 'equal');
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '10px 8px',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        fontWeight: form.settleTrack === track.key ? 700 : 500,
-                        background: form.settleTrack === track.key ? C.amber : `${C.bg}80`,
-                        color: form.settleTrack === track.key ? C.surface : C.text2,
-                        border: `1px solid ${form.settleTrack === track.key ? C.amber : C.border}`,
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        textAlign: 'center'
-                      }}
-                      title={track.desc}
-                    >
-                      {track.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 📊 UNEQUAL SPLITTING MATRIX (Revealed only if Settlement is required) */}
-              {form.settleTrack !== 'none' && (
-                <div style={{ background: `${C.bg}60`, padding: 12, borderRadius: 8, border: `1px solid ${C.border}60`, marginTop: 2 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, color: C.text1, fontWeight: 600 }}>Division Architecture</span>
-                    <select
-                      value={form.splitMode}
-                      onChange={(e) => {
-                        const mode = e.target.value;
-                        set('splitMode', mode);
-                        // Apply default balancing values based on mode selected
-                        if (mode === 'equal') {
-                          set('partnerAShare', 0.50);
-                          set('partnerBShare', 0.50);
-                        } else if (mode === 'percentage') {
-                          set('partnerAShare', 50); // user enters whole numbers 0-100
-                          set('partnerBShare', 50);
-                        } else if (mode === 'fixed') {
-                          set('partnerAShare', ''); // direct currency weights
-                          set('partnerBShare', '');
+              {/* Dynamic inputs for Percentages and Fixed Modes */}
+              {form.splitMode !== 'equal' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
+                  <div>
+                    <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>Gaurav's Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
+                    <Inp
+                      type="number"
+                      placeholder="0"
+                      value={form.partnerAShare}
+                      onChange={(e: any) => {
+                        const val = e.target.value === '' ? '' : Number(e.target.value);
+                        set('partnerAShare', val);
+                        if (form.splitMode === 'percentage' && val !== '' && val <= 100) {
+                          set('partnerBShare', 100 - val);
                         }
                       }}
-                      style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 6, padding: '4px 8px', fontSize: 12 }}
-                    >
-                      <option value="equal">Split Evenly (50/50)</option>
-                      <option value="percentage">Unequal Percentages (%)</option>
-                      <option value="fixed">Fixed Currency Weights (₹)</option>
-                    </select>
+                    />
                   </div>
-
-                  {/* Dynamic Allocation Trays for Percentages and Fixed Modes */}
-                  {form.splitMode !== 'equal' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
-                      <div>
-                        <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>{names.a}'s Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
-                        <Inp
-                          type="number"
-                          placeholder="0"
-                          value={form.partnerAShare}
-                          onChange={(e: any) => {
-                            const val = e.target.value === '' ? '' : Number(e.target.value);
-                            set('partnerAShare', val);
-                            // Auto-balance the counter-party fields if dealing with clear percentages
-                            if (form.splitMode === 'percentage' && val !== '' && val <= 100) {
-                              set('partnerBShare', 100 - val);
-                            }
-                          }}
-                        />
-                      </div>
-                      <div>
-                        <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>{names.b}'s Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
-                        <Inp
-                          type="number"
-                          placeholder="0"
-                          value={form.partnerBShare}
-                          onChange={(e: any) => {
-                            const val = e.target.value === '' ? '' : Number(e.target.value);
-                            set('partnerBShare', val);
-                            if (form.splitMode === 'percentage' && val !== '' && val <= 100) {
-                              set('partnerAShare', 100 - val);
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div style={{ fontSize: 11, color: C.amber, marginTop: 8, opacity: 0.85 }}>
-                    {form.splitMode === 'equal' && `💡 Costs are split exactly half-and-half between both profiles.`}
-                    {form.splitMode === 'percentage' && `💡 Adjusting either slot automatically recalculates the remaining balance ratio.`}
-                    {form.splitMode === 'fixed' && `💡 Specify the explicit liability amount each person is independently responsible for.`}
+                  <div>
+                    <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>Karishma's Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
+                    <Inp
+                      type="number"
+                      placeholder="0"
+                      value={form.partnerBShare}
+                      onChange={(e: any) => {
+                        const val = e.target.value === '' ? '' : Number(e.target.value);
+                        set('partnerBShare', val);
+                        if (form.splitMode === 'percentage' && val !== '' && val <= 100) {
+                          set('partnerAShare', 100 - val);
+                        }
+                      }}
+                    />
                   </div>
                 </div>
               )}
             </div>
           )}
-
-          {/* Form Trigger Buttons */}
-          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-            <Btn variant={flash ? 'success' : 'primary'} onClick={submit} style={{ flex: 1, padding: 13, fontSize: 15 }}>
-              {flash ? '✓ Added Successfully!' : (duplicateData ? '✓ Update Transaction' : `Add ${form.type === 'income' ? 'Income' : 'Expense'}`)}
-            </Btn>
-            {onClose && (
-              <Btn variant="ghost" onClick={onClose} style={{ padding: 13, fontSize: 15 }}>Cancel</Btn>
-            )}
-          </div>
         </div>
-      </Card>
+      )}
+
+      {/* Form Trigger Buttons */}
+      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+        <Btn variant={flash ? 'success' : 'primary'} onClick={submit} style={{ flex: 1, padding: 13, fontSize: 15 }}>
+          {flash ? '✓ Added Successfully!' : (duplicateData ? '✓ Update Transaction' : `Add ${form.type === 'income' ? 'Income' : 'Expense'}`)}
+        </Btn>
+        {onClose && (
+          <Btn variant="ghost" onClick={onClose} style={{ padding: 13, fontSize: 15 }}>Cancel</Btn>
+        )}
+      </div>
     </div>
+  </Card>
+</div>
   );
 
   function presetBtnStyle() {
