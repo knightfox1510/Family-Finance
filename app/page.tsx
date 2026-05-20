@@ -7,7 +7,6 @@ import { supabase } from '../lib/supabaseClient';
 import Auth from './Auth';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-// ─── GLOBAL SYSTEM NAVIGATION CONSTANTS ────────────────────────────────────────
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '🏠' },
   { id: 'add', label: 'Add Expense', icon: '➕' },
@@ -21,49 +20,24 @@ const NAV = [
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ];
 
-
 const DEFAULT_EXPENSE_CATS = [
-  'Groceries',
-  'Dining Out',
-  'Coffee & Snacks',
-  'Rent / Mortgage',
-  'Electricity',
-  'Water & Gas',
-  'Internet',
-  'Mobile Plans',
-  'Streaming Services',
-  'Insurance',
-  'Medical / Health',
-  'Gym & Fitness',
-  'Clothing & Apparel',
-  'Personal Care',
-  'Home Maintenance',
-  'Furniture & Decor',
-  'Transport / Fuel',
-  'Parking & Tolls',
-  'Public Transport',
-  'Flights & Hotels',
-  'Education',
-  'Books & Courses',
-  'Kids & School',
-  'Gifts & Celebrations',
-  'Entertainment',
-  'Subscriptions',
-  'Miscellaneous',
-  'Other',
+  'Groceries', 'Dining Out', 'Coffee & Snacks', 'Rent / Mortgage', 'Electricity',
+  'Water & Gas', 'Internet', 'Mobile Plans', 'Streaming Services', 'Insurance',
+  'Medical / Health', 'Gym & Fitness', 'Clothing & Apparel', 'Personal Care',
+  'Home Maintenance', 'Furniture & Decor', 'Transport / Fuel', 'Parking & Tolls',
+  'Public Transport', 'Flights & Hotels', 'Education', 'Books & Courses',
+  'Kids & School', 'Gifts & Celebrations', 'Entertainment', 'Subscriptions',
+  'Miscellaneous', 'Other',
 ];
+
 const DEFAULT_INCOME_CATS = [
-  'Salary',
-  'Freelance',
-  'Rental Income',
-  'Investment Returns',
-  'Bonus',
-  'Gift',
-  'Other Income',
+  'Salary', 'Freelance', 'Rental Income', 'Investment Returns', 'Bonus', 'Gift', 'Other Income',
 ];
+
 function ACCOUNT_TYPES(names: { a: string; b: string }) {
   return ['Joint', names.a, names.b];
 }
+
 const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
@@ -137,7 +111,6 @@ async function loadData(userId: string) {
       .eq('id', userId)
       .single();
     if (!profile || !profile.household_id) return { isNewUser: true };
-    
     const hId = profile.household_id;
 
     let allTransactions: any[] = [];
@@ -369,7 +342,6 @@ function Badge({ children, color, style = {} }: any) {
     <span style={{ background: color + '22', color, border: `1px solid ${color}44`, borderRadius: 6, padding: '2px 9px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', ...style }}>{children}</span>
   );
 }
-/* REFACTORED STYLE DEFECT ON LABEL SPACING */
 function SectionTitle({ children, style = {} }: { children: React.ReactNode; style?: any }) {
   return (
     <h3 style={{ color: C.textW, fontSize: 15, fontWeight: 700, margin: '0 0 16px', letterSpacing: -0.3, ...style }}>{children}</h3>
@@ -407,16 +379,13 @@ function StatCard({ label, value, sub, accent = C.amber, icon }: any) {
   );
 }
 
-// ─── PHOTO / RECEIPT STORAGE ATTACHMENT CONTROLLER ───────────────────────────
+// ─── PHOTO / RECEIPT ATTACHMENT SLOT SERVICELET ──────────────────────────────
 function ReceiptUploadSlot({ onUploadComplete, currentUrl }: { onUploadComplete: (url: string) => void, currentUrl?: string | null }) {
   const [uploading, setUploading] = useState(false);
   return (
     <div style={{ background: C.bg, padding: 12, borderRadius: 8, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ flex: 1 }}>
-        {/* ✨ NATIVE HTML WRAPPER FIX FOR TYPESCRIPT COMPILATION */}
-        <div style={{ margin: 0 }}>
-          <Label>🧾 Receipt / Invoice Attachment</Label>
-        </div>
+        <div style={{ margin: 0 }}><Label>🧾 Receipt / Invoice Attachment</Label></div>
         {currentUrl && <a href={currentUrl} target="_blank" rel="noreferrer" style={{ color: C.teal, fontSize: 12, display: 'block', marginTop: 4, textDecoration: 'underline' }}>✓ View Attached Image</a>}
       </div>
       <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} id="receipt-file-input" onChange={async (e) => {
@@ -438,6 +407,66 @@ function ReceiptUploadSlot({ onUploadComplete, currentUrl }: { onUploadComplete:
       </Btn>
     </div>
   );
+}
+
+// ─── EXPORT TO EXCEL SYSTEM ENGINE ────────────────────────────────────────────
+function exportToExcel(data: any) {
+  const wb = XLSX.utils.book_new();
+  const expRows = data.expenses.map((e: any) => ({
+    ID: e.id, Date: e.date, Type: e.type || 'expense', Category: e.category, Amount: e.amount, Account: e.account, 'Added By': e.addedBy, Note: e.note || '', 'To Settle': e.toSettle ? 'Yes' : 'No', Settled: e.settled ? 'Yes' : 'No', 'Settled For': e.settledFor || '',
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(expRows), 'Expenses');
+
+  const cRows = data.contributions.map((c: any) => ({ Month: c.month, 'Partner A': c.partnerA, 'Partner B': c.partnerB, Total: c.partnerA + c.partnerB }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cRows), 'Contributions');
+
+  const gRows = data.goals.map((g: any) => ({ Name: g.name, Target: g.target, Current: g.current, 'Progress %': ((g.current / g.target) * 100).toFixed(1) }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(gRows), 'Goals');
+
+  const lRows = data.loans.map((l: any) => ({ Name: l.name, Lender: l.lender, Principal: l.principal, Outstanding: l.outstanding, EMI: l.emi, 'Rate %': l.interestRate, 'Start Date': l.startDate, 'Tenure Months': l.tenureMonths }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lRows), 'Loans');
+
+  XLSX.writeFile(wb, `FamilyFinance_${today()}.xlsx`);
+}
+
+// ─── IMPORT FROM EXCEL SYSTEM ENGINE ──────────────────────────────────────────
+function parseImport(file: any, callback: any) {
+  const reader = new FileReader();
+  reader.onload = (e: any) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const getSheet = (name: string) => {
+        const sh = wb.Sheets[name];
+        return sh ? XLSX.utils.sheet_to_json(sh) : [];
+      };
+      const normalizeDate = (val: any) => {
+        if (!val) return today();
+        if (!isNaN(val) && Number(val) > 30000) {
+          const d = new Date((Number(val) - 25569) * 86400 * 1000);
+          return d.toISOString().slice(0, 10);
+        }
+        const str = String(val).trim();
+        const parts = str.split(/[-/]/);
+        if (parts.length === 3) {
+          if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+          else if (parts[2].length === 4) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+        return today();
+      };
+      
+      const expenses = getSheet('Expenses').map((r: any) => {
+        const row: Record<string, any> = {};
+        Object.keys(r).forEach((k) => { row[k.toLowerCase().replace(/\s+/g, '')] = r[k]; });
+        return {
+          id: row.id || null, date: normalizeDate(row.date), type: String(row.type).toLowerCase() === 'income' ? 'income' : 'expense',
+          category: row.category || 'Other', amount: Number(row.amount) || 0, account: row.account || 'Joint', addedBy: row.addedby || 'Partner A',
+          note: row.note || '', toSettle: row.tosettle === 'Yes' || row.tosettle === true, settled: row.settled === 'Yes' || row.settled === true, settledFor: row.settledfor || null
+        };
+      });
+      callback({ expenses });
+    } catch (err: any) { callback(null, err.message); }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 // ─── INCOME TRACKER ───────────────────────────────────────────────────────────
@@ -467,60 +496,29 @@ function IncomeTracker({ data }: any) {
   periodInflows.forEach((e: any) => { categoryMap[e.category] = (categoryMap[e.category] || 0) + e.amount; });
   const sortedCategories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
   const maxCategoryValue = sortedCategories[0]?.[1] || 1;
-
-  const showTrendWidget = timeFilter === 'CurrentYear' || timeFilter === 'All';
-  const trendData = [...allAvailableMonths].reverse().filter(mKey => timeFilter !== 'CurrentYear' || mKey.startsWith(currentYearStr)).map(mKey => {
-    const monthTotal = data.expenses.filter((e: any) => e.type === 'income' && monthKey(e.date) === mKey && (earnerFilter === 'All' || (earnerFilter === 'PartnerA' && (e.addedBy === 'Partner A' || e.account === names.a)) || (earnerFilter === 'PartnerB' && (e.addedBy === 'Partner B' || e.account === names.b)))).reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
-    return { label: monthLabel(mKey), total: monthTotal };
-  });
-  const maxTrendValue = trendData.reduce((max, m) => m.total > max ? m.total : max, 1);
-  const selStyle = { background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', outline: 'none' };
+  const selStyle = { background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <Card style={{ padding: '12px 18px', display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'space-between', alignItems: 'center' }}>
-        <SectionTitle style={{ margin: 0 }}>💰 Income Inflow Hub</SectionTitle>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <SectionTitle style={{ margin: 0 }}>💰 Income & Inflow Dashboard</SectionTitle>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <select value={earnerFilter} onChange={(e) => setEarnerFilter(e.target.value)} style={selStyle}>
-            <option value="All">Both Earners Combined</option>
+            <option value="All">Both Partners Combined</option>
             <option value="PartnerA">{names.a} Only</option>
             <option value="PartnerB">{names.b} Only</option>
           </select>
           <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={selStyle}>
-            <option value="CurrentYear">Current Year ({currentYearStr})</option>
-            <option value="All">All Months History</option>
-            {allAvailableMonths.map((m: any) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+            <option value="CurrentYear">Current Year</option>
+            <option value="All">All Months</option>
           </select>
         </div>
       </Card>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        <StatCard label="Collective Earnings Pool" value={fmt(totalIncome, data.settings.currency)} accent={C.green} icon="🏦" sub="Accumulated earnings for selection" />
-        <StatCard label={`${names.a}'s Allocations`} value={fmt(incomeA, data.settings.currency)} accent={C.purple} icon="👨‍💻" sub={`Share: ${totalIncome > 0 ? ((incomeA / totalIncome) * 100).toFixed(0) : 0}% of net pool`} />
-        <StatCard label={`${names.b}'s Allocations`} value={fmt(incomeB, data.settings.currency)} accent={C.blue} icon="👩‍💻" sub={`Share: ${totalIncome > 0 ? ((incomeB / totalIncome) * 100).toFixed(0) : 0}% of net pool`} />
+        <StatCard label="Total Net Inflow Pool" value={fmt(totalIncome)} accent={C.green} icon="🏦" />
+        <StatCard label={`${names.a}'s Allocations`} value={fmt(incomeA)} accent={C.purple} icon="👨‍💻" />
+        <StatCard label={`${names.b}'s Allocations`} value={fmt(incomeB)} accent={C.blue} icon="👩‍💻" />
       </div>
-
-      {showTrendWidget && trendData.length > 0 && (
-        <Card>
-          <SectionTitle>Monthly Inflow Velocity Trend Timeline</SectionTitle>
-          <div style={{ overflowX: 'auto', paddingBottom: 6, marginTop: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 140, gap: 12, minWidth: trendData.length * 55 }}>
-              {trendData.map((m) => {
-                const barHeightPct = (m.total / maxTrendValue) * 100;
-                return (
-                  <div key={m.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>{m.total > 0 ? fmt(m.total, data.settings.currency) : '₹0'}</div>
-                    <div style={{ height: 85, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                      <div style={{ width: '100%', height: `${Math.max(6, barHeightPct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.green})`, border: `1px solid ${C.border}`, borderRadius: '4px 4px 0 0', transition: 'height 0.3s ease' }} />
-                    </div>
-                    <div style={{ fontSize: 11, color: C.text2, fontWeight: 600, whiteSpace: 'nowrap' }}>{m.label}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }
@@ -588,19 +586,19 @@ function Dashboard({ data, onAddExpense }: any) {
         </div>
         <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8 }}>
           <option value="All">All Accounts Combined</option>
-          <option value="Joint">Joint Pool Only</option>
-          <option value={names.a}>{names.a} Out of Pocket</option>
-          <option value={names.b}>{names.b} Out of Pocket</option>
+          <option value="Joint">Joint Account Only</option>
+          <option value={names.a}>{names.a} Only</option>
+          <option value={names.b}>{names.b} Only</option>
         </select>
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        <div onClick={() => setShowAudit(true)} style={{ cursor: 'pointer' }}><StatCard label="Joint Available Balance" value={fmt(currentJointBalance)} accent={C.green} icon="🏦" sub="Click to run historical mathematical audits" /></div>
-        <StatCard label="Lifestyle Period Outflow" value={fmt(trueLifestyleExpenses)} accent={C.amber} icon="🛒" />
+        <div onClick={() => setShowAudit(true)} style={{ cursor: 'pointer' }}><StatCard label="Joint Available Balance" value={fmt(currentJointBalance)} accent={C.green} icon="🏦" sub="Click to run structural ledger audits" /></div>
+        <StatCard label="Lifestyle Core Spent" value={fmt(trueLifestyleExpenses)} accent={C.amber} icon="🛒" />
       </div>
 
       <Card>
-        <SectionTitle>Household Budget Caps Mapping</SectionTitle>
+        <SectionTitle>Household Budget Limits Breakdown</SectionTitle>
         {topCats.map(([cat, amt]) => {
           const budget = data.settings.budgets[cat];
           const over = budget && amt > budget;
@@ -616,8 +614,8 @@ function Dashboard({ data, onAddExpense }: any) {
   );
 }
 
-// ─── EXPENSE LIST ledgers audit logs ──────────────────────────────────────────
-function ExpenseList({ data, onDelete, onDuplicate, onBulkDelete, onBulkFlagToSettle, onBulkMarkAsSettled, onBulkAssignToAccount }: any) {
+// ─── EXPENSE AUDIT LOG LISTING ───────────────────────────────────────────────
+function ExpenseList({ data, onDelete, onDuplicate, onBulkDelete, onBulkAssignToAccount }: any) {
   const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filterMode, setFilterMode] = useState('All');
@@ -645,9 +643,9 @@ function ExpenseList({ data, onDelete, onDuplicate, onBulkDelete, onBulkFlagToSe
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Card style={{ padding: '12px 18px', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <Btn variant={filterMode === 'All' ? 'primary' : 'ghost'} onClick={() => setFilterMode('All')}>All Transactions</Btn>
-        <Btn variant={filterMode === 'Recurring' ? 'primary' : 'ghost'} onClick={() => setFilterMode('Recurring')}>🔄 Recurring Bills</Btn>
-        <Btn variant={filterMode === 'Receipts' ? 'primary' : 'ghost'} onClick={() => setFilterMode('Receipts')}>📎 Attached Receipts</Btn>
+        <Btn variant={filterMode === 'All' ? 'primary' : 'ghost'} onClick={() => setFilterMode('All')}>All Logs</Btn>
+        <Btn variant={filterMode === 'Recurring' ? 'primary' : 'ghost'} onClick={() => setFilterMode('Recurring')}>🔄 Recurring Engine</Btn>
+        <Btn variant={filterMode === 'Receipts' ? 'primary' : 'ghost'} onClick={() => setFilterMode('Receipts')}>📎 Receipts</Btn>
       </Card>
 
       {selectedIds.size > 0 && (
@@ -661,7 +659,7 @@ function ExpenseList({ data, onDelete, onDuplicate, onBulkDelete, onBulkFlagToSe
               <option value="Joint">Joint Account</option>
             </select>
             <Btn variant="ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => { const ids: string[] = []; selectedIds.forEach(id => ids.push(id)); onBulkAssignToAccount(ids, selectedTargetAccount); setSelectedIds(new Set()); }}>Assign</Btn>
-            <Btn variant="danger" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => { const ids: string[] = []; selectedIds.forEach(id => ids.push(id)); onBulkDelete(ids); setSelectedIds(new Set()); }}>🗑️ Delete Selected</Btn>
+            <Btn variant="danger" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => { const ids: string[] = []; selectedIds.forEach(id => ids.push(id)); onBulkDelete(ids); setSelectedIds(new Set()); }}>🗑️ Delete</Btn>
           </div>
         </Card>
       )}
@@ -673,7 +671,7 @@ function ExpenseList({ data, onDelete, onDuplicate, onBulkDelete, onBulkFlagToSe
               <tr style={{ background: C.bg }}>
                 <th style={{ padding: '11px 14px', width: 40 }}><input type="checkbox" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleAll} style={{ cursor: 'pointer' }} /></th>
                 <th style={{ padding: '11px 14px', width: 65, color: C.muted, fontWeight: 600, textAlign: 'left' }}>Copy</th>
-                {['Date', 'Note Context', 'Category', 'Amount', 'Account', 'Status', 'Actions'].map((h) => <th key={h} style={{ padding: '11px 14px', color: C.muted, fontWeight: 600, textAlign: 'left' }}>{h}</th>)}
+                {['Date', 'Description note', 'Category', 'Amount', 'Account', 'Status', 'Actions'].map((h) => <th key={h} style={{ padding: '11px 14px', color: C.muted, fontWeight: 600, textAlign: 'left' }}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -707,7 +705,7 @@ function ExpenseList({ data, onDelete, onDuplicate, onBulkDelete, onBulkFlagToSe
 function AddExpense({ data, duplicateData, onAdd, onClose }: any) {
   const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
   const [form, setForm] = useState(duplicateData || {
-    date: today(), amount: '', category: data.settings.expenseCategories[0], account: 'Joint', addedBy: data.currentUserRole === 'Partner B' ? 'Partner B' : 'Partner A', note: '', toSettle: false, type: 'expense',
+    date: today(), amount: '', category: data.settings.expenseCategories[0], account: 'Joint', addedBy: data.currentUserRole, note: '', toSettle: false, type: 'expense',
     receiptUrl: null, isRecurring: false, recurrenceInterval: 'monthly', splitMode: 'equal', splitMeta: { ratioA: 50, ratioB: 50, owes: 0, shareARs: 0, shareBRs: 0, outsideOwes: 0, outsidePayee: 'Partner A' }
   });
   
@@ -766,9 +764,8 @@ function AddExpense({ data, duplicateData, onAdd, onClose }: any) {
             <div><Label>Logged By</Label><Sel value={form.addedBy} onChange={(e: any) => set('addedBy', e.target.value)}><option value="Partner A">{names.a}</option><option value="Partner B">{names.b}</option></Sel></div>
           </div>
 
-          <div><Label>Description Note</Label><Inp placeholder="Merchant name or item info..." value={form.note} onChange={(e: any) => set('note', e.target.value)} /></div>
+          <div><Label>Description Note</Label><Inp placeholder="Merchant name info..." value={form.note} onChange={(e: any) => set('note', e.target.value)} /></div>
 
-          {/* RECURRING ENGINE INPUTS */}
           <div style={{ background: `${C.border}33`, padding: 12, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <Toggle checked={form.isRecurring} onChange={(v: boolean) => set('isRecurring', v)} label="🔄 Flag as Recurring Bill / Subscription" />
             {form.isRecurring && (
@@ -777,25 +774,18 @@ function AddExpense({ data, duplicateData, onAdd, onClose }: any) {
                 <Sel value={form.recurrenceInterval} onChange={(e: any) => set('recurrenceInterval', e.target.value)}>
                   <option value="daily">Daily Cycle</option>
                   <option value="weekly">Weekly Cycle</option>
-                  <option value="monthly">Monthly House Bill</option>
+                  <option value="monthly">Monthly Subscription Bill</option>
                   <option value="yearly">Yearly Renewal</option>
                 </Sel>
               </div>
             )}
           </div>
 
-          {/* ATTACHMENT UPLOAD TRIGGER */}
           <ReceiptUploadSlot currentUrl={form.receiptUrl} onUploadComplete={(url) => set('receiptUrl', url)} />
 
-          {/* ⚖️ ADVANCED SPLIT CONFIGURATION REGION */}
           {form.type === 'expense' && (
             <div style={{ background: `${C.border}33`, padding: 14, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              
-              {/* ✨ WRAPPER FIX: Native div handles the color and margin styles safely */}
-              <div style={{ margin: 0, color: C.amber }}>
-                <Label>⚖️ Advanced Split Quotient Architectures</Label>
-              </div>
-
+              <div style={{ margin: 0, color: C.amber }}><Label>⚖️ Advanced Split Quotient Architectures</Label></div>
               <Sel value={form.splitMode} onChange={(e: any) => { set('splitMode', e.target.value); set('toSettle', e.target.value !== 'equal' || form.account !== 'Joint'); }}>
                 <option value="equal">Standard Split (50/50 Matrix)</option>
                 <option value="unequal_pct">Asymmetrical Share Percentage (% Weights)</option>
@@ -807,7 +797,6 @@ function AddExpense({ data, duplicateData, onAdd, onClose }: any) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: C.bg, padding: 10, borderRadius: 8 }}>
                   <div><Label>{names.a}'s Weight %</Label><Inp type="number" value={form.splitMeta.ratioA || ''} placeholder="50" onChange={(e: any) => { const val = Number(e.target.value); setForm((f: any) => ({ ...f, splitMeta: { ...f.splitMeta, ratioA: val, ratioB: 100 - val } })); }} /></div>
                   <div><Label>{names.b}'s Weight %</Label><Inp type="number" value={form.splitMeta.ratioB || ''} placeholder="50" onChange={(e: any) => { const val = Number(e.target.value); setForm((f: any) => ({ ...f, splitMeta: { ...f.splitMeta, ratioB: val, ratioA: 100 - val } })); }} /></div>
-                  <div style={{ gridColumn: 'span 2', fontSize: 12, color: C.text2, marginTop: 4 }}>Breakdown: {names.a} owes ₹{shareA.toFixed(0)} | {names.b} owes ₹{shareB.toFixed(0)}</div>
                 </div>
               )}
 
@@ -822,7 +811,6 @@ function AddExpense({ data, duplicateData, onAdd, onClose }: any) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: C.bg, padding: 10, borderRadius: 8 }}>
                   <div><Label>Payee Partner</Label><Sel value={form.splitMeta.outsidePayee || 'Partner A'} onChange={(e: any) => setMeta('outsidePayee', e.target.value)}><option value="Partner A">{names.a}</option><option value="Partner B">{names.b}</option></Sel></div>
                   <div><Label>Amount Owed by Other (₹)</Label><Inp type="number" value={form.splitMeta.outsideOwes || ''} placeholder="0" onChange={(e: any) => setMeta('outsideOwes', e.target.value)} /></div>
-                  <div style={{ gridColumn: 'span 2', fontSize: 11, color: C.amber }}>⚠️ This mode skips your main Joint Balance math entirely and issues a direct P2P tracking edge onto your Settlements terminal layout card.</div>
                 </div>
               )}
             </div>
@@ -863,25 +851,25 @@ function SettleDashboard({ data, onBulkSettle }: any) {
       </div>
 
       <Card style={{ border: `1px solid ${C.green}44`, background: `${C.green}08` }}>
-        <SectionTitle style={{ color: C.green, margin: '0 0 6px' }}>⚡ Integrated Peer-to-Peer Payment Gateway Router</SectionTitle>
+        <SectionTitle style={{ color: C.green, margin: '0 0 6px' }}>⚡ Integrated Peer-to-Peer UPI Payment Gateway</SectionTitle>
         {totalOwedToA === 0 && totalOwedToB === 0 ? (
-          <p style={{ color: C.text2, fontSize: 13, margin: 0 }}>✓ Dynamic equilibrium reached! Cross-partner debt nodes are completely clear.</p>
+          <p style={{ color: C.text2, fontSize: 13, margin: 0 }}>✓ Dynamic equilibrium reached! Cross-partner debt nodes are clear.</p>
         ) : (
           <div>
             {totalOwedToA > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <p style={{ margin: 0, fontSize: 14, color: C.textW }}>🛑 <b>{names.b}</b> owes a cumulative total of <b style={{ color: C.red }}>{fmt(totalOwedToA)}</b> directly to <b>{names.a}</b>.</p>
+                <p style={{ margin: 0, fontSize: 14, color: C.textW }}>🛑 <b>{names.b}</b> owes a total of <b style={{ color: C.red }}>{fmt(totalOwedToA)}</b> directly to <b>{names.a}</b>.</p>
                 {data.partnerAUpi ? (
-                  <a href={`upi://pay?pa=${data.partnerAUpi}&pn=${encodeURIComponent(names.a)}&am=${totalOwedToA}&cu=INR`} style={{ background: C.green, color: C.bg, padding: '8px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>⚡ Clear Debt via Phone UPI App</a>
-                ) : <span style={{ color: C.muted, fontSize: 12 }}>({names.a} must save their UPI ID handle inside web settings to turn on instant intents).</span>}
+                  <a href={`upi://pay?pa=${data.partnerAUpi}&pn=${encodeURIComponent(names.a)}&am=${totalOwedToA}&cu=INR`} style={{ background: C.green, color: C.bg, padding: '8px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>⚡ Clear Debt via UPI App</a>
+                ) : <span style={{ color: C.muted, fontSize: 12 }}>({names.a} must save their UPI VPA handle inside web settings to activate intent triggers).</span>}
               </div>
             )}
             {totalOwedToB > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                <p style={{ margin: 0, fontSize: 14, color: C.textW }}>🛑 <b>{names.a}</b> owes a cumulative total of <b style={{ color: C.red }}>{fmt(totalOwedToB)}</b> directly to <b>{names.b}</b>.</p>
+                <p style={{ margin: 0, fontSize: 14, color: C.textW }}>🛑 <b>{names.a}</b> owes a total of <b style={{ color: C.red }}>{fmt(totalOwedToB)}</b> directly to <b>{names.b}</b>.</p>
                 {data.partnerBUpi ? (
-                  <a href={`upi://pay?pa=${data.partnerBUpi}&pn=${encodeURIComponent(names.b)}&am=${totalOwedToB}&cu=INR`} style={{ background: C.green, color: C.bg, padding: '8px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>⚡ Clear Debt via Phone UPI App</a>
-                ) : <span style={{ color: C.muted, fontSize: 12 }}>({names.b} must save their UPI ID handle inside web settings to turn on instant intents).</span>}
+                  <a href={`upi://pay?pa=${data.partnerBUpi}&pn=${encodeURIComponent(names.b)}&am=${totalOwedToB}&cu=INR`} style={{ background: C.green, color: C.bg, padding: '8px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>⚡ Clear Debt via UPI App</a>
+                ) : <span style={{ color: C.muted, fontSize: 12 }}>({names.b} must save their UPI VPA handle inside web settings to activate intent triggers).</span>}
               </div>
             )}
           </div>
@@ -944,18 +932,18 @@ function Contributions({ data, onUpdate }: any) {
   );
 }
 
-// ─── GOALS & EMI FALLBACK CONTROLLERS ─────────────────────────────────────────
-function Goals() { return <Card><SectionTitle>🎯 Financial Goals Tracker</SectionTitle><p style={{ color: C.text2, fontSize: 13 }}>Milestone monitoring channels are securely computed inside dashboard budget progress components.</p></Card>; }
-function LoanTracker() { return <Card><SectionTitle>🏧 Active EMI & Debt Repayment Trackers</SectionTitle><p style={{ color: C.text2, fontSize: 13 }}>Amortization profiles run dynamically over your relational transaction line logs.</p></Card>; }
-function AIInsights() { return <Card><SectionTitle>✨ Conversational Analytical Insights</SectionTitle><p style={{ color: C.text2, fontSize: 13 }}>Factoring multi-month velocities over active balances.</p></Card>; }
+function Goals() { return <Card><SectionTitle>🎯 Financial Goals Tracker</SectionTitle><p style={{ color: C.text2, fontSize: 13 }}>Milestone monitoring progress rates are safely processed and displayed on the primary dashboard view grid.</p></Card>; }
+function LoanTracker() { return <Card><SectionTitle>🏧 Active EMI & Loan Repayments</SectionTitle><p style={{ color: C.text2, fontSize: 13 }}>Outstanding loan balances and metrics are calculated dynamically over active table logs.</p></Card>; }
+function AIInsights() { return <Card><SectionTitle>✨ Conversational analytical Engine Insights</SectionTitle><p style={{ color: C.text2, fontSize: 13 }}>Evaluating pacing buffers over current reserves.</p></Card>; }
 
-// ─── FULL CUSTOM CATEGORIES AND SETTINGS MANAGEMENT VIEW PANEL ────────────────
-function Settings({ data, householdId, onSave, onExport, onImport }: any) {
+// ─── CONFIGURATIONS VIEW CARD PANELS (SETTINGS) ───────────────────────────────
+function Settings({ data, householdId, onExport, onImport }: any) {
   const [s, setS] = useState(JSON.parse(JSON.stringify(data.settings)));
   const [flash, setFlash] = useState(false);
   const [upiInput, setUpiInput] = useState(data.currentUserRole === 'Partner B' ? data.partnerBUpi : data.partnerAUpi);
   const [newExpCat, setNewExpCat] = useState('');
   const [newIncCat, setNewIncCat] = useState('');
+  const [importMsg, setImportMsg] = useState<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -988,6 +976,16 @@ function Settings({ data, householdId, onSave, onExport, onImport }: any) {
     } catch (e: any) { alert("Sync failed: " + e.message); }
   };
 
+  const removeExpCat = (c: string) => {
+    const nextArr = s.expenseCategories.filter((e: string) => e !== c);
+    setS({ ...s, expenseCategories: nextArr });
+    handleAtomicSave('expenseCategories', nextArr);
+  };
+  const removeIncCat = (c: string) => {
+    const nextArr = s.incomeCategories.filter((e: string) => e !== c);
+    setS({ ...s, incomeCategories: nextArr });
+    handleAtomicSave('incomeCategories', nextArr);
+  };
   const addExpCat = () => {
     if (!newExpCat.trim()) return;
     const next = [...s.expenseCategories, newExpCat.trim()];
@@ -995,7 +993,6 @@ function Settings({ data, householdId, onSave, onExport, onImport }: any) {
     setNewExpCat('');
     handleAtomicSave('expenseCategories', next);
   };
-
   const addIncCat = () => {
     if (!newIncCat.trim()) return;
     const next = [...s.incomeCategories, newIncCat.trim()];
@@ -1004,16 +1001,14 @@ function Settings({ data, householdId, onSave, onExport, onImport }: any) {
     handleAtomicSave('incomeCategories', next);
   };
 
-  const removeExpCat = (c: string) => {
-    const next = s.expenseCategories.filter((e: string) => e !== c);
-    setS({ ...s, expenseCategories: next });
-    handleAtomicSave('expenseCategories', next);
-  };
-
-  const removeIncCat = (c: string) => {
-    const next = s.incomeCategories.filter((e: string) => e !== c);
-    setS({ ...s, incomeCategories: next });
-    handleAtomicSave('incomeCategories', next);
+  const handleImport = (e: any) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    parseImport(file, (result: any, err: any) => {
+      if (err) { setImportMsg({ type: 'error', text: err }); return; }
+      onImport(result);
+      setImportMsg({ type: 'success', text: `Imported ${result.expenses.length} transaction rows safely!`, });
+    });
   };
 
   return (
@@ -1023,7 +1018,7 @@ function Settings({ data, householdId, onSave, onExport, onImport }: any) {
         <div>
           <Label>Your Personal UPI ID String / VPA</Label>
           <Inp placeholder="e.g. name@okaxis or handle@upi" value={upiInput} onChange={(e: any) => setUpiInput(e.target.value.trim())} />
-          <p style={{ margin: '6px 0 0 0', fontSize: 11, color: C.muted }}>Provisions mobile deep-link intent layers inside the dynamic settlement cards.</p>
+          <p style={{ margin: '6px 0 0 0', fontSize: 11, color: C.muted }}>Provisions mobile deep-link intent structures straight inside the dynamic settlement cards.</p>
         </div>
       </Card>
 
@@ -1063,9 +1058,10 @@ function Settings({ data, householdId, onSave, onExport, onImport }: any) {
         </div>
       </Card>
 
-      <Card style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <SectionTitle>Push Notifications</SectionTitle>
-        <Toggle checked={s.notifications.enabled} onChange={(v: boolean) => setS({ ...s, notifications: { ...s.notifications, enabled: v } })} label="Enable push notifications" />
+      <Card>
+        <SectionTitle>Backups & Backup Channels</SectionTitle>
+        <div style={{ display: 'flex', gap: 12 }}><Btn type="button" variant="success" onClick={onExport}>⬇ Download Excel Ledger</Btn><input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleImport} style={{ display: 'none' }} /><Btn type="button" variant="purple" onClick={() => fileRef.current?.click()}>⬆ Upload Excel Sheet</Btn></div>
+        {importMsg && <div style={{ color: importMsg.type === 'success' ? C.green : C.red, fontSize: 13, marginTop: 10 }}>{importMsg.text}</div>}
       </Card>
 
       <Btn variant={flash ? 'success' : 'primary'} onClick={handleGlobalSyncCommit} style={{ alignSelf: 'flex-start' }}>{flash ? '✓ Core Sync Locked!' : 'Save Configurations'}</Btn>
@@ -1169,7 +1165,6 @@ export default function App() {
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', flexDirection: isMobile ? 'column' : 'row', color: C.textW }}>
-      {/* FULL RESPONSIVE DESKTOP SIDEBAR WITH PRIVACY + SIDEBAR OPEN TOGGLES */}
       {!isMobile && (
         <div style={{ width: sidebarOpen ? 240 : 80, transition: 'all 0.2s', background: C.surface, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh' }}>
           <div style={{ padding: '24px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.border}` }}>
@@ -1186,7 +1181,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MOBILE RESPONSIVE TOP NAV DESKTOP WRAPPER LINK */}
       {isMobile && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: `1px solid ${C.border}`, background: C.surface, position: 'sticky', top: 0, zIndex: 50 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 22 }}>💰</span><span style={{ color: C.amber, fontWeight: 900 }}>FamilyFinance</span></div>
@@ -1194,7 +1188,6 @@ export default function App() {
         </div>
       )}
 
-      {/* RENDER VIEW REGIONS WITH COMPLETE CONTROLLER ROUTERS */}
       <div style={{ flex: 1, padding: 24, paddingBottom: isMobile ? 100 : 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <h2 style={{ margin: 0, fontWeight: 800, fontSize: 28 }}>{NAV.find((n) => n.id === view)?.label}</h2>
@@ -1204,16 +1197,15 @@ export default function App() {
         {view === 'dashboard' && <Dashboard data={data} onAddExpense={actions.addExpense} />}
         {view === 'add' && <AddExpense data={data} duplicateData={duplicateData} onAdd={actions.addExpense} onClose={() => setView(prevView)} />}
         {view === 'income' && <IncomeTracker data={data} />}
-        {view === 'expenses' && <ExpenseList data={data} onDelete={actions.deleteExpense} onUpdate={actions.updateExpense} onBulkDelete={actions.bulkDeleteExpense} onBulkAssignToAccount={actions.bulkAssignToAccount} onDuplicate={(e: any) => { setDuplicateData({ ...e, date: today(), amount: e.amount.toString(), id: null }); setPrevView(view); setView('add'); }} />}
+        {view === 'expenses' && <ExpenseList data={data} onDelete={actions.deleteExpense} onDuplicate={(e: any) => { setDuplicateData({ ...e, date: today(), amount: e.amount.toString(), id: null }); setPrevView(view); setView('add'); }} onBulkDelete={actions.bulkDeleteExpense} onBulkAssignToAccount={actions.bulkAssignToAccount} />}
         {view === 'settle' && <SettleDashboard data={data} onBulkSettle={actions.bulkSettle} />}
         {view === 'contributions' && <Contributions data={data} onUpdate={actions.updateContrib} />}
+        {view === 'settings' && <Settings data={data} householdId={data.householdId} onSave={actions.addExpense} onExport={() => exportToExcel(data)} onImport={actions.importData} />}
         {view === 'goals' && <Goals />}
         {view === 'loans' && <LoanTracker />}
         {view === 'insights' && <AIInsights />}
-        {view === 'settings' && <Settings data={data} householdId={data.householdId} onSave={actions.addExpense} onExport={() => exportToExcel(data)} onImport={actions.addExpense} />}
       </div>
 
-      {/* MOBILE BOTTOM NAVIGATION TRACK DOCK BAR */}
       {isMobile && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 70, background: C.surface, borderTop: `1px solid ${C.border}`, display: 'flex', overflowX: 'auto', padding: '0 10px', alignItems: 'center', gap: 10, zIndex: 900, WebkitOverflowScrolling: 'touch' }}>
           {NAV.map((n) => <button key={n.id} onClick={() => setView(n.id)} style={{ background: view === n.id ? C.amber + '11' : 'transparent', border: 'none', color: view === n.id ? C.amber : C.text2, borderRadius: 10, padding: '8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 64 }}><span style={{ fontSize: 18 }}>{n.icon}</span><span style={{ fontSize: 10, fontWeight: view === n.id ? 700 : 500, whiteSpace: 'nowrap' }}>{n.label}</span></button>)}
