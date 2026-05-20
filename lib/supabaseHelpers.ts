@@ -10,7 +10,7 @@
 
 import { supabase } from '@/lib/supabaseClient';
 import type {
-  AppData, Expense, Contribution, Goal, Loan, Settings,
+  AppData, Expense, Contribution, Goal, Loan, Settings, SettleTrack,
 } from '@/types';
 import { DEFAULT_SETTINGS } from '@/constants';
 
@@ -137,7 +137,7 @@ export async function loadData(userId: string): Promise<AppData> {
       //     — they appear in the partner ledger instead.
 
       const rawSettleTrack = r.settle_track;
-      const settleTrack: string =
+      const settleTrack: SettleTrack =
         rawSettleTrack === 'joint'   ? 'joint'   :
         rawSettleTrack === 'partner' ? 'partner' :
         rawSettleTrack === 'none'    ? 'none'    :
