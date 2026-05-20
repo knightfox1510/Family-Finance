@@ -2266,35 +2266,47 @@ function ExpenseList({
 
                 return (
                   <tr key={e.id} style={{ borderTop: `1px solid ${C.border}`, background: selectedIds.has(e.id) ? C.red + '08' : (i % 2 === 0 ? 'transparent' : C.bg + '80') }}>
-                    <td style={{ padding: '10px 14px' }}>
-                      <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} style={{ cursor: 'pointer', accentColor: C.amber }} />
-                    </td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11, color: C.amber, borderColor: `${C.amber}33` }} onClick={() => onDuplicate(e)}>📋 Copy</Btn>
-                    </td>
-                    <td style={{ padding: '10px 14px', color: C.text2, whiteSpace: 'nowrap' }}>{e.date}</td>
-                    <td style={{ padding: '10px 14px', color: C.muted, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.note || '—'}</td>
-                    <td style={{ padding: '10px 14px', color: C.text1 }}>{e.category}</td>
-                    <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>
-                      {e.type === 'income' ? '+' : ''}{fmt(e.amount, data.settings.currency)}
-                    </td>
-                    {/* 7. Account Used Slot */}
-                    <td style={{ padding: '10px 14px' }}>
-                      {(() => {
-                        const activeAccount = e.account || e.account_used;
-                        if (!activeAccount) return <Badge color={C.green}>Joint Account</Badge>;
+  <td style={{ padding: '10px 14px' }}>
+    <input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} style={{ cursor: 'pointer', accentColor: C.amber }} />
+  </td>
+  <td style={{ padding: '10px 14px' }}>
+    <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11, color: C.amber, borderColor: `${C.amber}33` }} onClick={() => onDuplicate(e)}>📋 Copy</Btn>
+  </td>
+  <td style={{ padding: '10px 14px', color: C.text2, whiteSpace: 'nowrap' }}>{e.date}</td>
+  
+  {/* 🎯 UPDATED LOGIC INLINE INSIDE YOUR NOTE CELL */}
+  <td style={{ padding: '10px 14px', color: C.muted, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+    <span style={{ color: C.textW }}>{e.note || '—'}</span>
+    {e.isRecurring && (
+      <span 
+        title={`Recurring: Repeats ${e.recurrenceInterval || 'monthly'}`} 
+        style={{ marginLeft: 6, fontSize: 12, cursor: 'help' }}
+      >
+        🔄
+      </span>
+    )}
+  </td>
 
-                        // Compare against live household configuration settings values
-                        if (activeAccount === names.a || activeAccount === 'Partner A') {
-                          return <Badge color={C.blue}>{names.a}</Badge>;
-                        }
-                        if (activeAccount === names.b || activeAccount === 'Partner B') {
-                          return <Badge color={C.blue}>{names.b}</Badge>;
-                        }
-                        
-                        return <Badge color={C.green}>Joint Account</Badge>;
-                      })()}
-                    </td>
+  <td style={{ padding: '10px 14px', color: C.text1 }}>{e.category}</td>
+  <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>
+    {e.type === 'income' ? '+' : ''}{fmt(e.amount, data.settings.currency)}
+  </td>
+  {/* 7. Account Used Slot */}
+  <td style={{ padding: '10px 14px' }}>
+    {(() => {
+      const activeAccount = e.account || e.account_used;
+      if (!activeAccount) return <Badge color={C.green}>Joint Account</Badge>;
+
+      if (activeAccount === names.a || activeAccount === 'Partner A') {
+        return <Badge color={C.blue}>{names.a}</Badge>;
+      }
+      if (activeAccount === names.b || activeAccount === 'Partner B') {
+        return <Badge color={C.blue}>{names.b}</Badge>;
+      }
+      
+      return <Badge color={C.green}>Joint Account</Badge>;
+    })()}
+  </td>
                     
                     <td style={{ padding: '10px 14px' }}>
                       {e.type === 'income' ? (
