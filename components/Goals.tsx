@@ -96,8 +96,11 @@ function StrategySelect({ value, onChange }: { value: string; onChange: (v: stri
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
-  const nameA = data.settings.partnerAName;
-  const nameB = data.settings.partnerBName;
+  const nameA      = data.settings.partnerAName;
+  const nameB      = data.settings.partnerBName;
+  const mode       = data.settings.householdMode ?? 'joint';
+  const isSolo     = mode === 'solo';
+  const hasPartner = mode !== 'solo';
 
   const [editing, setEditing]   = useState<string | null>(null);
   const [editForm, setEditForm] = useState<GoalFormState>(BLANK_GOAL);
@@ -165,72 +168,53 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
         </div>
 
         {/* Target amounts */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isSolo ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12 }}>
           <div>
-            <Label>Total Target (₹)</Label>
-            <Inp
-              type="number"
-              placeholder="Auto-computed"
-              value={newGoal.target}
+            <Label>{isSolo ? 'Target Amount (₹)' : 'Total Target (₹)'}</Label>
+            <Inp type="number" placeholder={isSolo ? '' : 'Auto-computed'} value={newGoal.target}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setNewGoal((g) => ({ ...g, target: e.target.value }))
-              }
-            />
+                isSolo
+                  ? setNewGoal((g) => ({ ...g, target: e.target.value, partnerATarget: e.target.value }))
+                  : setNewGoal((g) => ({ ...g, target: e.target.value }))
+              } />
           </div>
-          <div>
-            <Label>{nameA}'s Share (₹)</Label>
-            <Inp
-              type="number"
-              value={newGoal.partnerATarget}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                syncNewGoalTotal({ partnerATarget: e.target.value })
-              }
-            />
-          </div>
-          <div>
-            <Label>{nameB}'s Share (₹)</Label>
-            <Inp
-              type="number"
-              value={newGoal.partnerBTarget}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                syncNewGoalTotal({ partnerBTarget: e.target.value })
-              }
-            />
-          </div>
+          {!isSolo && (
+            <div>
+              <Label>{nameA}'s Share (₹)</Label>
+              <Inp type="number" value={newGoal.partnerATarget}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => syncNewGoalTotal({ partnerATarget: e.target.value })} />
+            </div>
+          )}
+          {hasPartner && (
+            <div>
+              <Label>{nameB}'s Share (₹)</Label>
+              <Inp type="number" value={newGoal.partnerBTarget}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => syncNewGoalTotal({ partnerBTarget: e.target.value })} />
+            </div>
+          )}
         </div>
 
         {/* Date + current savings */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isSolo ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12 }}>
           <div>
             <Label>Target Date</Label>
-            <Inp
-              type="date"
-              value={newGoal.targetDate}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setNewGoal((g) => ({ ...g, targetDate: e.target.value }))
-              }
-            />
+            <Inp type="date" value={newGoal.targetDate}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewGoal((g) => ({ ...g, targetDate: e.target.value }))} />
           </div>
           <div>
-            <Label>{nameA}'s Saved (₹)</Label>
-            <Inp
-              type="number"
-              value={newGoal.partnerACurrent}
+            <Label>{isSolo ? 'Amount Saved (₹)' : `${nameA}'s Saved (₹)`}</Label>
+            <Inp type="number" value={newGoal.partnerACurrent}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setNewGoal((g) => ({ ...g, partnerACurrent: e.target.value }))
-              }
-            />
+                setNewGoal((g) => ({ ...g, partnerACurrent: e.target.value, ...(isSolo ? { partnerBCurrent: 0 } : {}) }))
+              } />
           </div>
-          <div>
-            <Label>{nameB}'s Saved (₹)</Label>
-            <Inp
-              type="number"
-              value={newGoal.partnerBCurrent}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setNewGoal((g) => ({ ...g, partnerBCurrent: e.target.value }))
-              }
-            />
-          </div>
+          {hasPartner && (
+            <div>
+              <Label>{nameB}'s Saved (₹)</Label>
+              <Inp type="number" value={newGoal.partnerBCurrent}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewGoal((g) => ({ ...g, partnerBCurrent: e.target.value }))} />
+            </div>
+          )}
         </div>
 
         {/* Color */}
@@ -272,50 +256,40 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
         />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isSolo ? '1fr' : '1fr 1fr', gap: 6 }}>
         <div>
-          <Label>{nameA}'s Target (₹)</Label>
-          <Inp
-            type="number"
-            value={editForm.partnerATarget}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              syncEditFormTotal({ partnerATarget: e.target.value })
-            }
-          />
+          <Label>{isSolo ? 'Target Amount (₹)' : `${nameA}'s Target (₹)`}</Label>
+          <Inp type="number" value={editForm.partnerATarget}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              isSolo
+                ? setEditForm((f) => ({ ...f, partnerATarget: e.target.value, target: Number(e.target.value) }))
+                : syncEditFormTotal({ partnerATarget: e.target.value });
+            }} />
         </div>
-        <div>
-          <Label>{nameB}'s Target (₹)</Label>
-          <Inp
-            type="number"
-            value={editForm.partnerBTarget}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              syncEditFormTotal({ partnerBTarget: e.target.value })
-            }
-          />
-        </div>
+        {hasPartner && (
+          <div>
+            <Label>{nameB}'s Target (₹)</Label>
+            <Inp type="number" value={editForm.partnerBTarget}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => syncEditFormTotal({ partnerBTarget: e.target.value })} />
+          </div>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isSolo ? '1fr' : '1fr 1fr', gap: 6 }}>
         <div>
-          <Label>{nameA}'s Saved (₹)</Label>
-          <Inp
-            type="number"
-            value={editForm.partnerACurrent}
+          <Label>{isSolo ? 'Amount Saved (₹)' : `${nameA}'s Saved (₹)`}</Label>
+          <Inp type="number" value={editForm.partnerACurrent}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setEditForm((f) => ({ ...f, partnerACurrent: e.target.value }))
-            }
-          />
+              setEditForm((f) => ({ ...f, partnerACurrent: e.target.value, ...(isSolo ? { partnerBCurrent: 0 } : {}) }))
+            } />
         </div>
-        <div>
-          <Label>{nameB}'s Saved (₹)</Label>
-          <Inp
-            type="number"
-            value={editForm.partnerBCurrent}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setEditForm((f) => ({ ...f, partnerBCurrent: e.target.value }))
-            }
-          />
-        </div>
+        {hasPartner && (
+          <div>
+            <Label>{nameB}'s Saved (₹)</Label>
+            <Inp type="number" value={editForm.partnerBCurrent}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm((f) => ({ ...f, partnerBCurrent: e.target.value }))} />
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -399,21 +373,23 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
           </div>
           <ProgressBar pct={pct} color={g.color || statusColor} height={8} />
 
-          {/* Per-partner breakdown */}
-          <div style={{ marginTop: 14, background: `${C.bg}66`, padding: 10, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[
-              { name: nameA, cur: g.partnerACurrent, tgt: g.partnerATarget, pct: pctA, color: C.teal },
-              { name: nameB, cur: g.partnerBCurrent, tgt: g.partnerBTarget, pct: pctB, color: '#ec4899' },
-            ].map((p) => (
-              <div key={p.name}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                  <span style={{ color: p.color, fontWeight: 600 }}>👤 {p.name}'s Share</span>
-                  <span style={{ color: C.text2 }}>{fmt(p.cur)} of {fmt(p.tgt)} ({p.pct.toFixed(0)}%)</span>
+          {/* Per-partner breakdown — only when two partners exist */}
+          {hasPartner && (
+            <div style={{ marginTop: 14, background: `${C.bg}66`, padding: 10, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                { name: nameA, cur: g.partnerACurrent, tgt: g.partnerATarget, pct: pctA, color: C.teal },
+                { name: nameB, cur: g.partnerBCurrent, tgt: g.partnerBTarget, pct: pctB, color: '#ec4899' },
+              ].map((p) => (
+                <div key={p.name}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+                    <span style={{ color: p.color, fontWeight: 600 }}>👤 {p.name}'s Share</span>
+                    <span style={{ color: C.text2 }}>{fmt(p.cur)} of {fmt(p.tgt)} ({p.pct.toFixed(0)}%)</span>
+                  </div>
+                  <ProgressBar pct={p.pct} color={p.color} height={4} />
                 </div>
-                <ProgressBar pct={p.pct} color={p.color} height={4} />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Monthly velocity */}
           {g.shortfall > 0 && g.monthsRemaining > 0 && (
@@ -422,8 +398,8 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
                 ⚠️ Monthly savings needed ({g.monthsRemaining} mo left):
               </span>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                <span style={{ color: C.text1 }}><strong style={{ color: C.teal }}>{nameA}:</strong> {fmt(g.velocityA)}/mo</span>
-                <span style={{ color: C.text1 }}><strong style={{ color: '#ec4899' }}>{nameB}:</strong> {fmt(g.velocityB)}/mo</span>
+                <span style={{ color: C.text1 }}><strong style={{ color: C.teal }}>{isSolo ? 'Monthly target:' : nameA + ':'}</strong> {fmt(g.velocityA)}/mo</span>
+                {hasPartner && <span style={{ color: C.text1 }}><strong style={{ color: '#ec4899' }}>{nameB}:</strong> {fmt(g.velocityB)}/mo</span>}
               </div>
             </div>
           )}
@@ -454,7 +430,10 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
         <div style={{ fontWeight: 700, color: C.text1, fontSize: 14, textDecoration: 'line-through' }}>{g.name}</div>
       </div>
       <p style={{ margin: '4px 0 10px', fontSize: 12, color: C.muted }}>
-        Funded at {fmt(g.target)} — {nameA} ({fmt(g.partnerATarget)}) · {nameB} ({fmt(g.partnerBTarget)})
+        {isSolo
+          ? `Funded at ${fmt(g.target)}`
+          : `Funded at ${fmt(g.target)} — ${nameA} (${fmt(g.partnerATarget)}) · ${nameB} (${fmt(g.partnerBTarget)})`
+        }
       </p>
       <div style={{ background: `${C.green}11`, padding: '6px 10px', borderRadius: 6, fontSize: 11, color: C.green, fontWeight: 600, textAlign: 'center' }}>
         100% Capitalized

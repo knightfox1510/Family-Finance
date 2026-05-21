@@ -34,6 +34,10 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   const [accountFilter, setAccountFilter] = useState('All');
 
   const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
+  const mode  = data.settings.householdMode ?? 'joint';
+  const isJoint    = mode === 'joint';
+  const isSolo     = mode === 'solo';
+  const hasPartner = mode !== 'solo';
 
   const allAvailableMonths = [...new Set(data.expenses.map((e) => monthKey(e.date)))].sort().reverse();
 
@@ -116,15 +120,12 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   filteredExp.filter((e) => INVESTMENT_CATS.has(e.category)).forEach((e) => {
     const note = (e.note || '').toLowerCase();
     const key =
-        note.includes('gold') || note.includes('bluestone') || note.includes('sgb') || note.includes('png') || note.includes('waman') ? 'Gold' :
-        note.includes('IND Money') || note.includes('US') ? 'US Stocks' :
-        note.includes('sip') || note.includes('mutual') || note.includes('mf') || note.includes('nj') ? 'Mutual Funds / SIP' :
-        note.includes('ppf') || note.includes('epf') || note.includes('nps') ? 'PPF / EPF / NPS' :
-        note.includes('stock') || note.includes('equity') || note.includes('zerodha') || note.includes('smallcase') || note.includes('share') ? 'Stocks / Equity' :
-        note.includes('fd') || note.includes('fixed deposit') ? 'Fixed Deposits' :
-        note.includes('crypto') || note.includes('bitcoin') || note.includes('btc') ? 'Crypto' :
-        e.category === 'Insurance' || note.includes('insurance') || note.includes('lic') ? 'Insurance' : 
-        'Other Investments';
+      note.includes('sip') || note.includes('mutual') || note.includes('mf') ? 'Mutual Funds / SIP' :
+      note.includes('gold') ? 'Gold' :
+      note.includes('ppf') || note.includes('epf') || note.includes('nps') ? 'PPF / EPF / NPS' :
+      note.includes('stock') || note.includes('equity') || note.includes('zerodha') || note.includes('smallcase') ? 'Stocks / Equity' :
+      note.includes('fd') || note.includes('fixed deposit') ? 'Fixed Deposits' :
+      e.category === 'Insurance' ? 'Insurance' : 'Other Investments';
     assetDetail[key] = (assetDetail[key] || 0) + Number(e.amount);
   });
   const assetDetailEntries = Object.entries(assetDetail).sort((a, b) => b[1] - a[1]);
@@ -182,10 +183,10 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
             <span style={labelStyle}>Account:</span>
             <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
               <option value="All">All Accounts</option>
-              <option value="Joint">Joint Only</option>
-              <option value="PersonalOnly">{names.a} & {names.b} (Personal)</option>
+              {isJoint && <option value="Joint">Joint Only</option>}
+              {hasPartner && <option value="PersonalOnly">{names.a} & {names.b} (Personal)</option>}
               <option value={names.a}>{names.a} Only</option>
-              <option value={names.b}>{names.b} Only</option>
+              {hasPartner && <option value={names.b}>{names.b} Only</option>}
             </select>
           </div>
         </Card>
@@ -193,9 +194,11 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
 
       {/* Core Metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
-        <div onClick={() => setShowAudit(true)} style={{ cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')} onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}>
-          <StatCard label="Joint Balance (Click to Audit)" value={fmt(currentJointBalance)} accent={currentJointBalance < 5000 ? C.red : C.green} icon="💰" sub={`Spent this period: ${fmt(periodJointSpent)}`} />
-        </div>
+        {isJoint && (
+          <div onClick={() => setShowAudit(true)} style={{ cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')} onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}>
+            <StatCard label="Joint Balance (Click to Audit)" value={fmt(currentJointBalance)} accent={currentJointBalance < 5000 ? C.red : C.green} icon="💰" sub={`Spent this period: ${fmt(periodJointSpent)}`} />
+          </div>
+        )}
         <StatCard label="Lifestyle Spending" value={fmt(trueLifestyleExpenses)} accent={C.amber} icon="🛒" sub="Excluding investments" />
       </div>
 
@@ -206,27 +209,32 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
             <SectionTitle>Partner Activity Breakdown</SectionTitle>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
               {[
-                { name: names.a, color: C.purple, lifestyle: personalLifestyleA, invested: personalInvestedA, contrib: contribA },
-                { name: names.b, color: C.blue,   lifestyle: personalLifestyleB, invested: personalInvestedB, contrib: contribB },
-              ].map((p) => (
+                { name: names.a, color: C.purple, lifestyle: personalLifestyleA, invested: personalInvestedA, contrib: contribA, show: true },
+                { name: names.b, color: C.blue,   lifestyle: personalLifestyleB, invested: personalInvestedB, contrib: contribB, show: hasPartner },
+              ].filter((p) => p.show).map((p) => (
                 <div key={p.name} style={{ background: C.bg, padding: '12px 14px', borderRadius: 10, border: `1px solid ${C.border}` }}>
                   <div style={{ color: p.color, fontWeight: 700, fontSize: 13, marginBottom: 8, borderBottom: `1px solid ${C.border}44`, paddingBottom: 4 }}>{p.name}</div>
-                  {[['Out of Pocket (Lifestyle):', fmt(p.lifestyle), C.textW], ['Out of Pocket (Invested):', fmt(p.invested), C.teal], ['Joint Pool Contributed:', fmt(p.contrib), C.green]].map(([label, val, col]) => (
-                    <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
+                  {([
+                    ['Out of Pocket (Lifestyle):', fmt(p.lifestyle), C.textW, true],
+                    ['Out of Pocket (Invested):', fmt(p.invested), C.teal, true],
+                    ...(isJoint ? [['Joint Pool Contributed:', fmt(p.contrib), C.green, true]] : []),
+                  ] as [string, string, string, boolean][]).map(([label, val, col]) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}>
                       <span style={{ color: C.text2 }}>{label}</span>
-                      <span style={{ fontWeight: 600, color: col as string }}>{val}</span>
+                      <span style={{ fontWeight: 600, color: col }}>{val}</span>
                     </div>
                   ))}
-                  {/* Total row */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.border}` }}>
                     <span style={{ color: C.text1, fontWeight: 700 }}>Total Financial Outflow:</span>
-                    <span style={{ fontWeight: 800, color: p.color }}>{fmt(p.lifestyle + p.invested + p.contrib)}</span>
+                    <span style={{ fontWeight: 800, color: p.color }}>{fmt(p.lifestyle + p.invested + (isJoint ? p.contrib : 0))}</span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-          <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '12px 4px 0' }}>Reflects personal out-of-pocket spending vs joint seed transfers.</div>
+          <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '12px 4px 0' }}>
+            {isJoint ? 'Reflects personal out-of-pocket spending vs joint seed transfers.' : isSolo ? 'Your personal spending and investment breakdown.' : 'Reflects each partner\'s personal out-of-pocket spending.'}
+          </div>
         </Card>
 
       </div>
@@ -397,8 +405,8 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
         })}
       </Card>
 
-      {/* Audit Modal */}
-      {showAudit && (
+      {/* Audit Modal — joint mode only */}
+      {isJoint && showAudit && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Card style={{ width: '100%', maxWidth: 500, maxHeight: '85vh', overflowY: 'auto', position: 'relative' }}>
             <button onClick={() => setShowAudit(false)} style={{ position: 'absolute', top: 15, right: 15, background: C.surface, border: `1px solid ${C.border}`, color: C.text1, borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>

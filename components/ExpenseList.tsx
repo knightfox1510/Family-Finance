@@ -26,7 +26,11 @@ interface Props {
 }
 
 export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, onUnsettle, onBulkDelete, onDuplicate, onBulkFlagToSettle, onBulkMarkAsSettled, onBulkAssignToAccount, onTriggerEdit }: Props) {
-  const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
+  const names      = { a: data.settings.partnerAName, b: data.settings.partnerBName };
+  const mode       = data.settings.householdMode ?? 'joint';
+  const isJoint    = mode === 'joint';
+  const isSolo     = mode === 'solo';
+  const hasPartner = mode !== 'solo';
   const mk = monthKey(today());
   const [filter, setFilter] = useState({ month: mk, account: 'All', category: 'All', type: 'All', settled: 'All' });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -79,16 +83,21 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
           <span style={{ color: C.muted, fontSize: 12 }}>Filter:</span>
           <select style={selStyle} value={filter.month} onChange={(e) => sf('month', e.target.value)}><option value="All">All Months</option>{allMonths.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}</select>
           <select style={selStyle} value={filter.type} onChange={(e) => sf('type', e.target.value)}><option value="All">All Types</option><option value="expense">Expenses</option><option value="income">Income</option></select>
-          <select style={selStyle} value={filter.account} onChange={(e) => sf('account', e.target.value)}><option value="All">All Accounts</option><option value="Joint">Joint</option><option value={names.a}>{names.a}</option><option value={names.b}>{names.b}</option></select>
+          <select style={selStyle} value={filter.account} onChange={(e) => sf('account', e.target.value)}>
+            <option value="All">All Accounts</option>
+            {isJoint && <option value="Joint">Joint</option>}
+            <option value={names.a}>{names.a}</option>
+            {hasPartner && <option value={names.b}>{names.b}</option>}
+          </select>
           <select style={selStyle} value={filter.category} onChange={(e) => sf('category', e.target.value)}><option value="All">All Categories</option>{allCats.map((c) => <option key={c} value={c}>{c}</option>)}</select>
           <select style={selStyle} value={filter.settled} onChange={(e) => sf('settled', e.target.value)}>
             <option value="All">All Statuses</option>
-            <option value="pendingJoint">⏳ Pending — Joint Reimbursement</option>
-            <option value="pendingPartner">🤝 Pending — Partner Split</option>
+            {isJoint && <option value="pendingJoint">⏳ Pending — Joint Reimbursement</option>}
+            {hasPartner && <option value="pendingPartner">🤝 Pending — Partner Split</option>}
             <option value="personal">👤 Personal (no settlement)</option>
             <option value="settled">✅ All Settled</option>
             <option value="settledA">✅ Settled — {names.a}</option>
-            <option value="settledB">✅ Settled — {names.b}</option>
+            {hasPartner && <option value="settledB">✅ Settled — {names.b}</option>}
           </select>
         </div>
       </Card>
@@ -102,8 +111,8 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
               <select value={selectedTargetAccount} onChange={(e) => setSelectedTargetAccount(e.target.value)} style={{ ...selStyle, fontSize: 12 }}>
                 <option value="">-- Assign Account --</option>
                 <option value="Partner A">{names.a}</option>
-                <option value="Partner B">{names.b}</option>
-                <option value="Joint">Joint</option>
+                {hasPartner && <option value="Partner B">{names.b}</option>}
+                {isJoint && <option value="Joint">Joint</option>}
               </select>
               <Btn variant="ghost" disabled={!selectedTargetAccount} style={{ fontSize: 12, padding: '6px 12px', borderColor: selectedTargetAccount ? C.amber : C.border, color: selectedTargetAccount ? C.amber : C.muted }} onClick={() => { const ids = [...selectedIds]; onBulkAssignToAccount(ids, selectedTargetAccount); setSelectedTargetAccount(''); setSelectedIds(new Set()); }}>🔄 Assign</Btn>
             </div>
@@ -137,7 +146,12 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
                     <td style={{ padding: 8 }}><Inp type="number" value={editForm.amount} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, amount: ev.target.value }))} style={{ width: 80 }} /></td>
                     <td style={{ padding: 8 }}><Sel value={editForm.account} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, account: ev.target.value }))}><option value="Joint">Joint</option><option value={names.a}>{names.a}</option><option value={names.b}>{names.b}</option></Sel></td>
                     <td style={{ padding: 8 }}>
-                      {editForm.type === 'income' || editForm.account === 'Joint' ? <span style={{ color: C.muted, fontSize: 12 }}>N/A</span> : <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: C.text1 }}><input type="checkbox" checked={editForm.toSettle} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, toSettle: ev.target.checked }))} style={{ accentColor: C.amber }} />Shared</label>}
+                      {editForm.type === 'income' || editForm.account === 'Joint' || isSolo
+                        ? <span style={{ color: C.muted, fontSize: 12 }}>N/A</span>
+                        : <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: C.text1 }}>
+                            <input type="checkbox" checked={editForm.toSettle} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, toSettle: ev.target.checked }))} style={{ accentColor: C.amber }} />
+                            {isJoint ? 'Shared' : 'Partner Split'}
+                          </label>}
                     </td>
                     <td style={{ padding: 8, display: 'flex', gap: 6 }}><Btn variant="success" onClick={saveEdit} style={{ padding: '6px 10px' }}>✓</Btn><Btn variant="ghost" onClick={() => setEditingId(null)} style={{ padding: '6px 10px' }}>✕</Btn></td>
                   </tr>
@@ -170,14 +184,16 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
                             ↩ Unsettle
                           </button>
                         </div>
-                      ) : e.account === 'Joint' ? (
+                      ) : e.account === 'Joint' && isJoint ? (
                         <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Shared</span>
-                      ) : e.settleTrack === 'partner' ? (
+                      ) : e.settleTrack === 'partner' && hasPartner ? (
                         <Badge color={C.purple}>🤝 Partner Split</Badge>
                       ) : !e.toSettle ? (
                         <span style={{ color: C.text2, fontSize: 12 }}>Personal</span>
-                      ) : (
+                      ) : isJoint ? (
                         <Badge color={C.amber}>⏳ Pending — Joint</Badge>
+                      ) : (
+                        <span style={{ color: C.text2, fontSize: 12 }}>Personal</span>
                       )}
                     </td>
                     <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>

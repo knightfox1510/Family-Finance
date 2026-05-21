@@ -22,12 +22,15 @@ interface Props {
 
 export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, onClose }: Props) {
   const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
-  const mode  = data.settings.householdMode ?? 'joint';
+  const mode       = data.settings.householdMode ?? 'joint';
+  const isJoint    = mode === 'joint';
+  const isSolo     = mode === 'solo';
+  const hasPartner = mode !== 'solo';
   const isEditingMode = duplicateData && duplicateData.id !== null && duplicateData.id !== undefined;
 
   const [form, setForm] = useState<any>(duplicateData || {
     date: today(), amount: '', category: data.settings.expenseCategories[0],
-    account: 'Joint', addedBy: 'Partner A', note: '', toSettle: false,
+    account: mode === 'joint' ? 'Joint' : (data.currentUserRole === 'Partner B' ? data.settings.partnerBName : data.settings.partnerAName), addedBy: 'Partner A', note: '', toSettle: false,
     type: 'expense', isRecurring: false, recurrenceInterval: 'monthly',
     settleTrack: 'none', splitMode: 'equal', partnerAShare: 0.50, partnerBShare: 0.50,
   });
@@ -46,6 +49,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
 
   // Smart quick-fill presets from history
   const { jointPresets, personalPresets } = useMemo(() => {
+    if (isSolo && !data.expenses.length) return { jointPresets: [], personalPresets: [] };
     if (!data.expenses.length) return { jointPresets: [], personalPresets: [] };
     const jointFreq: Record<string, any> = {};
     const personalFreq: Record<string, any> = {};
@@ -141,6 +145,33 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+
+          {/* Quick presets — shown at the top so they can pre-fill fields below */}
+          {!isEditingMode && (jointPresets.length > 0 || personalPresets.length > 0) && (
+            <div style={{ background: `${C.bg}80`, borderRadius: 10, padding: '10px 12px', border: `1px solid ${C.border}` }}>
+              {[
+                ...(isJoint ? [{ label: '🏠 Joint presets', presets: jointPresets }] : []),
+                { label: isJoint ? '👤 Your presets' : '⚡ Quick fill', presets: personalPresets },
+              ].map(({ label, presets }) => presets.length > 0 && (
+                <div key={label} style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 5 }}>{label}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {presets.map((p: any) => (
+                      <button key={p.label} type="button" style={presetBtnStyle(p.shared)}
+                        onClick={() => {
+                          set('category', p.cat);
+                          set('note', p.note);
+                          if (p.shared && isJoint) { set('toSettle', true); set('settleTrack', 'joint'); }
+                        }}>
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div><Label>Date</Label><Inp type="date" value={form.date} onChange={(e: any) => set('date', e.target.value)} /></div>
             <div><Label>Amount (₹)</Label><Inp type="number" placeholder="0" value={form.amount} onChange={(e: any) => set('amount', e.target.value)} /></div>
@@ -167,7 +198,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
               <Label>Added By</Label>
               <Sel value={form.addedBy} onChange={(e: any) => set('addedBy', e.target.value)}>
                 <option value="Partner A">{names.a}</option>
-                {mode !== 'solo' && <option value="Partner B">{names.b}</option>}
+                {hasPartner && <option value="Partner B">{names.b}</option>}
               </Sel>
             </div>
           </div>
@@ -201,7 +232,9 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
                 <p style={{ color: C.muted, fontSize: 11, margin: '4px 0 8px', lineHeight: 1.5 }}>
                   {form.account === 'Joint'
                     ? 'Joint account expenses are shared directly — no settlement needed.'
-                    : 'Did you pay personally for something that should be reimbursed?'}
+                    : isJoint
+                    ? 'Did you pay personally for something that should be reimbursed?'
+                    : 'Did someone else split this expense with you?'}
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
 
@@ -217,8 +250,8 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
                     ❌ No Settlement — personal or already joint
                   </button>
 
-                  {/* Option 2: Reimburse from Joint pool — only when paid from personal account */}
-                  {form.account !== 'Joint' && (
+                  {/* Option 2: Reimburse from Joint pool — joint mode + personal account only */}
+                  {isJoint && form.account !== 'Joint' && (
                     <button type="button"
                       onClick={() => { set('settleTrack', 'joint'); set('splitMode', 'equal'); }}
                       style={{ padding: '10px 12px', borderRadius: 8, fontSize: 12, textAlign: 'left',
@@ -280,24 +313,6 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
                   )}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Quick presets */}
-          {!isEditingMode && (
-            <div>
-              {[{ label: '🏠 Joint presets', presets: jointPresets }, { label: '👤 Your presets', presets: personalPresets }].map(({ label, presets }) => presets.length > 0 && (
-                <div key={label} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 5 }}>{label}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {presets.map((p: any) => (
-                      <button key={p.label} type="button" style={presetBtnStyle(p.shared)} onClick={() => { set('category', p.cat); set('note', p.note); if (p.shared) { set('toSettle', true); set('settleTrack', 'joint'); } }}>
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
             </div>
           )}
 
