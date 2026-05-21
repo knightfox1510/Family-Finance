@@ -20,45 +20,103 @@ interface Props {
 
 // ─── Downgrade config ─────────────────────────────────────────────────────────
 
-interface DowngradeInfo {
+interface SwitchInfo {
+  type: 'upgrade' | 'downgrade';
   title: string;
-  hidden: string[];
-  suggestion: string;
+  subtitle: string;
+  // What becomes visible (upgrades) or hidden (downgrades)
+  changes: string[];
+  note: string;
   offerNewHousehold: boolean;
 }
 
-const DOWNGRADE_INFO: Record<string, Record<string, DowngradeInfo>> = {
-  joint: {
+const SWITCH_INFO: Record<string, Record<string, SwitchInfo>> = {
+
+  // ── Upgrades (adding capability) ─────────────────────────────────────────
+  solo: {
     separate: {
-      title: 'Switching Joint → Separate',
-      hidden: [
-        'Joint account transactions (stored safely, just hidden)',
-        'Contributions / joint pool history',
-        'Joint reimbursement settlements',
+      type: 'upgrade',
+      title: 'Upgrading to Separate Finance',
+      subtitle: 'You are adding a second partner to this household.',
+      changes: [
+        'Partner B name field and account appear throughout the app',
+        'Expense list gains partner account filters',
+        'Settlement tab unlocks for direct partner-to-partner splits',
+        'Both partners can be assigned to transactions',
       ],
-      suggestion: 'Your data is safe — switch back to Joint any time and everything reappears instantly.',
+      note: 'Your existing solo transactions are preserved and will show as Partner A activity.',
       offerNewHousehold: false,
     },
-    solo: {
-      title: 'Switching Joint → Solo',
-      hidden: [
-        'All joint account transactions',
-        'Partner B transactions and activity',
-        'Contributions / joint pool history',
-        'All settlement data (joint and partner)',
+    joint: {
+      type: 'upgrade',
+      title: 'Upgrading to Joint Finance',
+      subtitle: 'You are enabling the full shared-pool experience.',
+      changes: [
+        'Joint account option appears in all account pickers',
+        'Contributions tab unlocks for tracking monthly pool deposits',
+        'Joint reimbursement settlement track becomes available',
+        'Joint Balance card appears on the Dashboard',
+        'Joint presets appear in the Add Expense form',
       ],
-      suggestion: 'If you genuinely want a fresh solo experience, we recommend creating a new household so your existing data stays clean and accessible in its original form.',
-      offerNewHousehold: true,
+      note: 'Your existing solo transactions are preserved and will show as Partner A personal activity.',
+      offerNewHousehold: false,
     },
   },
   separate: {
-    solo: {
-      title: 'Switching Separate → Solo',
-      hidden: [
-        'Partner B transactions',
-        'Partner split settlements',
+    joint: {
+      type: 'upgrade',
+      title: 'Upgrading to Joint Finance',
+      subtitle: 'You are adding a shared pool on top of your existing separate tracking.',
+      changes: [
+        'Joint account option appears in all account pickers',
+        'Contributions tab unlocks for tracking monthly pool deposits',
+        'Joint reimbursement settlement track becomes available',
+        'Joint Balance card and audit tool appear on the Dashboard',
+        'Joint presets appear in the Add Expense form',
       ],
-      suggestion: 'If you want a clean solo start, consider creating a new household. Your current data stays safe and you can export it first.',
+      note: 'All existing separate transactions are preserved. Nothing is reclassified automatically.',
+      offerNewHousehold: false,
+    },
+
+    // ── Downgrade ───────────────────────────────────────────────────────────
+    solo: {
+      type: 'downgrade',
+      title: 'Downgrading to Solo',
+      subtitle: 'This will hide all Partner B activity in the UI.',
+      changes: [
+        'Partner B transactions become invisible (safely stored)',
+        'Partner split settlements become invisible (safely stored)',
+        'Partner B account options removed from all pickers and filters',
+      ],
+      note: 'Nothing is deleted. Switch back to Separate at any time and everything reappears instantly.',
+      offerNewHousehold: true,
+    },
+  },
+  joint: {
+    separate: {
+      type: 'downgrade',
+      title: 'Downgrading to Separate Finance',
+      subtitle: 'This will hide your shared joint pool in the UI.',
+      changes: [
+        'Joint account transactions become invisible (safely stored)',
+        'Contributions / joint pool history becomes invisible (safely stored)',
+        'Joint reimbursement settlements become invisible (safely stored)',
+        'Contributions tab hidden from nav',
+      ],
+      note: 'Nothing is deleted. Switch back to Joint at any time and everything reappears instantly.',
+      offerNewHousehold: false,
+    },
+    solo: {
+      type: 'downgrade',
+      title: 'Downgrading to Solo',
+      subtitle: 'This will hide all partner and joint activity in the UI.',
+      changes: [
+        'All joint account transactions become invisible (safely stored)',
+        'Partner B transactions and activity become invisible (safely stored)',
+        'Contributions / joint pool history becomes invisible (safely stored)',
+        'All settlement data — joint and partner — becomes invisible (safely stored)',
+      ],
+      note: 'Nothing is deleted. If you want a genuinely fresh solo start, use the option below to export your data first and create a new household.',
       offerNewHousehold: true,
     },
   },
@@ -74,7 +132,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   const [newExpCat, setNewExpCat] = useState('');
   const [newIncCat, setNewIncCat] = useState('');
   const [joinId, setJoinId]       = useState('');
-  const [downgradeModal, setDowngradeModal]   = useState<DowngradeInfo | null>(null);
+  const [downgradeModal, setDowngradeModal]   = useState<SwitchInfo | null>(null);
   const [pendingSettings, setPendingSettings] = useState<SettingsType | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -95,7 +153,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
     const newMode     = s.householdMode ?? 'joint';
 
     if (currentMode !== newMode) {
-      const info = DOWNGRADE_INFO[currentMode]?.[newMode];
+      const info = SWITCH_INFO[currentMode]?.[newMode];
       if (info) {
         setPendingSettings(s);
         setDowngradeModal(info);
@@ -199,38 +257,61 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 720 }}>
 
-      {/* ── Downgrade modal ────────────────────────────────────────────────── */}
-      {downgradeModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 28, maxWidth: 460, width: '100%' }}>
-            <div style={{ fontSize: 17, fontWeight: 800, color: C.amber, marginBottom: 10 }}>
-              ⚠️ {downgradeModal.title}
-            </div>
-            <p style={{ color: C.text2, fontSize: 13, marginBottom: 12, lineHeight: 1.6 }}>
-              The following will be <strong style={{ color: C.textW }}>hidden in the UI</strong> but never deleted from the database:
-            </p>
-            <ul style={{ margin: '0 0 14px 16px', padding: 0, color: C.text1, fontSize: 13, lineHeight: 2 }}>
-              {downgradeModal.hidden.map((item) => <li key={item}>{item}</li>)}
-            </ul>
-            <div style={{ background: `${C.teal}15`, border: `1px solid ${C.teal}33`, borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: C.teal, lineHeight: 1.6 }}>
-              💡 {downgradeModal.suggestion}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {downgradeModal.offerNewHousehold && (
-                <Btn variant="primary" onClick={handleModalNewHousehold} style={{ width: '100%' }}>
-                  📦 Export my data &amp; learn how to start fresh
+      {/* ── Mode switch confirmation modal ─────────────────────────────────── */}
+      {downgradeModal && (() => {
+        const isUpgrade  = downgradeModal.type === 'upgrade';
+        const accentColor = isUpgrade ? C.green : C.amber;
+        const icon        = isUpgrade ? '🚀' : '⚠️';
+        const changesLabel = isUpgrade ? 'What gets unlocked:' : 'What becomes hidden in the UI (never deleted):';
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: C.surface, border: `1px solid ${accentColor}44`, borderRadius: 14, padding: 28, maxWidth: 480, width: '100%' }}>
+
+              {/* Header */}
+              <div style={{ fontSize: 17, fontWeight: 800, color: accentColor, marginBottom: 4 }}>
+                {icon} {downgradeModal.title}
+              </div>
+              <p style={{ color: C.text2, fontSize: 13, margin: '0 0 14px', lineHeight: 1.6 }}>
+                {downgradeModal.subtitle}
+              </p>
+
+              {/* Changes list */}
+              <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+                {changesLabel}
+              </div>
+              <ul style={{ margin: '0 0 14px 18px', padding: 0, lineHeight: 2 }}>
+                {downgradeModal.changes.map((item) => (
+                  <li key={item} style={{ color: C.text1, fontSize: 13 }}>{item}</li>
+                ))}
+              </ul>
+
+              {/* Note */}
+              <div style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}33`, borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: accentColor, lineHeight: 1.6 }}>
+                💡 {downgradeModal.note}
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {!isUpgrade && downgradeModal.offerNewHousehold && (
+                  <Btn variant="primary" onClick={handleModalNewHousehold} style={{ width: '100%' }}>
+                    📦 Export my data &amp; start a fresh household
+                  </Btn>
+                )}
+                <Btn
+                  variant={isUpgrade ? 'primary' : 'ghost'}
+                  onClick={handleModalProceed}
+                  style={{ width: '100%' }}
+                >
+                  {isUpgrade ? `✓ Yes, upgrade to ${downgradeModal.title.split('to ')[1]}` : downgradeModal.offerNewHousehold ? 'Switch anyway (keep this household)' : 'Yes, switch mode'}
                 </Btn>
-              )}
-              <Btn variant="ghost" onClick={handleModalProceed} style={{ width: '100%' }}>
-                {downgradeModal.offerNewHousehold ? 'Switch anyway (keep current household)' : 'Yes, switch mode'}
-              </Btn>
-              <Btn variant="danger" onClick={handleModalCancel} style={{ width: '100%' }}>
-                Cancel — keep current mode
-              </Btn>
+                <Btn variant={isUpgrade ? 'ghost' : 'danger'} onClick={handleModalCancel} style={{ width: '100%' }}>
+                  Cancel — stay on current mode
+                </Btn>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Household Mode ────────────────────────────────────────────────── */}
       <Card>
