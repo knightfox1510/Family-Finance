@@ -259,8 +259,9 @@ export function useActions({ data, setData, session, addToast }: UseActionsParam
       shareA = total * aShare;
       shareB = total * bShare;
     }
-    const payer = item.addedBy;
-    // addedBy is a display name — compare against both display name and system key
+    // Use item.account (who actually paid) not item.addedBy (who logged it).
+    // These differ when one partner logs a transaction on behalf of the other.
+    const payer    = item.account;
     const payerIsA = payer === data.settings.partnerAName || payer === 'Partner A';
     const updatedAmount = payerIsA ? shareA : shareB;
     const counterAmount = payerIsA ? shareB : shareA;

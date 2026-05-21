@@ -169,10 +169,11 @@ export default function App() {
         shareB = amount * bShare;
       }
 
-      // addedBy is a display name after toUI() mapping,
-      // so check both display name and system key to be safe
-      const paidByA = t.addedBy === names.a || t.addedBy === 'Partner A';
-      const paidByB = t.addedBy === names.b || t.addedBy === 'Partner B';
+      // Use t.account (mapped from account_used) to determine who actually paid.
+      // addedBy = who logged the transaction — may differ from who paid.
+      // account = which account was debited — the authoritative "payer" field.
+      const paidByA = t.account === names.a || t.account === 'Partner A';
+      const paidByB = t.account === names.b || t.account === 'Partner B';
 
       if (paidByA) {
         p2pNetBalance += shareB;
