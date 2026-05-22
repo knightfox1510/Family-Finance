@@ -25,7 +25,7 @@ interface Props {
 
 export function Dashboard({ data, onAddExpense, fmt }: Props) {
   const [showAudit, setShowAudit] = useState(false);
-  const [rangeMode, setRangeMode] = useState<'month' | 'custom'>('month');
+  const [rangeMode, setRangeMode] = useState<'month' | 'year' | 'custom'>('month');
   const d = new Date();
   const currentMonthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
@@ -47,8 +47,10 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   const allTimeJointSpent = data.expenses.filter((e) => e.account === 'Joint' && e.type !== 'income').reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const currentJointBalance = allTimePool + allTimeJointIncome - allTimeJointSpent;
 
+  const currentYear = String(d.getFullYear());
   const inRange = (e: any) => {
     if (rangeMode === 'month') return monthKey(e.date) === selectedMonth;
+    if (rangeMode === 'year')  return e.date.startsWith(currentYear);
     return e.date >= customDates.start && e.date <= customDates.end;
   };
 
@@ -58,6 +60,10 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   if (rangeMode === 'month') {
     const pc = uniqueContributions.find((c) => c.month === selectedMonth);
     if (pc) { contribA = Number(pc.partnerA ?? 0); contribB = Number(pc.partnerB ?? 0); }
+  } else if (rangeMode === 'year') {
+    const yearContribs = uniqueContributions.filter((c) => c.month.startsWith(currentYear));
+    contribA = yearContribs.reduce((s, c) => s + Number(c.partnerA ?? 0), 0);
+    contribB = yearContribs.reduce((s, c) => s + Number(c.partnerB ?? 0), 0);
   } else {
     const startM = customDates.start.slice(0, 7), endM = customDates.end.slice(0, 7);
     const overlap = uniqueContributions.filter((c) => c.month >= startM && c.month <= endM);
@@ -69,6 +75,39 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
     const t = new Date(); t.setMonth(t.getMonth() - i);
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
   }).reverse();
+
+  // Partner activity trend — lifestyle, invested, retained per partner per month
+  const partnerTrendData = last6Months.map((mKey) => {
+    const mExpenses = data.expenses.filter((e) => monthKey(e.date) === mKey && e.type !== 'income');
+    const mIncome   = data.expenses.filter((e) => monthKey(e.date) === mKey && e.type === 'income');
+    const mContribs = uniqueContributions.find((c) => c.month === mKey);
+    const lA = mExpenses.filter((e) => (e.account === names.a || e.account === 'Partner A') && !INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount), 0);
+    const lB = mExpenses.filter((e) => (e.account === names.b || e.account === 'Partner B') && !INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount), 0);
+    const iA = mExpenses.filter((e) => (e.account === names.a || e.account === 'Partner A') && INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount), 0);
+    const iB = mExpenses.filter((e) => (e.account === names.b || e.account === 'Partner B') && INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount), 0);
+    const incA = mIncome.filter((e) => e.account === names.a || e.account === 'Partner A').reduce((s, e) => s + Number(e.amount), 0);
+    const incB = mIncome.filter((e) => e.account === names.b || e.account === 'Partner B').reduce((s, e) => s + Number(e.amount), 0);
+    const cA = Number(mContribs?.partnerA ?? 0);
+    const cB = Number(mContribs?.partnerB ?? 0);
+    return {
+      month: monthLabel(mKey),
+      [`${names.a} Lifestyle`]: lA,
+      [`${names.a} Invested`]:  iA,
+      [`${names.a} Income`]:    incA,
+      [`${names.b} Lifestyle`]: lB,
+      [`${names.b} Invested`]:  iB,
+      [`${names.b} Income`]:    incB,
+      contribA: cA,
+      contribB: cB,
+    };
+  });
+  const maxPartnerTrend = Math.max(1, ...partnerTrendData.map((m) =>
+    Math.max(
+      m[`${names.a} Income`] as number, m[`${names.b} Income`] as number,
+      (m[`${names.a} Lifestyle`] as number) + (m[`${names.a} Invested`] as number) + m.contribA,
+      (m[`${names.b} Lifestyle`] as number) + (m[`${names.b} Invested`] as number) + m.contribB,
+    )
+  ));
 
   const lifestyleTrendData = last6Months.map((mKey) => ({
     monthLabel: monthLabel(mKey),
@@ -177,9 +216,12 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ background: C.bg, padding: 3, borderRadius: 8, display: 'inline-flex', border: `1px solid ${C.border}` }}>
               <button onClick={() => setRangeMode('month')} style={toggleBtnStyle(rangeMode === 'month')}>Single Month</button>
+              <button onClick={() => setRangeMode('year')}  style={toggleBtnStyle(rangeMode === 'year')}>Current Year</button>
               <button onClick={() => setRangeMode('custom')} style={toggleBtnStyle(rangeMode === 'custom')}>Custom Range</button>
             </div>
-            {rangeMode === 'month' ? (
+            {rangeMode === 'year' ? (
+              <span style={{ fontSize: 13, color: C.text2, fontWeight: 600 }}>Jan – Dec {currentYear}</span>
+            ) : rangeMode === 'month' ? (
               <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
                 {allAvailableMonths.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
               </select>
@@ -305,7 +347,6 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                   </div>
                 );
               })}
-              })}
             </div>
           </div>
           <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '12px 4px 0' }}>
@@ -420,6 +461,123 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
           </div>
         )}
       </Card>
+
+      {/* Partner Activity Trend — last 6 months */}
+      {hasPartner && (
+        <Card>
+          <SectionTitle>Partner Activity Trend — Last 6 Months</SectionTitle>
+          <p style={{ color: C.muted, fontSize: 12, margin: '0 0 16px' }}>
+            Monthly breakdown of income, lifestyle spending, and investments per partner.
+          </p>
+
+          {/* Grouped bar chart — two partners side by side per month */}
+          <div style={{ overflowX: 'auto' }}>
+            <div style={{ minWidth: 480 }}>
+              {/* Bars */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 180, marginBottom: 8 }}>
+                {partnerTrendData.map((m) => {
+                  const barW = `calc((100% - ${(partnerTrendData.length - 1) * 6}px) / ${partnerTrendData.length})`;
+                  const mkH  = (v: number) => `${Math.round((v / maxPartnerTrend) * 100)}%`;
+                  const lA = m[`${names.a} Lifestyle`] as number;
+                  const iA = m[`${names.a} Invested`]  as number;
+                  const cA = m.contribA;
+                  const incA = m[`${names.a} Income`]  as number;
+                  const lB = m[`${names.b} Lifestyle`] as number;
+                  const iB = m[`${names.b} Invested`]  as number;
+                  const cB = m.contribB;
+                  const incB = m[`${names.b} Income`]  as number;
+                  const outA = lA + iA + cA;
+                  const outB = lB + iB + cB;
+                  return (
+                    <div key={m.month} style={{ width: barW, flexShrink: 0, display: 'flex', gap: 3, alignItems: 'flex-end', height: '100%' }}>
+                      {/* Partner A cluster */}
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 1, height: '100%', position: 'relative' }}>
+                        {/* Income line marker */}
+                        {incA > 0 && (
+                          <div title={`${names.a} Income: ₹${incA.toLocaleString()}`} style={{ position: 'absolute', bottom: mkH(incA), left: 0, right: 0, height: 2, background: C.green, borderRadius: 1, zIndex: 2 }} />
+                        )}
+                        {/* Stacked outflow bars */}
+                        {isJoint && cA > 0 && (
+                          <div title={`${names.a} Joint Pool: ₹${cA.toLocaleString()}`} style={{ width: '100%', height: mkH(cA), background: '#f97316', borderRadius: '2px 2px 0 0', minHeight: cA > 0 ? 2 : 0 }} />
+                        )}
+                        {iA > 0 && (
+                          <div title={`${names.a} Invested: ₹${iA.toLocaleString()}`} style={{ width: '100%', height: mkH(iA), background: C.teal, minHeight: 2 }} />
+                        )}
+                        {lA > 0 && (
+                          <div title={`${names.a} Lifestyle: ₹${lA.toLocaleString()}`} style={{ width: '100%', height: mkH(lA), background: C.purple, borderRadius: outA === lA ? '2px 2px 0 0' : 0, minHeight: lA > 0 ? 2 : 0 }} />
+                        )}
+                      </div>
+                      {/* Partner B cluster */}
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 1, height: '100%', position: 'relative' }}>
+                        {incB > 0 && (
+                          <div title={`${names.b} Income: ₹${incB.toLocaleString()}`} style={{ position: 'absolute', bottom: mkH(incB), left: 0, right: 0, height: 2, background: C.green, borderRadius: 1, zIndex: 2 }} />
+                        )}
+                        {isJoint && cB > 0 && (
+                          <div title={`${names.b} Joint Pool: ₹${cB.toLocaleString()}`} style={{ width: '100%', height: mkH(cB), background: '#f97316', borderRadius: '2px 2px 0 0', minHeight: cB > 0 ? 2 : 0 }} />
+                        )}
+                        {iB > 0 && (
+                          <div title={`${names.b} Invested: ₹${iB.toLocaleString()}`} style={{ width: '100%', height: mkH(iB), background: C.teal, minHeight: 2 }} />
+                        )}
+                        {lB > 0 && (
+                          <div title={`${names.b} Lifestyle: ₹${lB.toLocaleString()}`} style={{ width: '100%', height: mkH(lB), background: C.blue, borderRadius: outB === lB ? '2px 2px 0 0' : 0, minHeight: lB > 0 ? 2 : 0 }} />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Month labels */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                {partnerTrendData.map((m) => (
+                  <div key={m.month} style={{ flex: 1, textAlign: 'center', fontSize: 11, color: C.muted }}>{m.month}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+            {[
+              { label: `${names.a} Lifestyle`, color: C.purple },
+              { label: `${names.b} Lifestyle`, color: C.blue   },
+              { label: 'Invested (both)',       color: C.teal   },
+              ...(isJoint ? [{ label: 'Joint Pool (both)', color: '#f97316' }] : []),
+              { label: 'Income (line)',          color: C.green  },
+            ].map(({ label, color }) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
+                <span style={{ color: C.text2 }}>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Monthly summary table */}
+          <div style={{ overflowX: 'auto', marginTop: 16 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: C.bg }}>
+                  {['Month', `${names.a} Income`, `${names.a} Lifestyle`, `${names.a} Invested`, `${names.b} Income`, `${names.b} Lifestyle`, `${names.b} Invested`].map((h) => (
+                    <th key={h} style={{ padding: '8px 10px', color: C.muted, fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' as const }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {partnerTrendData.map((m, i) => (
+                  <tr key={m.month} style={{ borderTop: `1px solid ${C.border}`, background: i % 2 === 0 ? 'transparent' : `${C.bg}80` }}>
+                    <td style={{ padding: '8px 10px', color: C.text1, fontWeight: 600 }}>{m.month}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.green,  fontWeight: 600 }}>{fmt(m[`${names.a} Income`]    as number)}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.purple, fontWeight: 600 }}>{fmt(m[`${names.a} Lifestyle`]  as number)}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.teal,   fontWeight: 600 }}>{fmt(m[`${names.a} Invested`]   as number)}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.green,  fontWeight: 600 }}>{fmt(m[`${names.b} Income`]    as number)}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.blue,   fontWeight: 600 }}>{fmt(m[`${names.b} Lifestyle`]  as number)}</td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.teal,   fontWeight: 600 }}>{fmt(m[`${names.b} Invested`]   as number)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {/* Lifestyle Trend */}
       <Card>
