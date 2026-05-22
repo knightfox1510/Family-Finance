@@ -261,9 +261,9 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                           <span style={{ fontSize: 11, color: C.textW, fontWeight: 700 }}>{rRate.toFixed(0)}% retained</span>
                         </div>
                         <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 1, marginBottom: 8 }}>
-                          {lRate > 0 && <div title={\`Lifestyle: \${lRate.toFixed(0)}%\`} style={{ width: \`\${lRate}%\`, background: C.amber, transition: 'width 0.4s' }} />}
-                          {iRate > 0 && <div title={\`Invested: \${iRate.toFixed(0)}%\`} style={{ width: \`\${iRate}%\`, background: C.teal,  transition: 'width 0.4s' }} />}
-                          {rRate > 0 && <div title={\`Retained: \${rRate.toFixed(0)}%\`} style={{ flex: 1, background: C.green, transition: 'width 0.4s' }} />}
+                          {lRate > 0 && <div title={`Lifestyle: \${lRate.toFixed(0)}%`} style={{ width: `\${lRate}%`, background: C.amber, transition: 'width 0.4s' }} />}
+                          {iRate > 0 && <div title={`Invested: \${iRate.toFixed(0)}%`} style={{ width: `\${iRate}%`, background: C.teal,  transition: 'width 0.4s' }} />}
+                          {rRate > 0 && <div title={`Retained: \${rRate.toFixed(0)}%`} style={{ flex: 1, background: C.green, transition: 'width 0.4s' }} />}
                         </div>
                         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                           {([['Lifestyle', lRate, C.amber], ['Invested', iRate, C.teal], ['Retained', rRate, C.green]] as [string, number, string][]).map(([label, pct, color]) => (
@@ -282,7 +282,7 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                     )}
 
                     {/* Supplementary rows below divider */}
-                    <div style={{ borderTop: \`1px solid \${C.border}33\`, marginTop: 12, paddingTop: 10 }}>
+                    <div style={{ borderTop: `1px solid \${C.border}33`, marginTop: 12, paddingTop: 10 }}>
                       {([
                         ...(isJoint ? [['Joint Pool Contributed:', fmt(p.contrib), C.green]] : []),
                         ['Total Financial Outflow:', fmt(p.lifestyle + p.invested + (isJoint ? p.contrib : 0)), p.color],
