@@ -32,6 +32,7 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   const defaultStart = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
   const [customDates, setCustomDates] = useState({ start: defaultStart, end: today() });
   const [accountFilter, setAccountFilter] = useState('All');
+  const [trendMonths, setTrendMonths]     = useState(6);
 
   const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
   const mode  = data.settings.householdMode ?? 'joint';
@@ -71,10 +72,12 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
     contribB = overlap.reduce((s, c) => s + Number(c.partnerB ?? 0), 0);
   }
 
-  const last6Months = Array.from({ length: 6 }).map((_, i) => {
+  const trendMonthKeys = Array.from({ length: trendMonths }).map((_, i) => {
     const t = new Date(); t.setMonth(t.getMonth() - i);
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
   }).reverse();
+  // Keep last6Months alias for backward compat with other computed values
+  const last6Months = trendMonthKeys;
 
   // Partner activity trend — lifestyle, invested, retained per partner per month
   const partnerTrendData = last6Months.map((mKey) => {
@@ -132,12 +135,15 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   const periodInvested = filteredExp.filter((e) => INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const totalPeriodRaw = filteredExp.reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const trueLifestyleExpenses = totalPeriodRaw - periodInvested;
-  // Capital retained = income minus lifestyle only.
-  // Investments are retained capital, not outflows, so they don't reduce this figure.
-  const capitalRetained  = periodIncome - trueLifestyleExpenses;
-  const investmentRate   = periodIncome > 0 ? Math.max(0, Math.min(100, (periodInvested    / periodIncome) * 100)) : 0;
-  const lifestyleRate    = periodIncome > 0 ? Math.max(0, Math.min(100, (trueLifestyleExpenses / periodIncome) * 100)) : 0;
-  const retentionRate    = periodIncome > 0 ? Math.max(0, Math.min(100, (capitalRetained   / periodIncome) * 100)) : 0;
+  // Total joint contributions for the period — real money leaving personal accounts.
+  // Must be included in household outflows so Capital Retained is accurate.
+  const periodContrib    = contribA + contribB;
+  // Capital retained = income − lifestyle − invested − joint contributions.
+  const capitalRetained  = periodIncome - trueLifestyleExpenses - periodInvested - periodContrib;
+  const investmentRate   = periodIncome > 0 ? Math.max(0, Math.min(100, (periodInvested          / periodIncome) * 100)) : 0;
+  const contribRate      = periodIncome > 0 ? Math.max(0, Math.min(100, (periodContrib           / periodIncome) * 100)) : 0;
+  const lifestyleRate    = periodIncome > 0 ? Math.max(0, Math.min(100, (trueLifestyleExpenses   / periodIncome) * 100)) : 0;
+  const retentionRate    = periodIncome > 0 ? Math.max(0, Math.min(100, (Math.max(0, capitalRetained) / periodIncome) * 100)) : 0;
 
   const personalLifestyleA = filteredExp.filter((e) => (e.account === names.a || e.addedBy === 'Partner A') && e.account !== 'Joint' && !INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const personalLifestyleB = filteredExp.filter((e) => (e.account === names.b || e.addedBy === 'Partner B') && e.account !== 'Joint' && !INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount ?? 0), 0);
@@ -158,7 +164,7 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
 
   const catMap: Record<string, number> = {};
   filteredExp.filter((e) => !INVESTMENT_CATS.has(e.category)).forEach((e) => { catMap[e.category] = (catMap[e.category] || 0) + Number(e.amount); });
-  const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]); // no limit — show all categories
   const maxCat = topCats[0]?.[1] || 1;
 
   // Asset allocation — investment categories broken down by type
@@ -435,6 +441,10 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                 <div title={`Invested: ${investmentRate.toFixed(0)}%`}
                   style={{ width: `${investmentRate}%`, background: C.teal, transition: 'width 0.4s' }} />
               )}
+              {isJoint && contribRate > 0 && (
+                <div title={`Joint Pool: ${contribRate.toFixed(0)}%`}
+                  style={{ width: `${contribRate}%`, background: '#f97316', transition: 'width 0.4s' }} />
+              )}
               {retentionRate > 0 && (
                 <div title={`Retained: ${retentionRate.toFixed(0)}%`}
                   style={{ flex: 1, background: C.green, transition: 'width 0.4s' }} />
@@ -442,9 +452,10 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
             </div>
             <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
               {[
-                { label: 'Lifestyle', pct: lifestyleRate, color: C.amber },
-                { label: 'Invested', pct: investmentRate, color: C.teal },
-                { label: 'Retained', pct: retentionRate, color: C.green },
+                { label: 'Lifestyle',  pct: lifestyleRate,  color: C.amber    },
+                { label: 'Invested',   pct: investmentRate, color: C.teal     },
+                ...(isJoint && contribRate > 0 ? [{ label: 'Joint Pool', pct: contribRate, color: '#f97316' }] : []),
+                { label: 'Retained',   pct: retentionRate,  color: C.green    },
               ].map(({ label, pct, color }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
                   <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
@@ -463,164 +474,6 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
       </Card>
 
       {/* Partner Activity Trend — last 6 months */}
-      {hasPartner && (
-        <Card>
-          <SectionTitle>Partner Activity Trend — Last 6 Months</SectionTitle>
-          <p style={{ color: C.muted, fontSize: 12, margin: '0 0 16px' }}>
-            Monthly breakdown of income, lifestyle spending, and investments per partner.
-          </p>
-
-          {/* Grouped bar chart — two partners side by side per month */}
-          <div style={{ overflowX: 'auto' }}>
-            <div style={{ minWidth: 480 }}>
-              {/* Bars */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 180, marginBottom: 8 }}>
-                {partnerTrendData.map((m) => {
-                  const barW = `calc((100% - ${(partnerTrendData.length - 1) * 6}px) / ${partnerTrendData.length})`;
-                  const mkH  = (v: number) => `${Math.round((v / maxPartnerTrend) * 100)}%`;
-                  const lA = m[`${names.a} Lifestyle`] as number;
-                  const iA = m[`${names.a} Invested`]  as number;
-                  const cA = m.contribA;
-                  const incA = m[`${names.a} Income`]  as number;
-                  const lB = m[`${names.b} Lifestyle`] as number;
-                  const iB = m[`${names.b} Invested`]  as number;
-                  const cB = m.contribB;
-                  const incB = m[`${names.b} Income`]  as number;
-                  const outA = lA + iA + cA;
-                  const outB = lB + iB + cB;
-                  return (
-                    <div key={m.month} style={{ width: barW, flexShrink: 0, display: 'flex', gap: 3, alignItems: 'flex-end', height: '100%' }}>
-                      {/* Partner A cluster */}
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 1, height: '100%', position: 'relative' }}>
-                        {/* Income line marker */}
-                        {incA > 0 && (
-                          <div title={`${names.a} Income: ₹${incA.toLocaleString()}`} style={{ position: 'absolute', bottom: mkH(incA), left: 0, right: 0, height: 2, background: C.green, borderRadius: 1, zIndex: 2 }} />
-                        )}
-                        {/* Stacked outflow bars */}
-                        {isJoint && cA > 0 && (
-                          <div title={`${names.a} Joint Pool: ₹${cA.toLocaleString()}`} style={{ width: '100%', height: mkH(cA), background: '#f97316', borderRadius: '2px 2px 0 0', minHeight: cA > 0 ? 2 : 0 }} />
-                        )}
-                        {iA > 0 && (
-                          <div title={`${names.a} Invested: ₹${iA.toLocaleString()}`} style={{ width: '100%', height: mkH(iA), background: C.teal, minHeight: 2 }} />
-                        )}
-                        {lA > 0 && (
-                          <div title={`${names.a} Lifestyle: ₹${lA.toLocaleString()}`} style={{ width: '100%', height: mkH(lA), background: C.purple, borderRadius: outA === lA ? '2px 2px 0 0' : 0, minHeight: lA > 0 ? 2 : 0 }} />
-                        )}
-                      </div>
-                      {/* Partner B cluster */}
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 1, height: '100%', position: 'relative' }}>
-                        {incB > 0 && (
-                          <div title={`${names.b} Income: ₹${incB.toLocaleString()}`} style={{ position: 'absolute', bottom: mkH(incB), left: 0, right: 0, height: 2, background: C.green, borderRadius: 1, zIndex: 2 }} />
-                        )}
-                        {isJoint && cB > 0 && (
-                          <div title={`${names.b} Joint Pool: ₹${cB.toLocaleString()}`} style={{ width: '100%', height: mkH(cB), background: '#f97316', borderRadius: '2px 2px 0 0', minHeight: cB > 0 ? 2 : 0 }} />
-                        )}
-                        {iB > 0 && (
-                          <div title={`${names.b} Invested: ₹${iB.toLocaleString()}`} style={{ width: '100%', height: mkH(iB), background: C.teal, minHeight: 2 }} />
-                        )}
-                        {lB > 0 && (
-                          <div title={`${names.b} Lifestyle: ₹${lB.toLocaleString()}`} style={{ width: '100%', height: mkH(lB), background: C.blue, borderRadius: outB === lB ? '2px 2px 0 0' : 0, minHeight: lB > 0 ? 2 : 0 }} />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {/* Month labels */}
-              <div style={{ display: 'flex', gap: 6 }}>
-                {partnerTrendData.map((m) => (
-                  <div key={m.month} style={{ flex: 1, textAlign: 'center', fontSize: 11, color: C.muted }}>{m.month}</div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Legend */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
-            {[
-              { label: `${names.a} Lifestyle`, color: C.purple },
-              { label: `${names.b} Lifestyle`, color: C.blue   },
-              { label: 'Invested (both)',       color: C.teal   },
-              ...(isJoint ? [{ label: 'Joint Pool (both)', color: '#f97316' }] : []),
-              { label: 'Income (line)',          color: C.green  },
-            ].map(({ label, color }) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
-                <span style={{ color: C.text2 }}>{label}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Monthly summary table */}
-          <div style={{ overflowX: 'auto', marginTop: 16 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: C.bg }}>
-                  {['Month', `${names.a} Income`, `${names.a} Lifestyle`, `${names.a} Invested`, `${names.b} Income`, `${names.b} Lifestyle`, `${names.b} Invested`].map((h) => (
-                    <th key={h} style={{ padding: '8px 10px', color: C.muted, fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' as const }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {partnerTrendData.map((m, i) => (
-                  <tr key={m.month} style={{ borderTop: `1px solid ${C.border}`, background: i % 2 === 0 ? 'transparent' : `${C.bg}80` }}>
-                    <td style={{ padding: '8px 10px', color: C.text1, fontWeight: 600 }}>{m.month}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.green,  fontWeight: 600 }}>{fmt(m[`${names.a} Income`]    as number)}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.purple, fontWeight: 600 }}>{fmt(m[`${names.a} Lifestyle`]  as number)}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.teal,   fontWeight: 600 }}>{fmt(m[`${names.a} Invested`]   as number)}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.green,  fontWeight: 600 }}>{fmt(m[`${names.b} Income`]    as number)}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.blue,   fontWeight: 600 }}>{fmt(m[`${names.b} Lifestyle`]  as number)}</td>
-                    <td style={{ padding: '8px 10px', textAlign: 'right', color: C.teal,   fontWeight: 600 }}>{fmt(m[`${names.b} Invested`]   as number)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {/* Lifestyle Trend */}
-      <Card>
-        <SectionTitle>Monthly Lifestyle Expenses — Last 6 Months</SectionTitle>
-        <div style={{ overflowX: 'auto', width: '100%', marginTop: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12, minWidth: 500 }}>
-            {lifestyleTrendData.map((m) => {
-              const pct = (m.total / maxLifestyleTrend) * 100;
-              return (
-                <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 65 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>{m.total > 0 ? fmt(m.total) : '₹0'}</div>
-                  <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                    <div style={{ width: '100%', height: `${Math.max(6, pct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.amber})`, border: `1px solid ${C.border}`, borderRadius: '4px 4px 0 0', transition: 'height 0.3s ease' }} />
-                  </div>
-                  <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </Card>
-
-      {/* Investment Trend */}
-      <Card>
-        <SectionTitle>Monthly Investments & Policies — Last 6 Months</SectionTitle>
-        <div style={{ overflowX: 'auto', width: '100%', marginTop: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12, minWidth: 500 }}>
-            {investmentTrendData.map((m) => {
-              const pct = (m.total / maxInvestmentTrend) * 100;
-              return (
-                <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 65 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>{m.total > 0 ? fmt(m.total) : '₹0'}</div>
-                  <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                    <div style={{ width: '100%', height: `${Math.max(6, pct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.teal})`, border: `1px solid ${C.border}`, borderRadius: '4px 4px 0 0', transition: 'height 0.3s ease' }} />
-                  </div>
-                  <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </Card>
-
       {/* Category breakdown */}
       <Card>
         <SectionTitle>Lifestyle Category Allocation</SectionTitle>
@@ -639,7 +492,160 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
         })}
       </Card>
 
-      {/* Audit Modal — joint mode only */}
+      {/* ── Shared trend filter ──────────────────────────────────────────────── */}
+      <Card style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Trend window:</span>
+        <div style={{ background: C.bg, padding: 3, borderRadius: 8, display: 'inline-flex', border: `1px solid ${C.border}` }}>
+          {([6, 12, 24] as const).map((n) => (
+            <button key={n} onClick={() => setTrendMonths(n)} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: trendMonths === n ? 700 : 500, background: trendMonths === n ? C.teal : 'transparent', color: trendMonths === n ? C.bg : C.text2, border: 'none', cursor: 'pointer', transition: 'all 0.2s' }}>
+              {n}M
+            </button>
+          ))}
+        </div>
+        <span style={{ fontSize: 11, color: C.muted }}>Applies to all three trend charts below</span>
+      </Card>
+
+      {/* ── Partner Activity Trend ───────────────────────────────────────────── */}
+      {hasPartner && (
+        <Card>
+          <SectionTitle>Partner Activity Trend — Last {trendMonths} Months</SectionTitle>
+          <p style={{ color: C.muted, fontSize: 12, margin: '0 0 16px' }}>
+            Lifestyle spending and income per partner over time. Hover bars for exact values.
+          </p>
+
+          {/* SVG line chart */}
+          {(() => {
+            const W = 600, H = 160, PAD = { t: 16, r: 12, b: 28, l: 10 };
+            const cW = W - PAD.l - PAD.r;
+            const cH = H - PAD.t - PAD.b;
+            const pts = trendMonthKeys;
+            const series = [
+              { key: `${names.a} Lifestyle`, color: C.purple, dash: '' },
+              { key: `${names.a} Income`,    color: C.green,  dash: '4 2' },
+              { key: `${names.b} Lifestyle`, color: C.blue,   dash: '' },
+              { key: `${names.b} Income`,    color: '#86efac', dash: '4 2' },
+            ];
+            const allVals = partnerTrendData.flatMap((m) => series.map((s) => Number(m[s.key] ?? 0)));
+            const maxV = Math.max(1, ...allVals);
+            const x = (i: number) => PAD.l + (i / Math.max(1, pts.length - 1)) * cW;
+            const y = (v: number) => PAD.t + cH - (v / maxV) * cH;
+            return (
+              <div style={{ overflowX: 'auto' }}>
+                <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 320, display: 'block' }}>
+                  {/* Grid lines */}
+                  {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+                    <line key={f} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + cH * (1 - f)} y2={PAD.t + cH * (1 - f)} stroke="#ffffff10" strokeWidth={1} />
+                  ))}
+                  {/* Series lines + dots */}
+                  {series.map((s) => {
+                    const points = partnerTrendData.map((m, i) => `${x(i)},${y(Number(m[s.key] ?? 0))}`).join(' ');
+                    return (
+                      <g key={s.key}>
+                        <polyline points={points} fill="none" stroke={s.color} strokeWidth={2} strokeDasharray={s.dash} strokeLinecap="round" strokeLinejoin="round" />
+                        {partnerTrendData.map((m, i) => (
+                          <circle key={i} cx={x(i)} cy={y(Number(m[s.key] ?? 0))} r={3} fill={s.color}>
+                            <title>{s.key}: ₹{Number(m[s.key] ?? 0).toLocaleString()}</title>
+                          </circle>
+                        ))}
+                      </g>
+                    );
+                  })}
+                  {/* Month labels */}
+                  {partnerTrendData.map((m, i) => (
+                    <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fontSize={9} fill="#ffffff60">{m.month}</text>
+                  ))}
+                </svg>
+              </div>
+            );
+          })()}
+
+          {/* Legend */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+            {[
+              { label: `${names.a} Lifestyle`, color: C.purple, dash: false },
+              { label: `${names.a} Income`,    color: C.green,  dash: true  },
+              { label: `${names.b} Lifestyle`, color: C.blue,   dash: false },
+              { label: `${names.b} Income`,    color: '#86efac', dash: true  },
+            ].map(({ label, color, dash }) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                <svg width={18} height={10}>
+                  <line x1={0} y1={5} x2={18} y2={5} stroke={color} strokeWidth={2} strokeDasharray={dash ? '4 2' : ''} />
+                </svg>
+                <span style={{ color: C.text2 }}>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Summary table */}
+          <div style={{ overflowX: 'auto', marginTop: 14 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: C.bg }}>
+                  {['Month', `${names.a} Income`, `${names.a} Lifestyle`, `${names.a} Invested`, `${names.b} Income`, `${names.b} Lifestyle`, `${names.b} Invested`].map((h) => (
+                    <th key={h} style={{ padding: '7px 10px', color: C.muted, fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' as const }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {partnerTrendData.map((m, i) => (
+                  <tr key={m.month} style={{ borderTop: `1px solid ${C.border}`, background: i % 2 === 0 ? 'transparent' : `${C.bg}80` }}>
+                    <td style={{ padding: '7px 10px', color: C.text1, fontWeight: 600 }}>{m.month}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.green  }}>{fmt(m[`${names.a} Income`]   as number)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.purple }}>{fmt(m[`${names.a} Lifestyle`] as number)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.teal   }}>{fmt(m[`${names.a} Invested`]  as number)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.green  }}>{fmt(m[`${names.b} Income`]   as number)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.blue   }}>{fmt(m[`${names.b} Lifestyle`] as number)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.teal   }}>{fmt(m[`${names.b} Invested`]  as number)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* ── Lifestyle Trend ──────────────────────────────────────────────────── */}
+      <Card>
+        <SectionTitle>Monthly Lifestyle Expenses — Last {trendMonths} Months</SectionTitle>
+        <div style={{ overflowX: 'auto', width: '100%', marginTop: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12, minWidth: 500 }}>
+            {lifestyleTrendData.map((m) => {
+              const pct = (m.total / maxLifestyleTrend) * 100;
+              return (
+                <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 65 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>{m.total > 0 ? fmt(m.total) : '₹0'}</div>
+                  <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                    <div style={{ width: '100%', height: `${Math.max(6, pct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.amber})`, border: `1px solid ${C.border}`, borderRadius: '4px 4px 0 0', transition: 'height 0.3s ease' }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
+
+      {/* ── Investment Trend ─────────────────────────────────────────────────── */}
+      <Card>
+        <SectionTitle>Monthly Investments & Policies — Last {trendMonths} Months</SectionTitle>
+        <div style={{ overflowX: 'auto', width: '100%', marginTop: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12, minWidth: 500 }}>
+            {investmentTrendData.map((m) => {
+              const pct = (m.total / maxInvestmentTrend) * 100;
+              return (
+                <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 65 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>{m.total > 0 ? fmt(m.total) : '₹0'}</div>
+                  <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                    <div style={{ width: '100%', height: `${Math.max(6, pct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.teal})`, border: `1px solid ${C.border}`, borderRadius: '4px 4px 0 0', transition: 'height 0.3s ease' }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
+
       {isJoint && showAudit && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <Card style={{ width: '100%', maxWidth: 500, maxHeight: '85vh', overflowY: 'auto', position: 'relative' }}>
