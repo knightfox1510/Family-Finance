@@ -109,9 +109,12 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   const incomeA = data.expenses.filter((e) => inRange(e) && e.type === 'income' && (e.account === names.a || e.account === 'Partner A')).reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const incomeB = data.expenses.filter((e) => inRange(e) && e.type === 'income' && (e.account === names.b || e.account === 'Partner B')).reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
-  // Per-partner retention metrics
-  const capitalRetainedA = incomeA - personalLifestyleA;
-  const capitalRetainedB = incomeB - personalLifestyleB;
+  // Per-partner retention metrics.
+  // Joint contrib is real money leaving the pocket — include it as an outflow.
+  // Capital Retained = income − lifestyle − invested − joint contrib.
+  // (This differs from the household card where contrib is counted as "invested in joint".)
+  const capitalRetainedA = incomeA - personalLifestyleA - personalInvestedA - contribA;
+  const capitalRetainedB = incomeB - personalLifestyleB - personalInvestedB - contribB;
   const mkRate = (num: number, denom: number) => denom > 0 ? Math.max(0, Math.min(100, (num / denom) * 100)) : 0;
 
   const catMap: Record<string, number> = {};
@@ -221,39 +224,50 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                 { name: names.a, color: C.purple, lifestyle: personalLifestyleA, invested: personalInvestedA, contrib: contribA, income: incomeA, retained: capitalRetainedA, show: true },
                 { name: names.b, color: C.blue,   lifestyle: personalLifestyleB, invested: personalInvestedB, contrib: contribB, income: incomeB, retained: capitalRetainedB, show: hasPartner },
               ] as any[]).filter((p) => p.show).map((p) => {
-                const lRate = mkRate(p.lifestyle, p.income);
-                const iRate = mkRate(p.invested,  p.income);
-                const rRate = mkRate(p.retained,  p.income);
+                const totalOut  = p.lifestyle + p.invested + (isJoint ? p.contrib : 0);
+                const lRate     = mkRate(p.lifestyle, p.income);
+                const iRate     = mkRate(p.invested,  p.income);
+                const cRate     = isJoint ? mkRate(p.contrib, p.income) : 0;
+                const rRate     = mkRate(Math.max(0, p.retained), p.income);
+                const JOINT_COLOR = '#f97316';
+                const segments = [
+                  { label: 'Lifestyle',  pct: lRate, color: C.amber      },
+                  { label: 'Invested',   pct: iRate, color: C.teal       },
+                  ...(isJoint && cRate > 0 ? [{ label: 'Joint Pool', pct: cRate, color: JOINT_COLOR }] : []),
+                  { label: 'Retained',   pct: rRate, color: C.green      },
+                ];
                 return (
                   <div key={p.name} style={{ background: C.bg, padding: '14px 16px', borderRadius: 10, border: `1px solid ${C.border}` }}>
 
-                    {/* Partner name header */}
-                    <div style={{ color: p.color, fontWeight: 700, fontSize: 14, marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.border}44` }}>
-                      {p.name}
+                    {/* Name + total outflow in one header row */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.border}44` }}>
+                      <span style={{ color: p.color, fontWeight: 700, fontSize: 14 }}>{p.name}</span>
+                      {p.income > 0 && (
+                        <span style={{ fontSize: 11, color: C.muted }}>
+                          Outflow: <strong style={{ color: p.color }}>{fmt(totalOut)}</strong>
+                          {' '}of <strong style={{ color: C.green }}>{fmt(p.income)}</strong>
+                        </span>
+                      )}
                     </div>
 
-                    {/* 4 metric tiles — mirrors Household Wealth Retention Velocity */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-                      <div>
-                        <div style={{ fontSize: 11, color: C.muted }}>Income (period)</div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: C.green, marginTop: 2 }}>{fmt(p.income)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: C.muted }}>Lifestyle Spent</div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: C.amber, marginTop: 2 }}>{fmt(p.lifestyle)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: C.muted }}>Deployed to Assets</div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: C.teal, marginTop: 2 }}>{fmt(p.invested)}</div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 11, color: C.muted }}>Capital Retained</div>
-                        <div style={{ fontSize: 16, fontWeight: 800, color: p.retained >= 0 ? C.green : C.red, marginTop: 2 }}>{fmt(p.retained)}</div>
-                        <div style={{ fontSize: 9, color: C.muted, marginTop: 1 }}>Income − lifestyle</div>
-                      </div>
+                    {/* 5 metrics in one auto-fit row — mirrors Wealth Retention card */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 10, marginBottom: 14 }}>
+                      {([
+                        { label: 'Income',     value: fmt(p.income),    color: C.green,                                 sub: null            },
+                        { label: 'Lifestyle',  value: fmt(p.lifestyle), color: C.amber,                                 sub: null            },
+                        { label: 'To Assets',  value: fmt(p.invested),  color: C.teal,                                  sub: null            },
+                        ...(isJoint ? [{ label: 'Joint Pool', value: fmt(p.contrib), color: JOINT_COLOR, sub: null }] : []),
+                        { label: 'Retained',   value: fmt(p.retained),  color: p.retained >= 0 ? C.green : C.red,       sub: 'after all out' },
+                      ] as { label: string; value: string; color: string; sub: string | null }[]).map(({ label, value, color, sub }) => (
+                        <div key={label}>
+                          <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>{label}</div>
+                          <div style={{ fontSize: 15, fontWeight: 800, color }}>{value}</div>
+                          {sub && <div style={{ fontSize: 9, color: C.muted, marginTop: 1 }}>{sub}</div>}
+                        </div>
+                      ))}
                     </div>
 
-                    {/* Stacked allocation bar — mirrors household card */}
+                    {/* Stacked allocation bar */}
                     {p.income > 0 ? (
                       <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
@@ -261,40 +275,36 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                           <span style={{ fontSize: 11, color: C.textW, fontWeight: 700 }}>{rRate.toFixed(0)}% retained</span>
                         </div>
                         <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 1, marginBottom: 8 }}>
-                          {lRate > 0 && <div title={`Lifestyle: \${lRate.toFixed(0)}%`} style={{ width: `\${lRate}%`, background: C.amber, transition: 'width 0.4s' }} />}
-                          {iRate > 0 && <div title={`Invested: \${iRate.toFixed(0)}%`} style={{ width: `\${iRate}%`, background: C.teal,  transition: 'width 0.4s' }} />}
-                          {rRate > 0 && <div title={`Retained: \${rRate.toFixed(0)}%`} style={{ flex: 1, background: C.green, transition: 'width 0.4s' }} />}
+                          {segments.filter((s) => s.pct > 0).map((s, i, arr) => (
+                            <div
+                              key={s.label}
+                              title={`${s.label}: ${s.pct.toFixed(0)}%`}
+                              style={{
+                                ...(i === arr.length - 1 ? { flex: 1 } : { width: `${s.pct}%` }),
+                                background: s.color,
+                                transition: 'width 0.4s',
+                              }}
+                            />
+                          ))}
                         </div>
-                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                          {([['Lifestyle', lRate, C.amber], ['Invested', iRate, C.teal], ['Retained', rRate, C.green]] as [string, number, string][]).map(([label, pct, color]) => (
-                            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
-                              <div style={{ width: 6, height: 6, borderRadius: 1, background: color }} />
-                              <span style={{ color: C.text2 }}>{label}</span>
-                              <span style={{ color: C.textW, fontWeight: 700 }}>{pct.toFixed(0)}%</span>
+                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                          {segments.map((s) => (
+                            <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: 1, background: s.color }} />
+                              <span style={{ color: C.text2 }}>{s.label}</span>
+                              <span style={{ color: C.textW, fontWeight: 700 }}>{s.pct.toFixed(0)}%</span>
                             </div>
                           ))}
                         </div>
                       </>
                     ) : (
                       <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic' }}>
-                        Log {p.name}’s income to see allocation.
+                        Log {p.name}&apos;s income to see allocation.
                       </div>
                     )}
-
-                    {/* Supplementary rows below divider */}
-                    <div style={{ borderTop: `1px solid \${C.border}33`, marginTop: 12, paddingTop: 10 }}>
-                      {([
-                        ...(isJoint ? [['Joint Pool Contributed:', fmt(p.contrib), C.green]] : []),
-                        ['Total Financial Outflow:', fmt(p.lifestyle + p.invested + (isJoint ? p.contrib : 0)), p.color],
-                      ] as [string, string, string][]).map(([label, val, col]) => (
-                        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                          <span style={{ color: C.text2 }}>{label}</span>
-                          <span style={{ fontWeight: 700, color: col }}>{val}</span>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 );
+              })}
               })}
             </div>
           </div>
