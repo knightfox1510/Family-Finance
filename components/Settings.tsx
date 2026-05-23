@@ -164,7 +164,14 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   };
 
   const commitSave = (settings: SettingsType) => {
-    onSave(settings);
+    // Guarantee Miscellaneous is always present before persisting
+    const guarded = {
+      ...settings,
+      expenseCategories: settings.expenseCategories.includes('Miscellaneous')
+        ? settings.expenseCategories
+        : [...settings.expenseCategories, 'Miscellaneous'],
+    };
+    onSave(guarded);
     setFlash(true);
     setTimeout(() => setFlash(false), 2000);
   };
@@ -210,8 +217,12 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
     setNewIncCat('');
   };
 
-  const removeExpCat = (c: string) =>
+  const PROTECTED_CATS = ['Miscellaneous']; // cannot be removed by any user
+
+  const removeExpCat = (c: string) => {
+    if (PROTECTED_CATS.includes(c)) return; // silently blocked
     setS((x) => ({ ...x, expenseCategories: x.expenseCategories.filter((e) => e !== c) }));
+  };
 
   const removeIncCat = (c: string) =>
     setS((x) => ({ ...x, incomeCategories: x.incomeCategories.filter((e) => e !== c) }));
@@ -413,9 +424,16 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         <SectionTitle>Expense Categories</SectionTitle>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
           {s.expenseCategories.map((c) => (
-            <span key={c} style={catPillStyle}>
+            <span key={c} style={{
+              ...catPillStyle,
+              ...(c === 'Miscellaneous' ? { border: `1px solid ${C.teal}44`, background: `${C.teal}0a` } : {}),
+            }}>
               {c}
-              <span onClick={() => removeExpCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span>
+              {c === 'Miscellaneous' ? (
+                <span title="Required — cannot be removed" style={{ color: C.teal, fontSize: 11, cursor: 'default', lineHeight: 1 }}>🔒</span>
+              ) : (
+                <span onClick={() => removeExpCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span>
+              )}
             </span>
           ))}
         </div>
