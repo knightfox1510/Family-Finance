@@ -45,12 +45,13 @@ const shell: React.CSSProperties = {
 };
 
 // Progress bar
-function ProgressBar({ step }: { step: number }) {
-  const steps: Step[] = ['mode', 'names', 'telegram', 'features', 'done'];
-  const idx = steps.indexOf(step as any);
+const STEPS: Step[] = ['mode', 'names', 'telegram', 'features', 'done'];
+
+function ProgressBar({ step }: { step: Step }) {
+  const idx = STEPS.indexOf(step);
   return (
     <div style={{ display: 'flex', gap: 6, marginBottom: 36 }}>
-      {steps.map((_, i) => (
+      {STEPS.map((_, i) => (
         <div key={i} style={{
           height: 3, flex: 1, borderRadius: 2,
           background: i <= idx ? C.amber : `${C.border}60`,
@@ -78,7 +79,7 @@ export function SetupWizard({ onComplete }: Props) {
     return (
       <div style={shell}>
         <div style={{ width: '100%', maxWidth: 460 }}>
-          <ProgressBar step="mode" as any />
+          <ProgressBar step="mode" />
 
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
             <div style={{ fontSize: 44, marginBottom: 10 }}>💰</div>
@@ -171,7 +172,7 @@ export function SetupWizard({ onComplete }: Props) {
     return (
       <div style={shell}>
         <div style={{ width: '100%', maxWidth: 400 }}>
-          <ProgressBar step="names" as any />
+          <ProgressBar step="names" />
 
           <div style={{ textAlign: 'center', marginBottom: 28 }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>{HOUSEHOLD_MODE_META[mode].icon}</div>
@@ -233,7 +234,7 @@ export function SetupWizard({ onComplete }: Props) {
     return (
       <div style={shell}>
         <div style={{ width: '100%', maxWidth: 460 }}>
-          <ProgressBar step="telegram" as any />
+          <ProgressBar step="telegram" />
 
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>🤖</div>
@@ -314,7 +315,7 @@ export function SetupWizard({ onComplete }: Props) {
     return (
       <div style={shell}>
         <div style={{ width: '100%', maxWidth: 460 }}>
-          <ProgressBar step="features" as any />
+          <ProgressBar step="features" />
 
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>🗺️</div>
@@ -353,7 +354,7 @@ export function SetupWizard({ onComplete }: Props) {
   return (
     <div style={{ ...shell, gap: 24 }}>
       <div style={{ width: '100%', maxWidth: 400, textAlign: 'center' }}>
-        <ProgressBar step="done" as any />
+        <ProgressBar step="done" />
 
         <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
         <h2 style={{ color: C.textW, fontSize: 26, fontWeight: 800, margin: '0 0 12px' }}>
