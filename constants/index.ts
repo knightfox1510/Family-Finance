@@ -103,28 +103,52 @@ export const C = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Household mode meta (labels shown in the setup wizard)
+// Household mode meta (labels shown in the setup wizard and settings)
 // ---------------------------------------------------------------------------
 export const HOUSEHOLD_MODE_META: Record<
   HouseholdMode,
-  { label: string; description: string; icon: string }
+  { label: string; description: string; icon: string; detail: string[]; bestFor: string }
 > = {
   joint: {
     label: 'Joint Household',
     icon: '🏠',
     description:
       'Two partners share a joint pool. Contributions, settlements, and shared expenses are all tracked.',
+    bestFor: 'Couples who pool salaries and pay shared bills from one account',
+    detail: [
+      '💳 A shared Joint Account tracks groceries, rent, utilities and other common expenses',
+      '🏦 Both partners log their monthly contribution to the joint pool each month',
+      '🔄 Personal expenses paid from your own account can be flagged for Joint reimbursement',
+      '🤝 Direct partner splits for expenses one person covers on behalf of the other',
+      '📊 Dashboard shows joint balance, individual activity, and retention velocity for both',
+    ],
   },
   separate: {
     label: 'Separate Finances',
     icon: '🔀',
     description:
       'Two partners track their own spending independently but can still split shared expenses.',
+    bestFor: 'Couples who keep finances separate but occasionally share costs',
+    detail: [
+      '👤 Each partner tracks their own income and expenses independently',
+      '🤝 Shared costs (dinner, trips, gifts) can be split directly between partners',
+      '📊 Dashboard shows each partner\'s individual spending and retention side by side',
+      '❌ No joint pool or contribution tracking — each person manages their own account',
+      '⚖️ Settlements happen directly between partners, not via a shared pool',
+    ],
   },
   solo: {
     label: 'Solo Manager',
     icon: '🧾',
     description:
       'One person manages all household finances alone. No partner tracking or settlements.',
+    bestFor: 'Single individuals or one person managing the whole household',
+    detail: [
+      '👤 All expenses tracked under a single account — no partner needed',
+      '📊 Full dashboard with spending categories, investment tracking, and retention velocity',
+      '🎯 Goals and EMI tracker work without any partner involvement',
+      '❌ No settlements, no joint pool, no partner activity breakdown',
+      '🔄 Can upgrade to Separate or Joint mode any time if your situation changes',
+    ],
   },
 };
