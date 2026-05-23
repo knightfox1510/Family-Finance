@@ -145,14 +145,15 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   // Household totals — all three buckets combined
   const trueLifestyleExpenses = personalLifestyleA + personalLifestyleB + jointLifestyle;
   const periodInvested        = personalInvestedA  + personalInvestedB  + jointInvested;
-  const periodContrib         = contribA + contribB;
+  const periodContrib         = contribA + contribB; // kept for partner card display only
 
-  // Capital retained = income − every outflow
-  const capitalRetained  = periodIncome - trueLifestyleExpenses - periodInvested - periodContrib;
+  // Retained = Income − Personal Lifestyle − Joint Lifestyle − Personal Invested − Joint Invested
+  // Contribution is NOT subtracted — it's how money enters the pool, not how it leaves.
+  // Actual joint pool spending is already captured in jointLifestyle and jointInvested.
+  const capitalRetained  = periodIncome - trueLifestyleExpenses - periodInvested;
   const mkPct = (n: number) => periodIncome > 0 ? Math.max(0, Math.min(100, (n / periodIncome) * 100)) : 0;
   const lifestyleRate    = mkPct(trueLifestyleExpenses);
   const investmentRate   = mkPct(periodInvested);
-  const contribRate      = mkPct(periodContrib);
   const retentionRate    = mkPct(Math.max(0, capitalRetained));
 
   // Per-partner income for the period (income transactions on their account)
@@ -415,13 +416,13 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
           const hContrib     = isJoint ? periodContrib : 0;
           const hJointLife   = isJoint ? jointLifestyle : 0;
           const hPersonalLife = personalLifestyleA + personalLifestyleB;
-          const hTotalOut    = hPersonalLife + hJointLife + hInvested + hContrib;
+          const hTotalOut    = hPersonalLife + hJointLife + hInvested; // contrib excluded
           const hOverBudget  = periodIncome > 0 && hTotalOut > periodIncome;
           const hRaw = (n: number) => periodIncome > 0 ? (n / periodIncome) * 100 : 0;
           const hiRaw  = hRaw(hInvested);
           const hcRaw  = hRaw(hContrib);
           const hjlRaw = hRaw(hJointLife);
-          const nonLife = Math.min(hiRaw + hcRaw + hjlRaw, 100);
+          const nonLife = Math.min(hiRaw + hjlRaw, 100);
           const hPlRaw  = hRaw(hPersonalLife);
           const hRetained = Math.max(0, 100 - nonLife - hPlRaw);
           return (
@@ -435,7 +436,6 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                   ...(isJoint && hJointLife > 0 ? [{ label: 'Joint Lifestyle', value: fmt(hJointLife),   color: '#fb923c', sub: 'joint account' }] : []),
                   ...(isJoint && jointInvested > 0 ? [{ label: 'Joint Invested',  value: fmt(jointInvested), color: '#22d3ee', sub: 'joint account' }] : []),
                   { label: 'Invested',          value: fmt(personalInvestedA + personalInvestedB), color: C.teal,     sub: 'personal accs' },
-                  ...(isJoint && hContrib > 0 ? [{ label: 'Joint Pool',    value: fmt(hContrib),       color: '#f97316', sub: 'contributed'  }] : []),
                   { label: 'Retained',          value: fmt(capitalRetained), color: capitalRetained >= 0 ? C.green : C.red, sub: 'after all out' },
                 ] as { label: string; value: string; color: string; sub: string | null }[]).map(({ label, value, color, sub }) => (
                   <div key={label}>
@@ -458,7 +458,6 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                   <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', gap: 1, marginBottom: 8 }}>
                     {hiRaw > 0   && <div title={`Invested: ${hiRaw.toFixed(0)}%`}          style={{ width: `${Math.min(hiRaw, 100)}%`,   background: C.teal,    transition: 'width 0.4s' }} />}
                     {isJoint && hjlRaw > 0 && <div title={`Joint Lifestyle: ${hjlRaw.toFixed(0)}%`} style={{ width: `${Math.min(hjlRaw, 100 - Math.min(hiRaw,100))}%`, background: '#fb923c', transition: 'width 0.4s' }} />}
-                    {isJoint && hcRaw > 0  && <div title={`Joint Pool: ${hcRaw.toFixed(0)}%`}  style={{ width: `${Math.min(hcRaw, Math.max(0, 100 - Math.min(hiRaw,100) - Math.min(hjlRaw,100)))}%`, background: '#f97316', transition: 'width 0.4s' }} />}
                     {hRetained > 0 && <div title={`Retained: ${hRetained.toFixed(0)}%`}   style={{ width: `${hRetained}%`, background: C.green, transition: 'width 0.4s' }} />}
                     {hPlRaw > 0  && <div title={`Personal Lifestyle: ${hPlRaw.toFixed(0)}%`} style={{ flex: 1, background: hOverBudget ? C.red : C.amber, transition: 'width 0.4s' }} />}
                   </div>
@@ -466,7 +465,6 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                     {[
                       { label: 'Invested',          pct: hiRaw,   color: C.teal,    show: hiRaw > 0   },
                       { label: 'Joint Lifestyle',   pct: hjlRaw,  color: '#fb923c', show: isJoint && hjlRaw > 0 },
-                      { label: 'Joint Pool',        pct: hcRaw,   color: '#f97316', show: isJoint && hcRaw > 0  },
                       { label: 'Retained',          pct: hRetained, color: C.green, show: hRetained > 0 },
                       { label: 'Personal Lifestyle', pct: hPlRaw, color: hOverBudget ? C.red : C.amber, show: hPlRaw > 0 },
                     ].filter((s) => s.show).map(({ label, pct, color }) => (
