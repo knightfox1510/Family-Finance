@@ -132,6 +132,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   const [newExpCat, setNewExpCat] = useState('');
   const [newIncCat, setNewIncCat] = useState('');
   const [joinId, setJoinId]       = useState('');
+  const [expandedMode, setExpandedMode] = useState<string | null>(null);
   const [downgradeModal, setDowngradeModal]   = useState<SwitchInfo | null>(null);
   const [pendingSettings, setPendingSettings] = useState<SettingsType | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -334,16 +335,36 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
           {modes.map((m) => {
             const meta   = HOUSEHOLD_MODE_META[m];
             const active = s.householdMode === m;
+            const isOpen = expandedMode === m;
             return (
-              <button key={m} onClick={() => setS((x) => ({ ...x, householdMode: m }))}
-                style={{ flex: '1 1 180px', textAlign: 'left', cursor: 'pointer',
-                  background: active ? C.amber + '22' : C.bg,
-                  border: `2px solid ${active ? C.amber : C.border}`,
-                  borderRadius: 10, padding: '12px 14px' }}>
-                <div style={{ fontSize: 18, marginBottom: 4 }}>{meta.icon}</div>
-                <div style={{ color: C.textW, fontWeight: 700, fontSize: 13 }}>{meta.label}</div>
-                <div style={{ color: C.text2, fontSize: 11, marginTop: 3, lineHeight: 1.4 }}>{meta.description}</div>
-              </button>
+              <div key={m} style={{ flex: '1 1 180px' }}>
+                <button onClick={() => setS((x) => ({ ...x, householdMode: m }))}
+                  style={{ width: '100%', textAlign: 'left', cursor: 'pointer',
+                    background: active ? C.amber + '22' : C.bg,
+                    border: `2px solid ${active ? C.amber : C.border}`,
+                    borderRadius: isOpen ? '10px 10px 0 0' : 10, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontSize: 18, marginBottom: 4 }}>{meta.icon}</div>
+                      <div style={{ color: C.textW, fontWeight: 700, fontSize: 13 }}>{meta.label}</div>
+                      <div style={{ color: C.text2, fontSize: 11, marginTop: 3, lineHeight: 1.4 }}>{meta.description}</div>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); setExpandedMode(isOpen ? null : m); }}
+                      title={isOpen ? 'Hide details' : 'Show details'}
+                      style={{ background: isOpen ? C.amber + '22' : `${C.border}44`, border: 'none', borderRadius: 4, width: 20, height: 20, cursor: 'pointer', fontSize: 11, color: isOpen ? C.amber : C.muted, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, marginLeft: 6 }}>
+                      ℹ
+                    </button>
+                  </div>
+                </button>
+                {isOpen && (
+                  <div style={{ background: `${C.amber}08`, border: `2px solid ${active ? C.amber : C.border}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '10px 14px' }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 8 }}>What you get:</div>
+                    {((meta as any).detail as string[]).map((line: string, i: number) => (
+                      <div key={i} style={{ fontSize: 12, color: C.text2, marginBottom: 6, lineHeight: 1.5 }}>{line}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -466,7 +487,21 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
 
       {/* ── Category Budgets ──────────────────────────────────────────────── */}
       <Card>
-        <SectionTitle>Category Budgets (Monthly)</SectionTitle>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+          <SectionTitle style={{ margin: 0 }}>Category Budgets (Monthly)</SectionTitle>
+          {Object.keys(s.budgets).some((k) => s.budgets[k] !== undefined) && (
+            <button
+              onClick={() => {
+                if (window.confirm('Remove all budget limits? This cannot be undone.')) {
+                  setS((x) => ({ ...x, budgets: {} }));
+                }
+              }}
+              style={{ background: 'transparent', border: `1px solid ${C.red}44`, color: C.red, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}
+            >
+              Reset All
+            </button>
+          )}
+        </div>
         <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
           Set a monthly spending limit per category. Overages are flagged on the dashboard.
         </p>
