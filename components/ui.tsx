@@ -26,6 +26,8 @@ export function Card({
         borderRadius: 16,
         padding: '20px 22px',
         cursor: onClick ? 'pointer' : undefined,
+        boxShadow: '0 1px 0 0 rgba(255,255,255,0.04) inset, 0 2px 12px rgba(0,0,0,0.2)',
+        transition: 'box-shadow 0.25s, transform 0.2s',
         ...style,
       }}
     >
@@ -46,11 +48,13 @@ export function Inp({ style = {}, ...p }: any) {
         color: C.textW,
         borderRadius: 8,
         padding: '10px 14px',
-        fontSize: 14,
+        fontSize: 16, // 16px prevents iOS auto-zoom on focus
         width: '100%',
         outline: 'none',
         boxSizing: 'border-box' as const,
         transition: 'border-color 0.2s',
+        WebkitAppearance: 'none',
+        minHeight: 44, // iOS touch target
         ...style,
       }}
       {...p}
@@ -110,6 +114,7 @@ export function Btn({
 }) {
   return (
     <button
+      className="btn-press"
       style={{
         padding: '10px 16px',
         borderRadius: 8,
@@ -123,6 +128,9 @@ export function Btn({
         justifyContent: 'center',
         gap: 8,
         outline: 'none',
+        WebkitAppearance: 'none',
+        // iOS minimum touch target
+        minHeight: 44,
         ...btnVariants[variant],
         ...style,
       }}
@@ -321,6 +329,88 @@ export function ToastContainer({ toasts, onDismiss }: { toasts: ToastMessage[]; 
         </div>
       ))}
       <style>{`@keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:none; } }`}</style>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PlanBadge — shows Free or Pro with shimmer effect for Pro
+// ---------------------------------------------------------------------------
+export function PlanBadge({ plan }: { plan: 'free' | 'pro' }) {
+  if (plan === 'pro') {
+    return (
+      <span className="pro-badge" style={{ fontSize: 12, letterSpacing: 0.5 }}>
+        ✦ PRO
+      </span>
+    );
+  }
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+      background: `${C.border}60`, color: C.text2, letterSpacing: 0.5,
+    }}>
+      FREE
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// UsageMeter — visual meter for free plan usage
+// ---------------------------------------------------------------------------
+export function UsageMeter({ count, limit, pct }: { count: number; limit: number; pct: number }) {
+  const color = pct >= 90 ? C.red : pct >= 70 ? C.amber : C.teal;
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+        <span style={{ fontSize: 12, color: C.text2 }}>AI parses this month</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color }}>{count} / {limit}</span>
+      </div>
+      <div style={{ background: C.border, borderRadius: 99, height: 6, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99, transition: 'width 0.4s' }} />
+      </div>
+      {pct >= 80 && (
+        <div style={{ fontSize: 11, color: C.amber, marginTop: 6 }}>
+          {pct >= 100 ? '🚫 Limit reached — upgrade for unlimited access' : `⚠️ ${Math.round(100 - pct)}% remaining`}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ThemePicker — three theme options with live preview swatches
+// ---------------------------------------------------------------------------
+const THEMES = [
+  { id: 'dark-navy',  label: 'Navy',  swatches: ['#0b0f1a', '#131928', '#f59e0b'] },
+  { id: 'dark-slate', label: 'Slate', swatches: ['#0f1117', '#1a1d27', '#e9a23b'] },
+  { id: 'dark-green', label: 'Emerald', swatches: ['#080f0e', '#0d1a17', '#34d399'] },
+] as const;
+
+export function ThemePicker({ current, onChange }: { current: string; onChange: (t: string) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 10 }}>
+      {THEMES.map(({ id, label, swatches }) => (
+        <button
+          key={id}
+          onClick={() => onChange(id)}
+          className="btn-press"
+          style={{
+            flex: 1, padding: '10px 8px', borderRadius: 10, cursor: 'pointer',
+            background: current === id ? `${C.amber}18` : C.bg,
+            border: `2px solid ${current === id ? C.amber : C.border}`,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+          }}
+        >
+          <div style={{ display: 'flex', gap: 3 }}>
+            {swatches.map((s) => (
+              <div key={s} style={{ width: 14, height: 14, borderRadius: '50%', background: s, border: '1px solid rgba(255,255,255,0.1)' }} />
+            ))}
+          </div>
+          <span style={{ fontSize: 11, color: current === id ? C.amber : C.text2, fontWeight: current === id ? 700 : 400 }}>
+            {label}
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
