@@ -430,25 +430,16 @@ export async function POST(request: Request) {
 
       // /upgrade command
       if (rawText === '/upgrade') {
-        await sendMsg(chatId,
-          '<b>Upgrade to FamilyFinance Pro</b>
-
-' +
-          'Free plan: ' + FREE_MONTHLY_LIMIT + ' AI expense parses per month
-' +
-          'Pro plan: Unlimited AI parses
-
-' +
-          '<b>How to upgrade:</b>
-' +
-          '1. Contact us to arrange payment
-' +
-          '2. Once confirmed, your account is upgraded instantly
-' +
-          '3. The interactive number wizard is always free regardless of plan
-
-' +
-          'Reply to this message or reach us via the app Settings to get started.');
+        const upgradeMsg =
+          '<b>Upgrade to FamilyFinance Pro</b>\n\n' +
+          'Free plan: ' + FREE_MONTHLY_LIMIT + ' AI expense parses per month\n' +
+          'Pro plan: Unlimited AI parses\n\n' +
+          '<b>How to upgrade:</b>\n' +
+          '1. Contact us to arrange payment\n' +
+          '2. Once confirmed, your account is upgraded instantly\n' +
+          '3. The interactive number wizard is always free regardless of plan\n\n' +
+          'Reply to this message or reach us via the app Settings to get started.';
+        await sendMsg(chatId, upgradeMsg);
         return NextResponse.json({ ok: true });
       }
 
@@ -479,18 +470,13 @@ export async function POST(request: Request) {
       // Natural language AI parsing — gated by plan/usage
       const { allowed, usage: usageRecord, remaining } = await canUseAI(householdId);
       if (!allowed) {
-        const bar = Array.from({ length: 10 }, (_, i) => i < 10 ? '■' : '□').join('');
-        await sendMsg(chatId,
-          '<b>Free plan limit reached (' + FREE_MONTHLY_LIMIT + ' AI parses/month)</b>
-
-' +
-          bar + ' ' + usageRecord.ai_parse_count + ' / ' + FREE_MONTHLY_LIMIT + '
-
-' +
-          'The interactive wizard (send just a number) is always free.
-
-' +
-          'Send /upgrade to unlock unlimited AI logging.');
+        const bar = Array.from({ length: 10 }, () => '■').join('');
+        const limitMsg =
+          '<b>Free plan limit reached (' + FREE_MONTHLY_LIMIT + ' AI parses/month)</b>\n\n' +
+          bar + ' ' + usageRecord.ai_parse_count + ' / ' + FREE_MONTHLY_LIMIT + '\n\n' +
+          'The interactive wizard (send just a number) is always free.\n\n' +
+          'Send /upgrade to unlock unlimited AI logging.';
+        await sendMsg(chatId, limitMsg);
         return NextResponse.json({ ok: true });
       }
 
