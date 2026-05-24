@@ -468,12 +468,12 @@ export async function POST(request: Request) {
       }
 
       // Natural language AI parsing — gated by plan/usage
-      const { allowed, usage: usageRecord, remaining } = await canUseAI(householdId);
+      const { allowed, plan: usagePlan, count: usageCount, remaining } = await canUseAI(householdId);
       if (!allowed) {
         const bar = Array.from({ length: 10 }, () => '■').join('');
         const limitMsg =
           '<b>Free plan limit reached (' + FREE_MONTHLY_LIMIT + ' AI parses/month)</b>\n\n' +
-          bar + ' ' + usageRecord.ai_parse_count + ' / ' + FREE_MONTHLY_LIMIT + '\n\n' +
+          bar + ' ' + usageCount + ' / ' + FREE_MONTHLY_LIMIT + '\n\n' +
           'The interactive wizard (send just a number) is always free.\n\n' +
           'Send /upgrade to unlock unlimited AI logging.';
         await sendMsg(chatId, limitMsg);
