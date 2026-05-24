@@ -89,6 +89,15 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile]       = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
+  const [theme, setTheme]             = useState(() =>
+    typeof window !== 'undefined' ? (localStorage.getItem('ff_theme') || 'dark-navy') : 'dark-navy'
+  );
+
+  // Apply theme to <html> data-theme attribute
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('ff_theme', theme);
+  }, [theme]);
   const [duplicateData, setDuplicateData] = useState<any>(null);
 
   const { toasts, addToast, dismiss } = useToast();
@@ -428,6 +437,8 @@ export default function App() {
               data={data}
               householdId={data.householdId}
               onSave={actions.saveSettings}
+              theme={theme}
+              onThemeChange={setTheme}
               onExport={() => exportToExcel(data)}
               onImport={actions.importData}
               onJoinHousehold={(id: string) => actions.joinHousehold(id, setLoading)}
