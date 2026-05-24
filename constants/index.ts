@@ -49,6 +49,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   currency: 'INR',
   telegramUsername: '',
+  setupComplete: false,
 };
 
 // ---------------------------------------------------------------------------
