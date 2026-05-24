@@ -232,6 +232,14 @@ export default function App() {
     return { p2pNetBalance, pendingPartnerItems };
   }, [data?.expenses, data?.settings.partnerAName, data?.settings.partnerBName]);
 
+  // ── Plan info loader (hooks must be above all conditional returns) ──────────
+  React.useEffect(() => {
+    if (!data?.householdId) return;
+    import('@/lib/planUtils').then(({ getUsageSummary }) => {
+      getUsageSummary(data.householdId).then(setPlanInfo).catch(() => {});
+    });
+  }, [data?.householdId]);
+
   // ── First-time setup wizard ────────────────────────────────────────────────
   // Show when household mode is unset or user is newly onboarded
   const needsSetup = data && !data.settings.householdMode;
@@ -260,14 +268,6 @@ export default function App() {
   if (needsSetup) {
     return <SetupWizard onComplete={handleSetupComplete} />;
   }
-
-  // Load plan info when household is known
-  React.useEffect(() => {
-    if (!data?.householdId) return;
-    import('@/lib/planUtils').then(({ getUsageSummary }) => {
-      getUsageSummary(data.householdId).then(setPlanInfo).catch(() => {});
-    });
-  }, [data?.householdId]);
 
   // ── Derive nav based on mode ───────────────────────────────────────────────
   const mode = data.settings.householdMode ?? 'joint';
@@ -435,6 +435,7 @@ export default function App() {
           {view === 'add' && (
             <AddExpense
               data={data}
+              isOnline={isOnline}
               session={session}
               duplicateData={duplicateData}
               onAdd={actions.addExpense}
