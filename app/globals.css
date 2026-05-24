@@ -1,27 +1,162 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* ─── globals.css ─────────────────────────────────────────────────────────────
+   Global resets, iOS-specific fixes, theme tokens, and premium effects.
+   Import in app/layout.tsx: import './globals.css'
+*/
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+/* ── Box sizing ────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ── iOS tap highlight removal ─────────────────────────────────────────────── */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* ── Body defaults ─────────────────────────────────────────────────────────── */
+html, body {
+  margin: 0; padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+/* ── iOS input / select reset ───────────────────────────────────────────────── */
+input, select, textarea, button {
+  -webkit-appearance: none;
+  appearance: none;
+  font-family: inherit;
 }
 
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+/* ── iOS safe area helpers ─────────────────────────────────────────────────── */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.safe-top    { padding-top:    env(safe-area-inset-top, 0px); }
+
+/* ── Smooth momentum scroll ─────────────────────────────────────────────────── */
+.scroll-container {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
+
+/* ── Theme: dark-navy (default) ─────────────────────────────────────────────── */
+[data-theme="dark-navy"], :root {
+  --bg:        #0b0f1a;
+  --surface:   #131928;
+  --surface2:  #1a2235;
+  --border:    #1e2840;
+  --muted:     #3d4f6e;
+  --text2:     #6b82a8;
+  --text1:     #a8b8d4;
+  --textW:     #e8eeff;
+  --amber:     #f59e0b;
+  --amber2:    #fbbf24;
+  --green:     #10b981;
+  --red:       #ef4444;
+  --purple:    #8b5cf6;
+  --blue:      #3b82f6;
+  --teal:      #06b6d4;
+  --pro-gold:  #f59e0b;
+  --card-glow: rgba(245,158,11,0.04);
+}
+
+/* ── Theme: dark-slate ──────────────────────────────────────────────────────── */
+[data-theme="dark-slate"] {
+  --bg:        #0f1117;
+  --surface:   #1a1d27;
+  --surface2:  #21253a;
+  --border:    #2a2f45;
+  --muted:     #4a5270;
+  --text2:     #7b86a8;
+  --text1:     #b0bcd4;
+  --textW:     #e4eaff;
+  --amber:     #e9a23b;
+  --amber2:    #f5bc5c;
+  --green:     #22c55e;
+  --red:       #f87171;
+  --purple:    #a78bfa;
+  --blue:      #60a5fa;
+  --teal:      #22d3ee;
+  --pro-gold:  #e9a23b;
+  --card-glow: rgba(233,162,59,0.04);
+}
+
+/* ── Theme: dark-green ──────────────────────────────────────────────────────── */
+[data-theme="dark-green"] {
+  --bg:        #080f0e;
+  --surface:   #0d1a17;
+  --surface2:  #132420;
+  --border:    #1a3028;
+  --muted:     #2e5244;
+  --text2:     #5a8a78;
+  --text1:     #96c4b2;
+  --textW:     #d4f0e8;
+  --amber:     #34d399;
+  --amber2:    #6ee7b7;
+  --green:     #10b981;
+  --red:       #f87171;
+  --purple:    #818cf8;
+  --blue:      #38bdf8;
+  --teal:      #2dd4bf;
+  --pro-gold:  #fbbf24;
+  --card-glow: rgba(52,211,153,0.05);
+}
+
+/* ── Glass card ─────────────────────────────────────────────────────────────── */
+.glass-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow:
+    0 1px 0 0 rgba(255,255,255,0.04) inset,
+    0 4px 24px rgba(0,0,0,0.24),
+    0 0 0 1px rgba(255,255,255,0.02) inset;
+  transition: box-shadow 0.25s, transform 0.2s;
+}
+.glass-card:hover {
+  box-shadow:
+    0 1px 0 0 rgba(255,255,255,0.06) inset,
+    0 8px 32px rgba(0,0,0,0.32),
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    var(--card-glow) 0 0 40px;
+  transform: translateY(-1px);
+}
+
+/* ── Button press ───────────────────────────────────────────────────────────── */
+.btn-press:active { transform: scale(0.97); }
+
+/* ── Pro shimmer badge ──────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+.pro-badge {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b, #fde68a, #f59e0b);
+  background-size: 200% auto;
+  animation: shimmer 3s linear infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+}
+
+/* ── Fade-up animation ──────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.3s ease forwards; }
+
+/* ── Bottom nav safe area ───────────────────────────────────────────────────── */
+.bottom-nav {
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+/* ── Number inputs — hide spinners ──────────────────────────────────────────── */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+/* ── Date inputs — 44px minimum tap target (iOS HIG) ───────────────────────── */
+input[type="date"] { min-height: 44px; }
+
+/* ── Thin scrollbar ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
