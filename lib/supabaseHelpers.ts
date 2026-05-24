@@ -105,6 +105,14 @@ export async function loadData(userId: string): Promise<AppData> {
       unpacked = cloudSettingsRow;
     }
 
+    // setupComplete = true only if the user has explicitly completed the wizard.
+    // New users have no household_settings row, so this will be false → wizard shows.
+    // Existing users who signed up before this feature also get false once,
+    // then wizard shows once and marks them complete.
+    const setupComplete: boolean = Boolean(
+      cloudSettingsRow && (unpacked.setupComplete === true || unpacked.setup_complete === true)
+    );
+
     const settings: Settings = {
       ...DEFAULT_SETTINGS,
       ...unpacked,
@@ -115,6 +123,7 @@ export async function loadData(userId: string): Promise<AppData> {
       incomeCategories:  unpacked.incomeCategories  ?? unpacked.income_categories  ?? DEFAULT_SETTINGS.incomeCategories,
       budgets:       unpacked.budgets ?? {},
       telegramUsername: currentProfileRow.data?.telegram_username ?? unpacked.telegramUsername ?? '',
+      setupComplete,
     };
 
     const toUI = (val: string) => toDisplayName(val, settings);
