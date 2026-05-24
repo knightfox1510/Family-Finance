@@ -86,20 +86,36 @@ export function navForMode(mode: HouseholdMode): NavItem[] {
 // ---------------------------------------------------------------------------
 // Design tokens (single source — import C from here everywhere)
 // ---------------------------------------------------------------------------
+// C maps to CSS custom properties defined in globals.css per [data-theme].
+// Swapping data-theme on <html> instantly repaints every component.
 export const C = {
+  bg:      'var(--bg)',
+  surface: 'var(--surface)',
+  border:  'var(--border)',
+  muted:   'var(--muted)',
+  text2:   'var(--text2)',
+  text1:   'var(--text1)',
+  textW:   'var(--textW)',
+  amber:   'var(--amber)',
+  green:   'var(--green)',
+  red:     'var(--red)',
+  purple:  'var(--purple)',
+  blue:    'var(--blue)',
+  teal:    'var(--teal)',
+} as const;
+
+// Raw hex values for contexts that need actual colours (e.g. SVG charts).
+// Update these if you change the default dark-navy theme.
+export const HEX = {
   bg:      '#0b0f1a',
   surface: '#131928',
   border:  '#1e2840',
-  muted:   '#3d4f6e',
-  text2:   '#6b82a8',
-  text1:   '#a8b8d4',
-  textW:   '#e8eeff',
   amber:   '#f59e0b',
   green:   '#10b981',
   red:     '#ef4444',
+  teal:    '#06b6d4',
   purple:  '#8b5cf6',
   blue:    '#3b82f6',
-  teal:    '#06b6d4',
 } as const;
 
 // ---------------------------------------------------------------------------
