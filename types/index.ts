@@ -114,6 +114,7 @@ export interface Settings {
   notifications: NotificationSettings;
   currency: string;
   telegramUsername: string;
+  setupComplete?: boolean;    // true once user has finished the setup wizard
 }
 
 // ---------------------------------------------------------------------------
