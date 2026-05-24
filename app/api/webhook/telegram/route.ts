@@ -414,25 +414,16 @@ export async function POST(request: Request) {
         const { plan, count, remaining, month } = await getUsageSummary(householdId);
         if (plan === 'pro') {
           await sendMsg(chatId,
-            '<b>Your Plan: PRO</b>
-
-Unlimited AI expense logging. Thank you for supporting FamilyFinance!');
+            '<b>Your Plan: PRO</b>\n\nUnlimited AI expense logging. Thank you for supporting FamilyFinance!');
         } else {
-          const bar = Array.from({ length: 10 }, (_, i) => i < Math.round((count / FREE_MONTHLY_LIMIT) * 10) ? '■' : '□').join('');
-          await sendMsg(chatId,
-            '<b>Your Plan: Free</b>
-
-' +
-            'AI parses this month (' + month + '):
-' +
-            bar + ' ' + count + ' / ' + FREE_MONTHLY_LIMIT + '
-
-' +
+          const bar = Array.from({ length: 10 }, (_, i) => i < Math.round((count / FREE_MONTHLY_LIMIT) * 10) ? '\u25a0' : '\u25a1').join('');
+          const usageMsg = '<b>Your Plan: Free</b>\n\n' +
+            'AI parses this month (' + month + '):\n' +
+            bar + ' ' + count + ' / ' + FREE_MONTHLY_LIMIT + '\n\n' +
             (remaining > 0
-              ? remaining + ' AI parses remaining this month.
-
-Send /upgrade to unlock unlimited.'
-              : 'Limit reached! Send /upgrade for unlimited access, or use the number wizard (send just a number) which is always free.'));
+              ? remaining + ' AI parses remaining this month.\n\nSend /upgrade to unlock unlimited.'
+              : 'Limit reached! Send /upgrade for unlimited access, or use the number wizard (send just a number) which is always free.');
+          await sendMsg(chatId, usageMsg);
         }
         return NextResponse.json({ ok: true });
       }
