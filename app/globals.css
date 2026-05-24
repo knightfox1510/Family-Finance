@@ -98,6 +98,28 @@ input, select, textarea, button {
   --card-glow: rgba(52,211,153,0.05);
 }
 
+/* ── Theme: light ───────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:        #f4f6fb;
+  --surface:   #ffffff;
+  --surface2:  #eef0f8;
+  --border:    #dde1ef;
+  --muted:     #b0b8d4;
+  --text2:     #6b7a9e;
+  --text1:     #3d4f72;
+  --textW:     #1a2340;
+  --amber:     #d97706;
+  --amber2:    #f59e0b;
+  --green:     #059669;
+  --red:       #dc2626;
+  --purple:    #7c3aed;
+  --blue:      #2563eb;
+  --teal:      #0891b2;
+  --pro-gold:  #d97706;
+  --card-glow: rgba(217,119,6,0.06);
+}
+[data-theme="light"] body { color: var(--textW); background: var(--bg); }
+
 /* ── Glass card ─────────────────────────────────────────────────────────────── */
 .glass-card {
   background: var(--surface);
