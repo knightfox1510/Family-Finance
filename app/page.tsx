@@ -242,12 +242,24 @@ export default function App() {
 
   // ── First-time setup wizard ────────────────────────────────────────────────
   // Show when household mode is unset or user is newly onboarded
-  const needsSetup = data && !data.settings.householdMode;
+  // Show wizard when user has never completed setup.
+  // New users: no household_settings row → setupComplete is false.
+  // Existing pre-wizard users: setupComplete is false → wizard shows once.
+  const needsSetup = data && !data.settings.setupComplete;
 
   const handleSetupComplete = async (mode: HouseholdMode, nameA: string, nameB: string) => {
     if (!data) return;
-    const updatedSettings = { ...data.settings, householdMode: mode, partnerAName: nameA, partnerBName: nameB };
+    const updatedSettings = {
+      ...data.settings,
+      householdMode: mode,
+      partnerAName:  nameA,
+      partnerBName:  nameB || 'Partner B',
+      setupComplete: true,   // marks wizard as done — never shown again
+    };
     await actions.saveSettings(updatedSettings);
+    // Reload data so the app reflects the chosen settings immediately
+    const fresh = await (await import('@/lib/supabaseHelpers')).loadData(session!.user.id);
+    setData(fresh);
   };
 
   // ── Guards ────────────────────────────────────────────────────────────────
