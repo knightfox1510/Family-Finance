@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { AppData, Settings as SettingsType, HouseholdMode } from '@/types';
-import { Card, Btn, Inp, Label, SectionTitle, Toggle } from '@/components/ui';
+import { Card, Btn, Inp, Label, SectionTitle, Toggle, PlanBadge, UsageMeter, ThemePicker } from '@/components/ui';
 import { C, HOUSEHOLD_MODE_META } from '@/constants';
 import { hasPartnerB } from '@/lib/householdModes';
 import { supabase } from '@/lib/supabaseClient';
@@ -16,6 +16,9 @@ interface Props {
   onExport: () => void;
   onImport: (payload: any) => void;
   onJoinHousehold: (id: string) => void;
+  theme?: string;
+  onThemeChange?: (t: string) => void;
+  planInfo?: { plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string };
 }
 
 // ─── Downgrade config ─────────────────────────────────────────────────────────
@@ -124,7 +127,7 @@ const SWITCH_INFO: Record<string, Record<string, SwitchInfo>> = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function Settings({ data, householdId, onSave, onExport, onImport, onJoinHousehold }: Props) {
+export function Settings({ data, householdId, onSave, onExport, onImport, onJoinHousehold, theme = 'dark-navy', onThemeChange, planInfo }: Props) {
 
   const [s, setS]                 = useState<SettingsType>(() => JSON.parse(JSON.stringify(data.settings)));
   const [flash, setFlash]         = useState(false);
@@ -325,7 +328,45 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         );
       })()}
 
-      {/* ── Household Mode ────────────────────────────────────────────────── */}
+      {/* ── Plan & Usage ──────────────────────────────────────────────────── */}
+      <Card style={{ border: planInfo?.plan === 'pro' ? '1px solid rgba(245,158,11,0.4)' : undefined }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <SectionTitle style={{ margin: 0 }}>Your Plan</SectionTitle>
+          <PlanBadge plan={planInfo?.plan ?? 'free'} />
+        </div>
+        {planInfo?.plan === 'free' ? (
+          <>
+            <UsageMeter count={planInfo.count} limit={planInfo.limit} pct={planInfo.pct} />
+            <div style={{ marginTop: 14, padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 10 }}>
+              <div style={{ color: C.textW, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Upgrade to Pro — Unlimited AI logging</div>
+              <div style={{ color: C.text2, fontSize: 12, marginBottom: 12, lineHeight: 1.6 }}>
+                The number wizard is always free. Pro unlocks unlimited natural language expense logging via Telegram.
+              </div>
+              <Btn variant="primary" style={{ width: '100%' }} onClick={() => {
+                window.open('mailto:support@familyfinance.app?subject=Pro%20Upgrade&body=Household%20ID:%20' + householdId, '_blank');
+              }}>
+                ❆ Upgrade to Pro
+              </Btn>
+            </div>
+          </>
+        ) : (
+          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 10, textAlign: 'center' }}>
+            <div className="pro-badge" style={{ fontSize: 16, marginBottom: 6 }}>❆ PRO PLAN ACTIVE</div>
+            <div style={{ color: C.text2, fontSize: 13 }}>Unlimited AI expense logging. Thank you for supporting FamilyFinance!</div>
+          </div>
+        )}
+      </Card>
+
+      {/* ── Theme ──────────────────────────────────────────────── */}
+      {onThemeChange && (
+        <Card>
+          <SectionTitle>App Theme</SectionTitle>
+          <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>Changes take effect immediately.</p>
+          <ThemePicker current={theme} onChange={onThemeChange} />
+        </Card>
+      )}
+
+      {/* ── Household Mode ──────────────────────────────────────────── */}
       <Card>
         <SectionTitle>Household Mode</SectionTitle>
         <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
