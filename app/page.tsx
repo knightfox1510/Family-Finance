@@ -89,15 +89,22 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile]       = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
-  const [theme, setTheme]             = useState(() =>
-    typeof window !== 'undefined' ? (localStorage.getItem('ff_theme') || 'dark-navy') : 'dark-navy'
-  );
+  const [planInfo, setPlanInfo] = useState<{ plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string } | undefined>(undefined);
+  // Theme — start with server-safe default, then read localStorage client-side
+  const [theme, setTheme] = useState('dark-navy');
 
-  // Apply theme to <html> data-theme attribute
   React.useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('ff_theme', theme);
-  }, [theme]);
+    // Read persisted theme on mount and apply
+    const saved = localStorage.getItem('ff_theme') || 'dark-navy';
+    setTheme(saved);
+    document.documentElement.setAttribute('data-theme', saved);
+  }, []);
+
+  const handleThemeChange = (t: string) => {
+    setTheme(t);
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('ff_theme', t);
+  };
   const [duplicateData, setDuplicateData] = useState<any>(null);
 
   const { toasts, addToast, dismiss } = useToast();
@@ -125,6 +132,31 @@ export default function App() {
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const actions = useActions({ data: data!, setData: setData as any, session, addToast });
+
+  // ── Offline queue + online/offline detection ──────────────────────────────
+  const [offlineQueue, setOfflineQueue] = React.useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem('ff_offline_queue') || '[]'); } catch { return []; }
+  });
+  const [isOnline, setIsOnline] = React.useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  React.useEffect(() => {
+    const goOnline = async () => {
+      setIsOnline(true);
+      const q: any[] = (() => { try { return JSON.parse(localStorage.getItem('ff_offline_queue') || '[]'); } catch { return []; } })();
+      if (q.length > 0) {
+        for (const item of q) { try { await actions.addExpense(item); } catch {} }
+        localStorage.setItem('ff_offline_queue', '[]');
+        setOfflineQueue([]);
+        addToast(`✅ ${q.length} offline expense${q.length > 1 ? 's' : ''} synced`, 'success');
+      }
+    };
+    const goOffline = () => { setIsOnline(false); addToast('⚠️ You are offline. Expenses will sync when reconnected.', 'info'); };
+    window.addEventListener('online',  goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
+  }, [actions, addToast]);
 
   // ── Manual refresh (escape hatch for edge cases) ──────────────────────────
   const handleManualRefresh = async () => {
@@ -229,6 +261,14 @@ export default function App() {
     return <SetupWizard onComplete={handleSetupComplete} />;
   }
 
+  // Load plan info when household is known
+  React.useEffect(() => {
+    if (!data?.householdId) return;
+    import('@/lib/planUtils').then(({ getUsageSummary }) => {
+      getUsageSummary(data.householdId).then(setPlanInfo).catch(() => {});
+    });
+  }, [data?.householdId]);
+
   // ── Derive nav based on mode ───────────────────────────────────────────────
   const mode = data.settings.householdMode ?? 'joint';
   const nav  = navForMode(mode);
@@ -307,7 +347,15 @@ export default function App() {
             ))}
           </div>
 
-          {/* Footer: email + privacy + logout */}
+          {/* Offline banner */}
+      {!isOnline && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9998, background: '#f59e0b', color: '#0b0f1a', padding: '8px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          ⚠️ You are offline. Expenses will be saved and synced when you reconnect.
+          {offlineQueue.length > 0 && <span>({offlineQueue.length} pending)</span>}
+        </div>
+      )}
+
+      {/* Footer: email + privacy + logout */}
           <div style={{ padding: '0 20px 6px', fontSize: 11, color: C.text2, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {sidebarOpen ? `👤 ${session.user.email}` : ''}
           </div>
@@ -438,7 +486,8 @@ export default function App() {
               householdId={data.householdId}
               onSave={actions.saveSettings}
               theme={theme}
-              onThemeChange={setTheme}
+              onThemeChange={handleThemeChange}
+              planInfo={planInfo}
               onExport={() => exportToExcel(data)}
               onImport={actions.importData}
               onJoinHousehold={(id: string) => actions.joinHousehold(id, setLoading)}
