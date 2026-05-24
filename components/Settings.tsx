@@ -334,27 +334,36 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
           <SectionTitle style={{ margin: 0 }}>Your Plan</SectionTitle>
           <PlanBadge plan={planInfo?.plan ?? 'free'} />
         </div>
-        {planInfo?.plan === 'free' ? (
-          <>
-            <UsageMeter count={planInfo.count} limit={planInfo.limit} pct={planInfo.pct} />
-            <div style={{ marginTop: 14, padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 10 }}>
-              <div style={{ color: C.textW, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Upgrade to Pro — Unlimited AI logging</div>
-              <div style={{ color: C.text2, fontSize: 12, marginBottom: 12, lineHeight: 1.6 }}>
-                The number wizard is always free. Pro unlocks unlimited natural language expense logging via Telegram.
+        {/* Always show usage meter */}
+        {planInfo && (
+          <div style={{ marginBottom: 14 }}>
+            <UsageMeter count={planInfo.count} limit={planInfo.plan === 'pro' ? planInfo.count : planInfo.limit} pct={planInfo.plan === 'pro' ? 0 : planInfo.pct} />
+            {planInfo.plan === 'pro' && (
+              <div style={{ fontSize: 12, color: C.teal, marginTop: 6 }}>
+                ∞ Unlimited AI parses on Pro plan — {planInfo.count} used this month
               </div>
-              <Btn variant="primary" style={{ width: '100%' }} onClick={() => {
-                window.open('mailto:support@familyfinance.app?subject=Pro%20Upgrade&body=Household%20ID:%20' + householdId, '_blank');
-              }}>
-                ❆ Upgrade to Pro
-              </Btn>
-            </div>
-          </>
-        ) : (
-          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 10, textAlign: 'center' }}>
-            <div className="pro-badge" style={{ fontSize: 16, marginBottom: 6 }}>❆ PRO PLAN ACTIVE</div>
-            <div style={{ color: C.text2, fontSize: 13 }}>Unlimited AI expense logging. Thank you for supporting FamilyFinance!</div>
+            )}
           </div>
         )}
+
+        {planInfo?.plan === 'free' ? (
+          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 10 }}>
+            <div style={{ color: C.textW, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Upgrade to Pro — Unlimited AI logging</div>
+            <div style={{ color: C.text2, fontSize: 12, marginBottom: 12, lineHeight: 1.6 }}>
+              The number wizard is always free. Pro unlocks unlimited natural language expense logging via Telegram.
+            </div>
+            <Btn variant="primary" style={{ width: '100%' }} onClick={() => {
+              window.open('mailto:support@familyfinance.app?subject=Pro%20Upgrade&body=Household%20ID:%20' + householdId, '_blank');
+            }}>
+              ❆ Upgrade to Pro
+            </Btn>
+          </div>
+        ) : planInfo?.plan === 'pro' ? (
+          <div style={{ padding: '10px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 10, textAlign: 'center' }}>
+            <div className="pro-badge" style={{ fontSize: 15, marginBottom: 4 }}>❆ PRO PLAN ACTIVE</div>
+            <div style={{ color: C.text2, fontSize: 12 }}>Thank you for supporting FamilyFinance!</div>
+          </div>
+        ) : null}
       </Card>
 
       {/* ── Theme ──────────────────────────────────────────────── */}
@@ -459,12 +468,14 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         <SectionTitle>Telegram Bot Integration</SectionTitle>
         <p style={{ color: C.text1, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
           {telegramLinked
-            ? 'Your account is connected. Send a message to the bot to log expenses on the go.'
-            : 'Link your Telegram username (without @) to enable conversational expense logging.'}
+            ? 'Your Telegram account is connected. Send a message to log expenses instantly.'
+            : 'Link your Telegram username to log expenses from your phone in seconds.'}
         </p>
-        <div style={{ display: 'flex', gap: 8 }}>
+
+        {/* Username input */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <input type="text" disabled={telegramLinked}
-            placeholder={telegramLinked ? `@${telegramHandle}` : 'e.g. yourhandle'}
+            placeholder={telegramLinked ? `@${telegramHandle}` : 'e.g. yourhandle (without @)'}
             value={telegramLinked ? `@${telegramHandle}` : (s.telegramUsername ?? '')}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               setS((x) => ({ ...x, telegramUsername: e.target.value.replace(/@/g, '').trim() }))}
@@ -472,12 +483,46 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               border: `1px solid ${telegramLinked ? C.border : C.teal}`,
               color: telegramLinked ? C.text2 : C.textW,
               borderRadius: 8, padding: '10px 14px', flex: 1,
-              boxSizing: 'border-box' as const, outline: 'none',
+              boxSizing: 'border-box' as const, outline: 'none', fontSize: 16,
               opacity: telegramLinked ? 0.7 : 1,
               cursor: telegramLinked ? 'not-allowed' : 'text' }} />
           {telegramLinked && (
             <Btn variant="danger" onClick={() => setS((x) => ({ ...x, telegramUsername: '' }))}>Unlink</Btn>
           )}
+        </div>
+
+        {/* Setup guide — always visible */}
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 16px' }}>
+          <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 12 }}>
+            How to set up
+          </div>
+          {[
+            { step: '1', text: 'Open Telegram and start a chat with your bot (link provided by the admin)' },
+            { step: '2', text: 'Send /start to activate it' },
+            { step: '3', text: 'Enter your Telegram username above (without @) and save Settings' },
+            { step: '4', text: 'Start logging! Try: 450 Zomato' },
+          ].map(({ step, text }) => (
+            <div key={step} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13, color: C.text2, lineHeight: 1.5 }}>
+              <span style={{ background: `${C.teal}22`, color: C.teal, borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{step}</span>
+              <span>{text}</span>
+            </div>
+          ))}
+          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 10, paddingTop: 12 }}>
+            <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 8 }}>Logging syntax</div>
+            {[
+              { code: '450 Zomato',            desc: 'Personal expense' },
+              { code: '450 Zomato to settle',  desc: 'Joint pool reimburses you' },
+              { code: '500',                   desc: 'Interactive wizard' },
+              { code: '/recent',               desc: 'View & edit last 3 transactions' },
+              { code: '/summary',              desc: 'This month\'s snapshot' },
+              { code: '/usage',                desc: 'Check AI parse usage' },
+            ].map(({ code, desc }) => (
+              <div key={code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' as const, gap: 6 }}>
+                <code style={{ background: `${C.border}40`, padding: '2px 8px', borderRadius: 4, fontSize: 11, color: C.teal }}>{code}</code>
+                <span style={{ fontSize: 11, color: C.muted }}>{desc}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </Card>
 
