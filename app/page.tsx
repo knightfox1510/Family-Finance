@@ -247,17 +247,22 @@ export default function App() {
   // Existing pre-wizard users: setupComplete is false → wizard shows once.
   const needsSetup = data && !data.settings.setupComplete;
 
-  const handleSetupComplete = async (mode: HouseholdMode, nameA: string, nameB: string) => {
+  const handleSetupComplete = async (mode: HouseholdMode, nameA: string, nameB: string, telegramUsername?: string) => {
     if (!data) return;
     const updatedSettings = {
       ...data.settings,
-      householdMode: mode,
-      partnerAName:  nameA,
-      partnerBName:  nameB || 'Partner B',
-      setupComplete: true,   // marks wizard as done — never shown again
+      householdMode:   mode,
+      partnerAName:    nameA,
+      partnerBName:    nameB || 'Partner B',
+      setupComplete:   true,
+      ...(telegramUsername ? { telegramUsername } : {}),
     };
     await actions.saveSettings(updatedSettings);
-    // Reload data so the app reflects the chosen settings immediately
+    // Also save telegram username to profiles table if provided
+    if (telegramUsername && session?.user?.id) {
+      const { supabase } = await import('@/lib/supabaseClient');
+      await supabase.from('profiles').update({ telegram_username: telegramUsername }).eq('id', session.user.id);
+    }
     const fresh = await (await import('@/lib/supabaseHelpers')).loadData(session!.user.id);
     setData(fresh);
   };
