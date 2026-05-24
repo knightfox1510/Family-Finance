@@ -335,36 +335,74 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
           <SectionTitle style={{ margin: 0 }}>Your Plan</SectionTitle>
           <PlanBadge plan={planInfo?.plan ?? 'free'} />
         </div>
-        {/* Always show usage meter */}
-        {planInfo && (
-          <div style={{ marginBottom: 14 }}>
-            <UsageMeter count={planInfo.count} limit={planInfo.plan === 'pro' ? planInfo.count : planInfo.limit} pct={planInfo.plan === 'pro' ? 0 : planInfo.pct} />
-            {planInfo.plan === 'pro' && (
-              <div style={{ fontSize: 12, color: C.teal, marginTop: 6 }}>
-                ∞ Unlimited AI parses on Pro plan — {planInfo.count} used this month
-              </div>
-            )}
+        {/* AI parse usage — always shown, even at 0, even while loading */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, color: C.text2 }}>AI parses used this month</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: planInfo?.plan === 'pro' ? C.teal : C.textW }}>
+              {planInfo
+                ? planInfo.plan === 'pro'
+                  ? `${planInfo.count} (unlimited)`
+                  : `${planInfo.count} / ${planInfo.limit}`
+                : '— / 30'}
+            </span>
           </div>
-        )}
+          {/* Progress bar — always rendered, 0% width when no data yet */}
+          <div style={{ background: C.border, borderRadius: 99, height: 6, overflow: 'hidden' }}>
+            <div style={{
+              width: planInfo
+                ? planInfo.plan === 'pro' ? '100%' : `${planInfo.pct}%`
+                : '0%',
+              height: '100%',
+              background: planInfo?.plan === 'pro'
+                ? C.teal
+                : !planInfo || planInfo.pct < 70 ? C.green
+                : planInfo.pct < 90 ? C.amber : C.red,
+              borderRadius: 99,
+              transition: 'width 0.4s',
+            }} />
+          </div>
+          {planInfo?.plan === 'pro' && (
+            <div style={{ fontSize: 11, color: C.teal, marginTop: 5 }}>
+              ∞ Unlimited — Pro plan active
+            </div>
+          )}
+          {planInfo && planInfo.plan === 'free' && planInfo.pct >= 70 && (
+            <div style={{ fontSize: 11, color: planInfo.pct >= 90 ? C.red : C.amber, marginTop: 5 }}>
+              {planInfo.pct >= 100 ? '🚫 Limit reached' : `⚠️ ${30 - planInfo.count} parses remaining`}
+            </div>
+          )}
+          {!planInfo && (
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
+              Loading usage data…
+            </div>
+          )}
+        </div>
 
-        {planInfo?.plan === 'free' ? (
-          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 10 }}>
-            <div style={{ color: C.textW, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Upgrade to Pro — Unlimited AI logging</div>
-            <div style={{ color: C.text2, fontSize: 12, marginBottom: 12, lineHeight: 1.6 }}>
-              The number wizard is always free. Pro unlocks unlimited natural language expense logging via Telegram.
+        {/* Upgrade CTA — shown for free plan OR while loading (assume free until known) */}
+        {(!planInfo || planInfo.plan === 'free') && (
+          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 10, marginBottom: 0 }}>
+            <div style={{ color: C.textW, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
+              ✦ Upgrade to Pro
+            </div>
+            <div style={{ color: C.text2, fontSize: 12, marginBottom: 10, lineHeight: 1.6 }}>
+              Free plan: 30 AI parses/month · Pro plan: unlimited. The number wizard is always free.
             </div>
             <Btn variant="primary" style={{ width: '100%' }} onClick={() => {
               window.open('mailto:support@familyfinance.app?subject=Pro%20Upgrade&body=Household%20ID:%20' + householdId, '_blank');
             }}>
-              ❆ Upgrade to Pro
+              ✦ Upgrade to Pro — Unlimited AI logging
             </Btn>
           </div>
-        ) : planInfo?.plan === 'pro' ? (
-          <div style={{ padding: '10px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 10, textAlign: 'center' }}>
-            <div className="pro-badge" style={{ fontSize: 15, marginBottom: 4 }}>❆ PRO PLAN ACTIVE</div>
+        )}
+
+        {/* Pro active state */}
+        {planInfo?.plan === 'pro' && (
+          <div style={{ padding: '10px 14px', background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 10, textAlign: 'center' }}>
+            <div className="pro-badge" style={{ fontSize: 15, marginBottom: 4 }}>✦ PRO PLAN ACTIVE</div>
             <div style={{ color: C.text2, fontSize: 12 }}>Thank you for supporting FamilyFinance!</div>
           </div>
-        ) : null}
+        )}
       </Card>
 
       {/* ── Theme ──────────────────────────────────────────────── */}
