@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { canUseAI, incrementUsage, getUsageSummary, FREE_MONTHLY_LIMIT } from '@/lib/planUtils';
 
 export const maxDuration = 60;
 
@@ -402,7 +403,61 @@ export async function POST(request: Request) {
           '\nSend a plain number (e.g. 500) for the interactive wizard.\n\n' +
           'Commands:\n' +
           '- /recent -- view & edit last 3 transactions\n' +
-          '- /summary -- this month spending snapshot');
+          '- /summary -- this month spending snapshot\n' +
+          '- /usage -- check your AI parse usage\n' +
+          '- /upgrade -- upgrade to Pro plan');
+        return NextResponse.json({ ok: true });
+      }
+
+      // /usage command
+      if (rawText === '/usage') {
+        const { plan, count, remaining, month } = await getUsageSummary(householdId);
+        if (plan === 'pro') {
+          await sendMsg(chatId,
+            '<b>Your Plan: PRO</b>
+
+Unlimited AI expense logging. Thank you for supporting FamilyFinance!');
+        } else {
+          const bar = Array.from({ length: 10 }, (_, i) => i < Math.round((count / FREE_MONTHLY_LIMIT) * 10) ? '■' : '□').join('');
+          await sendMsg(chatId,
+            '<b>Your Plan: Free</b>
+
+' +
+            'AI parses this month (' + month + '):
+' +
+            bar + ' ' + count + ' / ' + FREE_MONTHLY_LIMIT + '
+
+' +
+            (remaining > 0
+              ? remaining + ' AI parses remaining this month.
+
+Send /upgrade to unlock unlimited.'
+              : 'Limit reached! Send /upgrade for unlimited access, or use the number wizard (send just a number) which is always free.'));
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      // /upgrade command
+      if (rawText === '/upgrade') {
+        await sendMsg(chatId,
+          '<b>Upgrade to FamilyFinance Pro</b>
+
+' +
+          'Free plan: ' + FREE_MONTHLY_LIMIT + ' AI expense parses per month
+' +
+          'Pro plan: Unlimited AI parses
+
+' +
+          '<b>How to upgrade:</b>
+' +
+          '1. Contact us to arrange payment
+' +
+          '2. Once confirmed, your account is upgraded instantly
+' +
+          '3. The interactive number wizard is always free regardless of plan
+
+' +
+          'Reply to this message or reach us via the app Settings to get started.');
         return NextResponse.json({ ok: true });
       }
 
@@ -430,7 +485,24 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
       }
 
-      // Natural language AI parsing
+      // Natural language AI parsing — gated by plan/usage
+      const { allowed, usage: usageRecord, remaining } = await canUseAI(householdId);
+      if (!allowed) {
+        const bar = Array.from({ length: 10 }, (_, i) => i < 10 ? '■' : '□').join('');
+        await sendMsg(chatId,
+          '<b>Free plan limit reached (' + FREE_MONTHLY_LIMIT + ' AI parses/month)</b>
+
+' +
+          bar + ' ' + usageRecord.ai_parse_count + ' / ' + FREE_MONTHLY_LIMIT + '
+
+' +
+          'The interactive wizard (send just a number) is always free.
+
+' +
+          'Send /upgrade to unlock unlimited AI logging.');
+        return NextResponse.json({ ok: true });
+      }
+
       const lower = rawText.toLowerCase();
       if (isSolo && (lower.includes('to settle') || lower.includes('settle with'))) {
         await sendMsg(chatId, 'Solo mode does not support settlements. Just send: amount description');
@@ -481,6 +553,9 @@ export async function POST(request: Request) {
       if (!rawJson) { await sendMsg(chatId, 'Could not parse that message. Try shorter, clearer text.'); return NextResponse.json({ ok: true }); }
       const parsed = JSON.parse(rawJson);
       if (!Array.isArray(parsed)) throw new Error('Gemini did not return an array.');
+
+      // Increment usage counter after a successful AI parse
+      await incrementUsage(householdId);
 
       for (const tx of parsed) {
         if (!tx.amount || Number(tx.amount) <= 0) continue;
