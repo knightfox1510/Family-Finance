@@ -6,9 +6,9 @@
 const QUEUE_KEY = 'ff_offline_queue';
 
 export interface QueuedExpense {
-  id: string;         // temp UUID — replaced by real DB id on sync
-  queuedAt: string;   // ISO timestamp
-  [key: string]: any; // all expense fields
+  id: string;
+  queuedAt: string;
+  [key: string]: any;
 }
 
 export function getQueue(): QueuedExpense[] {
@@ -19,9 +19,11 @@ export function getQueue(): QueuedExpense[] {
   }
 }
 
-export function addToQueue(expense: Omit<QueuedExpense, 'queuedAt'>): void {
+// Accept any object with at least an id — queuedAt is added here
+export function addToQueue(expense: { id: string; [key: string]: any }): void {
   const queue = getQueue();
-  queue.push({ ...expense, queuedAt: new Date().toISOString() });
+  const entry: QueuedExpense = { ...expense, queuedAt: new Date().toISOString() };
+  queue.push(entry);
   localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
 }
 
