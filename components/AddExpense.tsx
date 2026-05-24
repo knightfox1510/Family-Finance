@@ -1,4 +1,5 @@
 'use client';
+import { addToQueue } from '@/lib/offlineQueue';
 import React, { useState, useEffect, useMemo } from 'react';
 import type { AppData, Expense } from '@/types';
 import { Card, Btn, Inp, Sel, Label, SectionTitle } from '@/components/ui';
@@ -18,9 +19,10 @@ interface Props {
   onAdd: (e: Expense) => void;
   onUpdateSave: (id: string, updated: Partial<Expense>) => void;
   onClose: () => void;
+  isOnline?: boolean;
 }
 
-export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, onClose }: Props) {
+export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, onClose, isOnline = true }: Props) {
   const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
   const mode       = data.settings.householdMode ?? 'joint';
   const isJoint    = mode === 'joint';
@@ -115,7 +117,17 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
       partnerBShare: form.splitMode === 'percentage' ? Number(form.partnerBShare) / 100 : Number(form.partnerBShare),
     };
     if (isEditingMode) onUpdateSave(duplicateData.id, payload);
-    else onAdd({ ...payload, id: uid(), settled: false, settledFor: null });
+    else {
+      const expense = { ...payload, id: uid(), settled: false, settledFor: null };
+      if (!isOnline) {
+        // Save to offline queue — will sync when connection restores
+        addToQueue(expense);
+        setFlash(true);
+        setTimeout(() => { setFlash(false); onClose(); }, 1500);
+      } else {
+        onAdd(expense);
+      }
+    }
     setFlash(true);
     setForm((f: any) => ({ ...f, amount: '', note: '' }));
     setTimeout(() => { setFlash(false); onClose?.(); }, 1500);
@@ -316,6 +328,11 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
             </div>
           )}
 
+          {!isOnline && (
+            <div style={{ background: '#f59e0b22', border: '1px solid #f59e0b44', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#f59e0b', textAlign: 'center' }}>
+              ⚠️ You are offline. This expense will be saved locally and synced when you reconnect.
+            </div>
+          )}
           <Btn variant={flash ? 'success' : 'primary'} onClick={submit} style={{ width: '100%', padding: '13px', fontSize: 15, fontWeight: 700 }}>
             {flash ? '✓ Saved!' : isEditingMode ? 'Update Transaction' : 'Add Transaction'}
           </Btn>
