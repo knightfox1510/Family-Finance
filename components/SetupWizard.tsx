@@ -12,7 +12,7 @@ import type { HouseholdMode } from '@/types';
 import { C, HOUSEHOLD_MODE_META } from '@/constants';
 
 interface Props {
-  onComplete: (mode: HouseholdMode, nameA: string, nameB: string) => void;
+  onComplete: (mode: HouseholdMode, nameA: string, nameB: string, telegramUsername?: string) => void;
 }
 
 type Step = 'mode' | 'names' | 'telegram' | 'features' | 'done';
@@ -69,7 +69,9 @@ export function SetupWizard({ onComplete }: Props) {
   const [mode, setMode]   = useState<HouseholdMode>('joint');
   const [nameA, setNameA] = useState('');
   const [nameB, setNameB] = useState('');
-  const [expanded, setExpanded] = useState<HouseholdMode | null>(null);
+  const [expanded, setExpanded]         = useState<HouseholdMode | null>(null);
+  const [wantsTelegram, setWantsTelegram] = useState<boolean | null>(null); // null = not answered yet
+  const [telegramUsername, setTelegramUsername] = useState('');
 
   const modes: HouseholdMode[] = ['joint', 'separate', 'solo'];
   const isSolo = mode === 'solo';
@@ -230,7 +232,6 @@ export function SetupWizard({ onComplete }: Props) {
 
   // ── Step 3: Telegram bot setup ─────────────────────────────────────────────
   if (step === 'telegram') {
-    const firstName = nameA.trim();
     return (
       <div style={shell}>
         <div style={{ width: '100%', maxWidth: 460 }}>
@@ -242,56 +243,105 @@ export function SetupWizard({ onComplete }: Props) {
               Log expenses from Telegram
             </h2>
             <p style={{ color: C.text2, marginTop: 8, fontSize: 14 }}>
-              Connect our Telegram bot and log expenses in seconds — just send a message.
+              Our Telegram bot lets you log expenses instantly by sending a simple message — no app needed.
             </p>
           </div>
 
-          {/* How it works */}
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
-            <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
-              How it works
-            </div>
-            {[
-              { emoji: '1️⃣', text: 'Open Telegram and search for your bot (your developer will share the link)' },
-              { emoji: '2️⃣', text: 'Send /start to activate it' },
-              { emoji: '3️⃣', text: 'Go to Settings → Telegram Bot Integration and enter your Telegram username (without @)' },
-              { emoji: '4️⃣', text: 'Start logging! Send a message like: 450 Zomato' },
-            ].map(({ emoji, text }) => (
-              <div key={emoji} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13, color: C.text2, lineHeight: 1.5 }}>
-                <span style={{ fontSize: 16, flexShrink: 0 }}>{emoji}</span>
-                <span>{text}</span>
+          {/* Question: do they want to set it up now? */}
+          {wantsTelegram === null && (
+            <>
+              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', marginBottom: 20 }}>
+                <div style={{ fontSize: 13, color: C.text2, marginBottom: 14, lineHeight: 1.6 }}>
+                  With the bot you can log expenses like this:
+                </div>
+                {[
+                  { msg: '450 Zomato', result: 'Personal expense' },
+                  { msg: '1200 Big Bazaar to settle', result: 'Joint pool reimburses you' },
+                  { msg: '500', result: 'Opens interactive wizard' },
+                ].map(({ msg, result }) => (
+                  <div key={msg} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 10, flexWrap: 'wrap' as const }}>
+                    <code style={{ background: `${C.border}40`, padding: '3px 10px', borderRadius: 4, fontSize: 12, color: C.teal }}>{msg}</code>
+                    <span style={{ fontSize: 12, color: C.muted }}>{result}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Logging syntax examples */}
-          <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 16px', marginBottom: 20 }}>
-            <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
-              Logging syntax — what to send
-            </div>
-            {[
-              { msg: '450 Zomato', result: 'Personal expense, no settlement' },
-              { msg: `450 Zomato ${!isSolo ? nameA : firstName}`, result: `Logged under ${firstName}'s account` },
-              ...(mode === 'joint' ? [{ msg: '450 Zomato to settle', result: 'Joint pool reimburses you' }] : []),
-              ...(!isSolo ? [{ msg: `450 Zomato settle with ${nameB || 'Partner'}`, result: 'Direct partner split' }] : []),
-              { msg: '500', result: 'Opens interactive wizard for category + account' },
-            ].map(({ msg, result }) => (
-              <div key={msg} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 12, flexWrap: 'wrap' as const }}>
-                <code style={{ background: `${C.border}40`, padding: '3px 8px', borderRadius: 4, fontSize: 12, color: C.teal, flexShrink: 0 }}>
-                  {msg}
-                </code>
-                <span style={{ fontSize: 12, color: C.muted }}>{result}</span>
+              <div style={{ fontSize: 14, color: C.textW, fontWeight: 600, textAlign: 'center', marginBottom: 14 }}>
+                Do you want to set up the Telegram bot now?
               </div>
-            ))}
-          </div>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+                <button onClick={() => setWantsTelegram(true)}
+                  style={{ flex: 1, padding: '13px', borderRadius: 10, border: `2px solid ${C.teal}`,
+                    background: `${C.teal}18`, color: C.teal, fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+                  ✓ Yes, set it up
+                </button>
+                <button onClick={() => setWantsTelegram(false)}
+                  style={{ flex: 1, padding: '13px', borderRadius: 10, border: `1px solid ${C.border}`,
+                    background: 'transparent', color: C.text2, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+                  Later
+                </button>
+              </div>
+            </>
+          )}
 
-          <div style={{ background: `${C.teal}12`, border: `1px solid ${C.teal}33`, borderRadius: 8, padding: '10px 14px', marginBottom: 24, fontSize: 12, color: C.teal, lineHeight: 1.6 }}>
-            💡 You can skip this for now and set it up later in <strong>Settings → Telegram Bot Integration</strong>.
-          </div>
+          {/* Yes — ask for username */}
+          {wantsTelegram === true && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 12 }}>
+                  Quick setup
+                </div>
+                {[
+                  '1. Open Telegram and start a chat with your bot',
+                  '2. Send /start to activate it',
+                  '3. Enter your Telegram username below',
+                ].map((t) => (
+                  <div key={t} style={{ fontSize: 13, color: C.text2, marginBottom: 8, lineHeight: 1.5 }}>{t}</div>
+                ))}
+              </div>
+
+              <label style={{ color: C.text2, fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>
+                Your Telegram username (without @)
+              </label>
+              <input
+                value={telegramUsername}
+                onChange={(e) => setTelegramUsername(e.target.value.replace(/@/g, '').trim())}
+                placeholder="e.g. yourhandle"
+                autoFocus
+                style={{ ...inputStyle, fontSize: 16, borderColor: C.teal, marginBottom: 8 }}
+              />
+              <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>
+                Can't find yours? In Telegram go to Settings → your profile name at the top.
+              </div>
+
+              <button onClick={() => setWantsTelegram(null)}
+                style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', marginTop: 10, textDecoration: 'underline' }}>
+                ← Back to choice
+              </button>
+            </div>
+          )}
+
+          {/* No — reassurance message */}
+          {wantsTelegram === false && (
+            <div style={{ background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 10, padding: '14px 16px', marginBottom: 20 }}>
+              <div style={{ color: C.teal, fontWeight: 700, fontSize: 13, marginBottom: 6 }}>No problem!</div>
+              <div style={{ color: C.text2, fontSize: 13, lineHeight: 1.6 }}>
+                You can set it up any time from <strong style={{ color: C.textW }}>Settings → Telegram Bot Integration</strong>. The interactive number wizard in the app is always available too.
+              </div>
+              <button onClick={() => setWantsTelegram(null)}
+                style={{ background: 'transparent', border: 'none', color: C.muted, fontSize: 12, cursor: 'pointer', marginTop: 10, textDecoration: 'underline' }}>
+                ← Go back
+              </button>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 12 }}>
-            <button onClick={() => setStep('names')} style={ghostBtn}>← Back</button>
-            <button onClick={() => setStep('features')} style={{ ...primaryBtn(), flex: 1 }}>
+            <button onClick={() => { setStep('names'); setWantsTelegram(null); }} style={ghostBtn}>← Back</button>
+            <button
+              onClick={() => setStep('features')}
+              style={{ ...primaryBtn(wantsTelegram === null), flex: 1 }}
+              disabled={wantsTelegram === null}
+            >
               Continue →
             </button>
           </div>
@@ -337,6 +387,27 @@ export function SetupWizard({ onComplete }: Props) {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Pro / pricing info */}
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ color: C.textW, fontWeight: 700, fontSize: 13 }}>🆓 Free plan</div>
+              <div style={{ color: C.amber, fontWeight: 700, fontSize: 13 }}>✦ Pro plan</div>
+            </div>
+            {[
+              { free: '30 AI parses/month via Telegram', pro: 'Unlimited AI parses' },
+              { free: 'All app features included', pro: 'All app features included' },
+              { free: 'Number wizard — always free', pro: 'Number wizard — always free' },
+            ].map(({ free, pro }, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 6 }}>
+                <div style={{ fontSize: 11, color: C.text2 }}>✓ {free}</div>
+                <div style={{ fontSize: 11, color: C.amber }}>✦ {pro}</div>
+              </div>
+            ))}
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+              Upgrade to Pro any time from Settings. You can always start on the free plan.
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: 12 }}>
@@ -385,7 +456,7 @@ export function SetupWizard({ onComplete }: Props) {
         </div>
 
         <button
-          onClick={() => onComplete(mode, nameA.trim(), isSolo ? '' : nameB.trim() || 'Partner B')}
+          onClick={() => onComplete(mode, nameA.trim(), isSolo ? '' : nameB.trim() || 'Partner B', telegramUsername.trim() || undefined)}
           style={{ ...primaryBtn(), width: '100%', padding: '15px 36px', fontSize: 16 }}
         >
           Open FamilyFinance →
