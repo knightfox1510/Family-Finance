@@ -381,9 +381,10 @@ export function UsageMeter({ count, limit, pct }: { count: number; limit: number
 // ThemePicker — three theme options with live preview swatches
 // ---------------------------------------------------------------------------
 const THEMES = [
-  { id: 'dark-navy',  label: 'Navy',  swatches: ['#0b0f1a', '#131928', '#f59e0b'] },
-  { id: 'dark-slate', label: 'Slate', swatches: ['#0f1117', '#1a1d27', '#e9a23b'] },
+  { id: 'dark-navy',  label: 'Navy',    swatches: ['#0b0f1a', '#131928', '#f59e0b'] },
+  { id: 'dark-slate', label: 'Slate',   swatches: ['#0f1117', '#1a1d27', '#e9a23b'] },
   { id: 'dark-green', label: 'Emerald', swatches: ['#080f0e', '#0d1a17', '#34d399'] },
+  { id: 'light',      label: 'Light',   swatches: ['#f4f6fb', '#ffffff', '#d97706'] },
 ] as const;
 
 export function ThemePicker({ current, onChange }: { current: string; onChange: (t: string) => void }) {
