@@ -136,6 +136,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   const [newIncCat, setNewIncCat] = useState('');
   const [joinId, setJoinId]       = useState('');
   const [expandedMode, setExpandedMode] = useState<string | null>(null);
+  const [expandedTg, setExpandedTg]     = useState(false);
   const [downgradeModal, setDowngradeModal]   = useState<SwitchInfo | null>(null);
   const [pendingSettings, setPendingSettings] = useState<SettingsType | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -381,36 +382,60 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
           Adjusts which features are available. No data is ever deleted when switching modes.
         </p>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {modes.map((m) => {
             const meta   = HOUSEHOLD_MODE_META[m];
             const active = s.householdMode === m;
             const isOpen = expandedMode === m;
             return (
-              <div key={m} style={{ flex: '1 1 180px' }}>
-                <button onClick={() => setS((x) => ({ ...x, householdMode: m }))}
-                  style={{ width: '100%', textAlign: 'left', cursor: 'pointer',
-                    background: active ? C.amber + '22' : C.bg,
+              <div key={m}>
+                {/* Mode row — click to select, chevron to expand */}
+                <div
+                  onClick={() => setS((x) => ({ ...x, householdMode: m }))}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                    background: active ? C.amber + '18' : C.bg,
                     border: `2px solid ${active ? C.amber : C.border}`,
-                    borderRadius: isOpen ? '10px 10px 0 0' : 10, padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontSize: 18, marginBottom: 4 }}>{meta.icon}</div>
-                      <div style={{ color: C.textW, fontWeight: 700, fontSize: 13 }}>{meta.label}</div>
-                      <div style={{ color: C.text2, fontSize: 11, marginTop: 3, lineHeight: 1.4 }}>{meta.description}</div>
-                    </div>
-                    <button onClick={(e) => { e.stopPropagation(); setExpandedMode(isOpen ? null : m); }}
-                      title={isOpen ? 'Hide details' : 'Show details'}
-                      style={{ background: isOpen ? C.amber + '22' : `${C.border}44`, border: 'none', borderRadius: 4, width: 20, height: 20, cursor: 'pointer', fontSize: 11, color: isOpen ? C.amber : C.muted, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, marginLeft: 6 }}>
-                      ℹ
-                    </button>
+                    borderRadius: isOpen ? '10px 10px 0 0' : 10,
+                    padding: '12px 14px', transition: 'all 0.2s' }}
+                >
+                  {/* Active indicator dot */}
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                    border: `2px solid ${active ? C.amber : C.border}`,
+                    background: active ? C.amber : 'transparent',
+                    transition: 'all 0.2s' }} />
+                  <span style={{ fontSize: 18 }}>{meta.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: C.textW, fontWeight: 700, fontSize: 14 }}>{meta.label}</div>
+                    <div style={{ color: C.text2, fontSize: 12, marginTop: 2, lineHeight: 1.4 }}>{meta.description}</div>
                   </div>
-                </button>
+                  {/* Chevron toggle */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setExpandedMode(isOpen ? null : m); }}
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer',
+                      color: isOpen ? C.amber : C.muted, fontSize: 14, padding: '4px 6px',
+                      display: 'flex', alignItems: 'center', flexShrink: 0,
+                      transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s, color 0.2s' }}
+                  >
+                    ▾
+                  </button>
+                </div>
+
+                {/* Expandable detail panel — full width, below the row */}
                 {isOpen && (
-                  <div style={{ background: `${C.amber}08`, border: `2px solid ${active ? C.amber : C.border}`, borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '10px 14px' }}>
-                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 8 }}>What you get:</div>
+                  <div style={{ background: `${C.amber}08`,
+                    border: `2px solid ${active ? C.amber : C.border}`, borderTop: 'none',
+                    borderRadius: '0 0 10px 10px', padding: '12px 16px' }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 600,
+                      textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 10 }}>
+                      What you get with {meta.label}:
+                    </div>
                     {((meta as any).detail as string[]).map((line: string, i: number) => (
-                      <div key={i} style={{ fontSize: 12, color: C.text2, marginBottom: 6, lineHeight: 1.5 }}>{line}</div>
+                      <div key={i} style={{ fontSize: 13, color: C.text2, marginBottom: 8,
+                        lineHeight: 1.5, display: 'flex', gap: 8 }}>
+                        <span style={{ flexShrink: 0 }}>{line.slice(0, 2)}</span>
+                        <span>{line.slice(2)}</span>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -491,8 +516,21 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
           )}
         </div>
 
-        {/* Setup guide — always visible */}
-        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 16px' }}>
+        {/* Setup guide — collapsible */}
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <button
+            onClick={() => setExpandedTg((v) => !v)}
+            style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '12px 16px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+            <span style={{ fontSize: 12, color: C.muted, fontWeight: 600,
+              textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
+              {expandedTg ? 'Hide setup guide' : 'How to set up & logging syntax'}
+            </span>
+            <span style={{ color: C.muted, fontSize: 14,
+              transform: expandedTg ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s', display: 'inline-block' }}>▾</span>
+          </button>
+          {expandedTg && <div style={{ padding: '0 16px 14px' }}>
           <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 12 }}>
             How to set up
           </div>
@@ -523,6 +561,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               </div>
             ))}
           </div>
+          </div>}
         </div>
       </Card>
 
