@@ -26,9 +26,12 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+// planUtils runs in the BROWSER (dynamic import from page.tsx).
+// Must use the anon key — SUPABASE_SERVICE_ROLE_KEY is undefined client-side.
+// The anon key with RLS is sufficient for reading your own household row.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   { auth: { persistSession: false, autoRefreshToken: false } }
 );
 
