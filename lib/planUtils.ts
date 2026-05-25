@@ -51,7 +51,7 @@ export async function canUseAI(householdId: string): Promise<{
 }> {
   const { data, error } = await supabase
     .from('households')
-    .select('plan, ai_parse_count, usage_month')
+    .select('*')
     .eq('id', householdId)
     .single();
 
@@ -98,21 +98,23 @@ export async function getUsageSummary(householdId: string): Promise<{
   month: string;
   pct: number;
 }> {
+  // Select all columns — use * so missing columns don't cause a hard error
   const { data, error } = await supabase
     .from('households')
-    .select('plan, ai_parse_count, usage_month')
+    .select('*')
     .eq('id', householdId)
     .single();
 
-  // If error or columns missing (migration not yet run), return safe free-plan default
+  console.log('planUtils.getUsageSummary', { householdId, data, error });
+
   if (error || !data) {
     console.warn('planUtils.getUsageSummary: could not read households row.', error?.message);
-    return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, remaining: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
+    return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
   }
 
-  // Handle case where columns exist but have null values (row pre-dates migration)
+  // Handle null values — column may exist but be NULL for rows pre-dating migration
   if (data.ai_parse_count === null || data.ai_parse_count === undefined) {
-    return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, remaining: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
+    return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
   }
 
   const plan: Plan = data.plan === 'pro' ? 'pro' : 'free';
