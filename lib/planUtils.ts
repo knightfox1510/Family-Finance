@@ -109,12 +109,12 @@ export async function getUsageSummary(householdId: string): Promise<{
 
   if (error || !data) {
     console.warn('planUtils.getUsageSummary: could not read households row.', error?.message);
-    return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
+    return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, remaining: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
   }
 
   // Handle null values — column may exist but be NULL for rows pre-dating migration
   if (data.ai_parse_count === null || data.ai_parse_count === undefined) {
-    return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
+    return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, remaining: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
   }
 
   const plan: Plan = data.plan === 'pro' ? 'pro' : 'free';
