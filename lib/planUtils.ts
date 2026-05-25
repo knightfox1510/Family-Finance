@@ -55,9 +55,9 @@ export async function canUseAI(householdId: string): Promise<{
     .eq('id', householdId)
     .single();
 
-  if (error || !data) {
-    // If we can't read the record, fail open (allow) to avoid blocking real users
-    console.error('planUtils.canUseAI error:', error?.message);
+  if (error || !data || data.ai_parse_count === null || data.ai_parse_count === undefined) {
+    // Columns may not exist yet (migration pending) — fail open so users aren't blocked
+    console.warn('planUtils.canUseAI: falling back to free defaults.', error?.message);
     return { allowed: true, plan: 'free', count: 0, remaining: FREE_MONTHLY_LIMIT };
   }
 
@@ -104,7 +104,14 @@ export async function getUsageSummary(householdId: string): Promise<{
     .eq('id', householdId)
     .single();
 
+  // If error or columns missing (migration not yet run), return safe free-plan default
   if (error || !data) {
+    console.warn('planUtils.getUsageSummary: could not read households row.', error?.message);
+    return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, remaining: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
+  }
+
+  // Handle case where columns exist but have null values (row pre-dates migration)
+  if (data.ai_parse_count === null || data.ai_parse_count === undefined) {
     return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, remaining: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
   }
 
