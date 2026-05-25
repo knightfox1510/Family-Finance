@@ -137,6 +137,41 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   const [joinId, setJoinId]       = useState('');
   const [expandedMode, setExpandedMode] = useState<string | null>(null);
   const [expandedTg, setExpandedTg]     = useState(false);
+
+  // Collapsed section state — all start collapsed for a clean initial view
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const toggleSection = (id: string) => setOpenSection((s) => s === id ? null : id);
+
+  // Helper: collapsible card wrapper
+  const CollapsibleCard = ({
+    id, title, badge, children, defaultOpen = false,
+  }: { id: string; title: string; badge?: string; children: React.ReactNode; defaultOpen?: boolean }) => {
+    const isOpen = openSection === id || (defaultOpen && openSection === null);
+    return (
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <button
+          onClick={() => toggleSection(id)}
+          style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '16px 20px', background: 'transparent', border: 'none', cursor: 'pointer',
+            textAlign: 'left' as const }}
+        >
+          <div>
+            <span style={{ color: C.textW, fontWeight: 700, fontSize: 14 }}>{title}</span>
+            {badge && !isOpen && (
+              <span style={{ marginLeft: 10, fontSize: 11, color: C.muted, fontWeight: 400 }}>{badge}</span>
+            )}
+          </div>
+          <span style={{ color: C.muted, fontSize: 13, transition: 'transform 0.2s', display: 'inline-block',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
+        </button>
+        {isOpen && (
+          <div style={{ padding: '0 20px 20px', borderTop: `1px solid ${C.border}` }}>
+            {children}
+          </div>
+        )}
+      </Card>
+    );
+  };
   const [downgradeModal, setDowngradeModal]   = useState<SwitchInfo | null>(null);
   const [pendingSettings, setPendingSettings] = useState<SettingsType | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -405,19 +440,9 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </Card>
 
-      {/* ── Theme ──────────────────────────────────────────────── */}
-      {onThemeChange && (
-        <Card>
-          <SectionTitle>App Theme</SectionTitle>
-          <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>Changes take effect immediately.</p>
-          <ThemePicker current={theme} onChange={onThemeChange} />
-        </Card>
-      )}
-
       {/* ── Household Mode ──────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Household Mode</SectionTitle>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
+      <CollapsibleCard id="mode" title="Household Mode" badge={HOUSEHOLD_MODE_META[s.householdMode]?.label ?? ''}>
+        <p style={{ color: C.muted, fontSize: 13, margin: '14px 0', lineHeight: 1.5 }}>
           Adjusts which features are available. No data is ever deleted when switching modes.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -481,7 +506,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             );
           })}
         </div>
-      </Card>
+      </CollapsibleCard>
 
       {/* ── Partner Names ─────────────────────────────────────────────────── */}
       <Card>
@@ -604,8 +629,8 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
       </Card>
 
       {/* ── Expense Categories ────────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Expense Categories</SectionTitle>
+      <CollapsibleCard id="expCats" title="Expense Categories" badge={`${s.expenseCategories.length} categories`}>
+        <div style={{ paddingTop: 14 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
           {s.expenseCategories.map((c) => (
             <span key={c} style={{
@@ -627,11 +652,12 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             style={{ flex: 1 }} />
           <Btn variant="ghost" onClick={addExpCat}>Add</Btn>
         </div>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
       {/* ── Income Categories ─────────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Income Categories</SectionTitle>
+      <CollapsibleCard id="incCats" title="Income Categories" badge={`${s.incomeCategories.length} categories`}>
+        <div style={{ paddingTop: 14 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
           {s.incomeCategories.map((c) => (
             <span key={c} style={catPillStyle}>
@@ -646,12 +672,14 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             style={{ flex: 1 }} />
           <Btn variant="ghost" onClick={addIncCat}>Add</Btn>
         </div>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
       {/* ── Category Budgets ──────────────────────────────────────────────── */}
-      <Card>
+      <CollapsibleCard id="budgets" title="Category Budgets" badge={`${Object.values(s.budgets).filter(Boolean).length} limits set`}>
+        <div style={{ paddingTop: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-          <SectionTitle style={{ margin: 0 }}>Category Budgets (Monthly)</SectionTitle>
+          <span style={{ fontSize: 12, color: C.muted }}>Monthly limit per category. Overages flagged on dashboard.</span>
           {Object.keys(s.budgets).some((k) => s.budgets[k] !== undefined) && (
             <button
               onClick={() => {
@@ -668,20 +696,29 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
           Set a monthly spending limit per category. Overages are flagged on the dashboard.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {s.expenseCategories.map((c) => (
-            <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: C.text1, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c}</span>
-              <Inp type="number" placeholder="No limit" value={s.budgets[c] ?? ''}
+            <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              <span style={{ color: C.text1, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                {c}
+              </span>
+              <input
+                type="number"
+                placeholder="No limit"
+                value={s.budgets[c] ?? ''}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   const v = e.target.value;
                   setS((x) => ({ ...x, budgets: { ...x.budgets, [c]: v ? Number(v) : undefined } }));
                 }}
-                style={{ width: 100, padding: '6px 10px', fontSize: 12 }} />
+                style={{ width: 88, flexShrink: 0, padding: '6px 8px', fontSize: 13,
+                  background: C.bg, border: `1px solid ${C.border}`, color: C.textW,
+                  borderRadius: 6, outline: 'none', WebkitAppearance: 'none' as any }}
+              />
             </div>
           ))}
         </div>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
       {/* ── Push Notifications ────────────────────────────────────────────── */}
       <Card>
@@ -729,8 +766,8 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
       </Card>
 
       {/* ── Data Management ───────────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Data Management</SectionTitle>
+      <CollapsibleCard id="dataMgmt" title="Data Management">
+        <div style={{ paddingTop: 14 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Export to Excel</div>
@@ -760,9 +797,19 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             </div>
           </div>
         </div>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
-      {/* ── Join Partner's Household ──────────────────────────────────────── */}
+      {/* ── App Theme ───────────────────────────────────────────── */}
+      {onThemeChange && (
+        <CollapsibleCard id="theme" title="App Theme" badge={theme === 'light' ? 'Light' : theme === 'dark-green' ? 'Emerald' : theme === 'dark-slate' ? 'Slate' : 'Navy'}>
+          <div style={{ paddingTop: 14 }}>
+            <ThemePicker current={theme} onChange={onThemeChange} />
+          </div>
+        </CollapsibleCard>
+      )}
+
+      {/* ── Join Partner's Household ────────────────────────────────── */}
       <Card>
         <SectionTitle>Join Partner's Household</SectionTitle>
         <p style={{ color: C.muted, fontSize: 13, margin: '0 0 12px' }}>
