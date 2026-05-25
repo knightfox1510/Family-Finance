@@ -10,30 +10,23 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'FamilyFinance',
   },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  // Prevents iOS from zooming on input focus (belt-and-suspenders alongside font-size:16px)
   userScalable: false,
-  viewportFit: 'cover', // Allows content to extend into the notch/home-indicator area
+  viewportFit: 'cover',
   themeColor: '#0b0f1a',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme="dark-navy" suppressHydrationWarning>
-      {/*
-        suppressHydrationWarning is required because we set data-theme on the
-        client via localStorage — the server always renders "dark-navy" and the
-        client immediately updates it, causing a harmless mismatch that React
-        would otherwise warn about.
-
-        The inline script below reads localStorage BEFORE React hydrates so
-        there is zero flash of the wrong theme, even on fast connections.
-      */}
       <head>
         <script
           dangerouslySetInnerHTML={{
