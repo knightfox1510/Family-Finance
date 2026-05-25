@@ -240,10 +240,10 @@ export default function App() {
         .then(setPlanInfo)
         .catch(() => {
           // Columns may not exist yet — show safe free-plan default
-          setPlanInfo({ plan: 'free', count: 0, limit: 30, remaining: 30, month: new Date().toISOString().slice(0, 7), pct: 0 });
+          setPlanInfo({ plan: 'free', count: 0, limit: 30, month: new Date().toISOString().slice(0, 7), pct: 0 });
         });
     }).catch(() => {
-      setPlanInfo({ plan: 'free', count: 0, limit: 30, remaining: 30, month: new Date().toISOString().slice(0, 7), pct: 0 });
+      setPlanInfo({ plan: 'free', count: 0, limit: 30, month: new Date().toISOString().slice(0, 7), pct: 0 });
     });
   }, [data?.householdId]);
 
