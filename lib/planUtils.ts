@@ -51,13 +51,12 @@ export async function canUseAI(householdId: string): Promise<{
 }> {
   const { data, error } = await supabase
     .from('households')
-    .select('*')
+    .select('id, plan, ai_parse_count, usage_month')
     .eq('id', householdId)
     .single();
 
   if (error || !data || data.ai_parse_count === null || data.ai_parse_count === undefined) {
-    // Columns may not exist yet (migration pending) — fail open so users aren't blocked
-    console.warn('planUtils.canUseAI: falling back to free defaults.', error?.message);
+    // Row missing or columns not yet migrated — fail open
     return { allowed: true, plan: 'free', count: 0, remaining: FREE_MONTHLY_LIMIT };
   }
 
@@ -98,21 +97,41 @@ export async function getUsageSummary(householdId: string): Promise<{
   month: string;
   pct: number;
 }> {
-  // Select all columns — use * so missing columns don't cause a hard error
-  const { data, error } = await supabase
+  // Try households table first (has plan/usage columns after migration).
+  // If no row exists there, the household was created before Auth.tsx was updated.
+  // In that case, insert a row now so future tracking works.
+  let { data, error } = await supabase
     .from('households')
-    .select('*')
+    .select('id, plan, ai_parse_count, usage_month')
     .eq('id', householdId)
     .single();
 
-  console.log('planUtils.getUsageSummary', { householdId, data, error });
+  if ((error || !data) && householdId) {
+    // Row missing — insert it now (idempotent via ON CONFLICT DO NOTHING equivalent)
+    const { error: insertErr } = await supabase
+      .from('households')
+      .insert({ id: householdId })
+      .select()
+      .single();
+
+    if (!insertErr) {
+      // Re-fetch after insert
+      const refetch = await supabase
+        .from('households')
+        .select('id, plan, ai_parse_count, usage_month')
+        .eq('id', householdId)
+        .single();
+      data  = refetch.data;
+      error = refetch.error;
+    }
+  }
 
   if (error || !data) {
-    console.warn('planUtils.getUsageSummary: could not read households row.', error?.message);
+    console.warn('planUtils.getUsageSummary: could not read/create households row.', error?.message);
     return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, remaining: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
   }
 
-  // Handle null values — column may exist but be NULL for rows pre-dating migration
+  // Handle null values — column exists but NULL for rows pre-dating migration
   if (data.ai_parse_count === null || data.ai_parse_count === undefined) {
     return { plan: 'free', count: 0, limit: FREE_MONTHLY_LIMIT, remaining: FREE_MONTHLY_LIMIT, month: currentMonth(), pct: 0 };
   }
