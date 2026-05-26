@@ -209,501 +209,268 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
       .sort((a, b) => b.month.localeCompare(a.month));
   }, [data.expenses, data.contributions]);
 
-  const toggleBtnStyle = (active: boolean): React.CSSProperties => ({
-    padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: active ? 700 : 500,
-    background: active ? C.amber : 'transparent', color: active ? C.bg : C.text2,
-    border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+  // ── Helper styles (NeoPOP) ───────────────────────────────────────────────
+  const neo = (active: boolean): React.CSSProperties => ({
+    padding: '6px 14px', fontSize: 12, fontWeight: active ? 800 : 500,
+    background: active ? C.accent : 'transparent',
+    color: active ? '#09090b' : C.text3,
+    border: 'none', cursor: 'pointer',
+    letterSpacing: '0.04em', textTransform: 'uppercase', fontFamily: 'inherit',
   });
-  const labelStyle: React.CSSProperties = { color: C.text2, fontSize: 12, fontWeight: 600 };
+
+  const fmt2 = (n: number) => fmt ? fmt(n) : '₹' + Math.round(n).toLocaleString('en-IN');
+
+  // Quick tray items for top of dashboard
+  const quickItems = [
+    { icon: '📥', label: 'Income', value: fmt2(periodIncome), color: C.green },
+    { icon: '🛒', label: 'Lifestyle', value: fmt2(trueLifestyleExpenses), color: C.accent },
+    { icon: '📈', label: 'Invested', value: fmt2(periodInvested), color: C.teal },
+    { icon: '💰', label: 'Retained', value: fmt2(Math.max(0, capitalRetained)), color: capitalRetained >= 0 ? C.green : C.red },
+    ...(isJoint ? [{ icon: '🏦', label: 'Joint Bal', value: fmt2(currentJointBalance), color: currentJointBalance < 5000 ? C.red : C.teal }] : []),
+  ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* Filter Controls */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <Card style={{ padding: '12px 18px', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div style={{ background: C.bg, padding: 3, borderRadius: 8, display: 'inline-flex', border: `1px solid ${C.border}` }}>
-              <button onClick={() => setRangeMode('month')} style={toggleBtnStyle(rangeMode === 'month')}>Single Month</button>
-              <button onClick={() => setRangeMode('year')}  style={toggleBtnStyle(rangeMode === 'year')}>Current Year</button>
-              <button onClick={() => setRangeMode('custom')} style={toggleBtnStyle(rangeMode === 'custom')}>Custom Range</button>
-            </div>
-            {rangeMode === 'year' ? (
-              <span style={{ fontSize: 13, color: C.text2, fontWeight: 600 }}>Jan – Dec {currentYear}</span>
-            ) : rangeMode === 'month' ? (
-              <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
-                {allAvailableMonths.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
-              </select>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <input type="date" value={customDates.start} onChange={(e) => setCustomDates({ ...customDates, start: e.target.value })} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 8, padding: '4px 8px', width: 130, outline: 'none' }} />
-                <span style={{ color: C.muted, fontSize: 12 }}>to</span>
-                <input type="date" value={customDates.end} onChange={(e) => setCustomDates({ ...customDates, end: e.target.value })} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 8, padding: '4px 8px', width: 130, outline: 'none' }} />
-              </div>
-            )}
+      {/* ── Quick metric tray ─────────────────────────────────────────────── */}
+      <div className="neo-tray" style={{ padding: '4px 0 8px' }}>
+        {quickItems.map((item) => (
+          <div key={item.label} className="neo-tray-card" style={{ minWidth: 100 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.text3, marginBottom: 6 }}>{item.label}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.03em', color: item.color, lineHeight: 1 }}>{item.value}</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={labelStyle}>Account:</span>
-            <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>
-              <option value="All">All Accounts</option>
-              {isJoint && <option value="Joint">Joint Only</option>}
-              {hasPartner && <option value="PersonalOnly">{names.a} & {names.b} (Personal)</option>}
-              <option value={names.a}>{names.a} Only</option>
-              {hasPartner && <option value={names.b}>{names.b} Only</option>}
-            </select>
-          </div>
-        </Card>
+        ))}
       </div>
 
-      {/* Core Metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
-        {isJoint && (
-          <div onClick={() => setShowAudit(true)} style={{ cursor: 'pointer', transition: 'transform 0.2s' }} onMouseOver={(e) => (e.currentTarget.style.transform = 'scale(1.02)')} onMouseOut={(e) => (e.currentTarget.style.transform = 'scale(1)')}>
-            <StatCard label="Joint Balance (Click to Audit)" value={fmt(currentJointBalance)} accent={currentJointBalance < 5000 ? C.red : C.green} icon="💰" sub={`Spent this period: ${fmt(periodJointSpent)}`} />
-          </div>
-        )}
-        <StatCard label="Lifestyle Spending" value={fmt(trueLifestyleExpenses)} accent={C.amber} icon="🛒" sub="Excluding investments" />
-      </div>
-
-      {/* Partner Activity */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16 }}>
-        <Card style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <div>
-            <SectionTitle>Partner Activity Breakdown</SectionTitle>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-              {([
-                { name: names.a, color: C.purple, lifestyle: personalLifestyleA, invested: personalInvestedA, contrib: contribA, income: incomeA, retained: capitalRetainedA, show: true },
-                { name: names.b, color: C.blue,   lifestyle: personalLifestyleB, invested: personalInvestedB, contrib: contribB, income: incomeB, retained: capitalRetainedB, show: hasPartner },
-              ] as any[]).filter((p) => p.show).map((p) => {
-                const JOINT_COLOR   = '#f97316';
-                const totalOut      = p.lifestyle + p.invested + (isJoint ? p.contrib : 0);
-                const isOverBudget  = p.income > 0 && totalOut > p.income;
-                // Raw percentages (unclamped so overflow is visible)
-                const rawPct = (n: number) => p.income > 0 ? (n / p.income) * 100 : 0;
-                const iRaw  = rawPct(p.invested);
-                const cRaw  = isJoint ? rawPct(p.contrib) : 0;
-                // Lifestyle fills whatever remains; clamp non-lifestyle first
-                const nonLifestyle = Math.min(iRaw + cRaw, 100);
-                const lRaw  = rawPct(p.lifestyle);
-                const lBarPct = Math.max(0, Math.min(lRaw, 100 - nonLifestyle)); // capped at remaining space
-                const retained = Math.max(0, 100 - nonLifestyle - lRaw);
-                return (
-                  <div key={p.name} style={{ background: C.bg, padding: '14px 16px', borderRadius: 10, border: `1px solid ${isOverBudget ? C.red : C.border}` }}>
-
-                    {/* Header */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12, paddingBottom: 8, borderBottom: `1px solid ${C.border}44` }}>
-                      <span style={{ color: p.color, fontWeight: 700, fontSize: 14 }}>{p.name}</span>
-                      {p.income > 0 && (
-                        <span style={{ fontSize: 11, color: isOverBudget ? C.red : C.muted }}>
-                          {isOverBudget ? '⚠️ ' : ''}Outflow: <strong style={{ color: isOverBudget ? C.red : p.color }}>{fmt(totalOut)}</strong>
-                          {' '}of <strong style={{ color: C.green }}>{fmt(p.income)}</strong>
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Metrics: Income · Lifestyle · To Assets · Joint Pool · Retained */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 10, marginBottom: 14 }}>
-                      {([
-                        { label: 'Income',     value: fmt(p.income),    color: C.green,                          sub: null },
-                        { label: 'Lifestyle',  value: fmt(p.lifestyle), color: C.amber,                          sub: null },
-                        { label: 'To Assets',  value: fmt(p.invested),  color: C.teal,                           sub: null },
-                        ...(isJoint ? [{ label: 'Joint Pool', value: fmt(p.contrib), color: JOINT_COLOR, sub: 'contributed' }] : []),
-                        { label: 'Retained',   value: fmt(p.retained),  color: p.retained >= 0 ? C.green : C.red, sub: 'after all out' },
-                      ] as { label: string; value: string; color: string; sub: string | null }[]).map(({ label, value, color, sub }) => (
-                        <div key={label}>
-                          <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>{label}</div>
-                          <div style={{ fontSize: 15, fontWeight: 800, color }}>{value}</div>
-                          {sub && <div style={{ fontSize: 9, color: C.muted, marginTop: 1 }}>{sub}</div>}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Allocation bar: Invested → Joint Pool → Retained → Lifestyle (last, red if overflow) */}
-                    {p.income > 0 ? (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                          <span style={{ fontSize: 11, color: C.muted, fontWeight: 600 }}>Income allocation</span>
-                          <span style={{ fontSize: 11, color: isOverBudget ? C.red : C.textW, fontWeight: 700 }}>
-                            {isOverBudget ? `⚠️ ${(rawPct(totalOut) - 100).toFixed(0)}% over` : `${retained.toFixed(0)}% retained`}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 1, marginBottom: 8 }}>
-                          {iRaw > 0   && <div title={`Invested: ${iRaw.toFixed(0)}%`}    style={{ width: `${Math.min(iRaw, 100)}%`,     background: C.teal,      transition: 'width 0.4s' }} />}
-                          {cRaw > 0   && <div title={`Joint Pool: ${cRaw.toFixed(0)}%`}  style={{ width: `${Math.min(cRaw, 100 - Math.min(iRaw,100))}%`, background: JOINT_COLOR, transition: 'width 0.4s' }} />}
-                          {retained > 0 && <div title={`Retained: ${retained.toFixed(0)}%`} style={{ flex: isOverBudget ? undefined : 1, width: isOverBudget ? `${retained}%` : undefined, background: C.green, transition: 'width 0.4s' }} />}
-                          {lBarPct > 0 && <div title={`Lifestyle: ${lRaw.toFixed(0)}%`}  style={{ flex: 1, background: isOverBudget ? C.red : C.amber, transition: 'width 0.4s' }} />}
-                        </div>
-                        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                          {[
-                            { label: 'Invested',   pct: iRaw,    color: C.teal,      show: iRaw > 0  },
-                            ...(isJoint ? [{ label: 'Joint Pool', pct: cRaw, color: JOINT_COLOR, show: cRaw > 0 }] : []),
-                            { label: 'Retained',   pct: retained, color: C.green,    show: retained > 0 },
-                            { label: 'Lifestyle',  pct: lRaw,    color: isOverBudget ? C.red : C.amber, show: lRaw > 0 },
-                          ].filter((s) => s.show).map(({ label, pct, color }) => (
-                            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
-                              <div style={{ width: 6, height: 6, borderRadius: 1, background: color }} />
-                              <span style={{ color: label === 'Lifestyle' && isOverBudget ? C.red : C.text2 }}>{label}</span>
-                              <span style={{ color: label === 'Lifestyle' && isOverBudget ? C.red : C.textW, fontWeight: 700 }}>{pct.toFixed(0)}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ fontSize: 11, color: C.muted, fontStyle: 'italic' }}>
-                        Log {p.name}&apos;s income to see allocation.
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div style={{ color: C.muted, fontSize: 11, fontStyle: 'italic', padding: '12px 4px 0' }}>
-            {isJoint ? 'Reflects personal out-of-pocket spending vs joint seed transfers.' : isSolo ? 'Your personal spending and investment breakdown.' : 'Reflects each partner\'s personal out-of-pocket spending.'}
-          </div>
-        </Card>
-
-      </div>
-
-      {/* Asset Allocation Breakdown */}
-      <Card>
-        <SectionTitle>Asset Allocation Breakdown</SectionTitle>
-        {assetDetailEntries.length === 0 ? (
-          <p style={{ color: C.muted, fontSize: 13 }}>
-            No investment or insurance transactions in this period. Log investments under the "Investments" or "Insurance" categories to see your allocation.
-          </p>
+      {/* ── Filter bar ───────────────────────────────────────────────────── */}
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.neoShadowSm, padding: '12px 16px', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+        <div style={{ display: 'flex', border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+          <button onClick={() => setRangeMode('month')}  style={neo(rangeMode === 'month')}>Month</button>
+          <button onClick={() => setRangeMode('year')}   style={{ ...neo(rangeMode === 'year'),  borderLeft: `1px solid ${C.border}` }}>Year</button>
+          <button onClick={() => setRangeMode('custom')} style={{ ...neo(rangeMode === 'custom'), borderLeft: `1px solid ${C.border}` }}>Custom</button>
+        </div>
+        {rangeMode === 'month' ? (
+          <select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}
+            className="neo-input" style={{ padding: '6px 10px', fontSize: 12, width: 'auto', minHeight: 'auto' }}>
+            {allAvailableMonths.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+          </select>
+        ) : rangeMode === 'year' ? (
+          <span style={{ fontSize: 12, color: C.text2, fontWeight: 600 }}>{currentYear}</span>
         ) : (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ color: C.text2, fontSize: 13 }}>Total deployed to assets this period</span>
-              <span style={{ color: C.teal, fontWeight: 800, fontSize: 18 }}>{fmt(periodInvested)}</span>
-            </div>
-            {assetDetailEntries.map(([asset, amt], i) => {
-              const pct = (amt / periodInvested) * 100;
-              const color = ASSET_COLORS[i % ASSET_COLORS.length];
-              return (
-                <div key={asset} style={{ marginBottom: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ color: C.text1, fontSize: 13 }}>{asset}</span>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <span style={{ color: C.muted, fontSize: 12 }}>{pct.toFixed(0)}%</span>
-                      <span style={{ color, fontSize: 13, fontWeight: 700 }}>{fmt(amt)}</span>
-                    </div>
-                  </div>
-                  <ProgressBar pct={pct} color={color} />
-                </div>
-              );
-            })}
-            {trueLifestyleExpenses > 0 && (
-              <div style={{ marginTop: 16, padding: '10px 14px', background: C.bg, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                <span style={{ color: C.muted, fontSize: 12 }}>Investment to Lifestyle ratio</span>
-                <span style={{ fontWeight: 700, fontSize: 13, color: periodInvested >= trueLifestyleExpenses ? C.teal : C.amber }}>
-                  {fmt(periodInvested)} invested : {fmt(trueLifestyleExpenses)} lifestyle
-                  {' '}({((periodInvested / trueLifestyleExpenses) * 100).toFixed(0)}%)
-                </span>
-              </div>
-            )}
-          </>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input type="date" value={customDates.start} onChange={(e) => setCustomDates({ ...customDates, start: e.target.value })}
+              className="neo-input" style={{ padding: '6px 8px', fontSize: 12, width: 130, minHeight: 'auto' }} />
+            <span style={{ color: C.text3, fontSize: 11 }}>to</span>
+            <input type="date" value={customDates.end} onChange={(e) => setCustomDates({ ...customDates, end: e.target.value })}
+              className="neo-input" style={{ padding: '6px 8px', fontSize: 12, width: 130, minHeight: 'auto' }} />
+          </div>
         )}
-      </Card>
+        <select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}
+          className="neo-input" style={{ padding: '6px 10px', fontSize: 12, width: 'auto', minHeight: 'auto', marginLeft: 'auto' }}>
+          <option value="All">All accounts</option>
+          {isJoint && <option value="Joint">Joint only</option>}
+          {hasPartner && <option value="PersonalOnly">Personal only</option>}
+          <option value={names.a}>{names.a}</option>
+          {hasPartner && <option value={names.b}>{names.b}</option>}
+        </select>
+      </div>
 
-      {/* Wealth Retention Velocity */}
-      <Card>
-        <SectionTitle>Household Wealth Retention Velocity</SectionTitle>
-        {(() => {
-          // Household-level bar uses same logic: invested first, contrib, retained, lifestyle last
-          const hInvested    = periodInvested;
-          const hContrib     = isJoint ? periodContrib : 0;
-          const hJointLife   = isJoint ? jointLifestyle : 0;
-          const hPersonalLife = personalLifestyleA + personalLifestyleB;
-          const hTotalOut    = hPersonalLife + hJointLife + hInvested; // contrib excluded
-          const hOverBudget  = periodIncome > 0 && hTotalOut > periodIncome;
-          const hRaw = (n: number) => periodIncome > 0 ? (n / periodIncome) * 100 : 0;
-          const hiRaw  = hRaw(hInvested);
-          const hcRaw  = hRaw(hContrib);
-          const hjlRaw = hRaw(hJointLife);
-          const nonLife = Math.min(hiRaw + hjlRaw, 100);
-          const hPlRaw  = hRaw(hPersonalLife);
-          const hRetained = Math.max(0, 100 - nonLife - hPlRaw);
-          return (
-            <>
-              {/* 6 metric tiles:
-                  Income · Personal Lifestyle · Joint Lifestyle · Joint Invested · Invested · Retained */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 10, marginBottom: 14 }}>
-                {([
-                  { label: 'Income',           value: fmt(periodIncome),   color: C.green,                            sub: `${names.a} + ${names.b}` },
-                  { label: 'Personal Lifestyle', value: fmt(hPersonalLife), color: C.amber,                            sub: `${names.a} + ${names.b}` },
-                  ...(isJoint && hJointLife > 0 ? [{ label: 'Joint Lifestyle', value: fmt(hJointLife),   color: '#fb923c', sub: 'joint account' }] : []),
-                  ...(isJoint && jointInvested > 0 ? [{ label: 'Joint Invested',  value: fmt(jointInvested), color: '#22d3ee', sub: 'joint account' }] : []),
-                  { label: 'Invested',          value: fmt(personalInvestedA + personalInvestedB), color: C.teal,     sub: 'personal accs' },
-                  { label: 'Retained',          value: fmt(capitalRetained), color: capitalRetained >= 0 ? C.green : C.red, sub: 'after all out' },
-                ] as { label: string; value: string; color: string; sub: string | null }[]).map(({ label, value, color, sub }) => (
-                  <div key={label}>
-                    <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>{label}</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color }}>{value}</div>
-                    {sub && <div style={{ fontSize: 9, color: C.muted, marginTop: 1 }}>{sub}</div>}
+      {/* ── Retention velocity ─────────────────────────────────────────────── */}
+      {(() => {
+        const hPersonalLife = personalLifestyleA + personalLifestyleB;
+        const hJointLife    = isJoint ? jointLifestyle : 0;
+        const hInvested     = periodInvested;
+        const hTotalOut     = hPersonalLife + hJointLife + hInvested;
+        const hOverBudget   = periodIncome > 0 && hTotalOut > periodIncome;
+        const hRaw = (n: number) => periodIncome > 0 ? (n / periodIncome) * 100 : 0;
+        const hiRaw  = hRaw(hInvested);
+        const hjlRaw = hRaw(hJointLife);
+        const hPlRaw = hRaw(hPersonalLife);
+        const hRetained = Math.max(0, 100 - Math.min(hiRaw + hjlRaw, 100) - hPlRaw);
+        return (
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.neoShadow }}>
+            <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.text3 }}>Household Wealth Retention</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: hOverBudget ? C.red : C.green }}>
+                {hOverBudget ? `▲ ${(hRaw(hTotalOut) - 100).toFixed(0)}% over` : `${hRetained.toFixed(0)}% retained`}
+              </div>
+            </div>
+            <div style={{ padding: '14px 16px' }}>
+              {/* Metric grid */}
+              <div className="grid-3" style={{ marginBottom: 14 }}>
+                {[
+                  { label: 'Income', value: fmt2(periodIncome), color: C.green },
+                  { label: 'Personal Lifestyle', value: fmt2(hPersonalLife), color: C.accent },
+                  ...(isJoint && hJointLife > 0 ? [{ label: 'Joint Lifestyle', value: fmt2(hJointLife), color: C.orange }] : []),
+                  { label: 'Invested', value: fmt2(hInvested), color: C.teal },
+                  { label: 'Retained', value: fmt2(Math.max(0, capitalRetained)), color: capitalRetained >= 0 ? C.green : C.red },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ background: C.surface2, border: `1px solid ${C.border}`, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.text3, marginBottom: 6 }}>{label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.03em', color }}>{value}</div>
                   </div>
                 ))}
               </div>
-
-              {/* Bar: Invested → Joint Invested → Joint Pool → Retained → Personal Lifestyle (last) */}
-              {periodIncome > 0 ? (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>How household income was allocated</span>
-                    <span style={{ fontSize: 12, color: hOverBudget ? C.red : C.textW, fontWeight: 700 }}>
-                      {hOverBudget ? `⚠️ ${(hRaw(hTotalOut) - 100).toFixed(0)}% over` : `${hRetained.toFixed(0)}% retained`}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', gap: 1, marginBottom: 8 }}>
-                    {hiRaw > 0   && <div title={`Invested: ${hiRaw.toFixed(0)}%`}          style={{ width: `${Math.min(hiRaw, 100)}%`,   background: C.teal,    transition: 'width 0.4s' }} />}
-                    {isJoint && hjlRaw > 0 && <div title={`Joint Lifestyle: ${hjlRaw.toFixed(0)}%`} style={{ width: `${Math.min(hjlRaw, 100 - Math.min(hiRaw,100))}%`, background: '#fb923c', transition: 'width 0.4s' }} />}
-                    {hRetained > 0 && <div title={`Retained: ${hRetained.toFixed(0)}%`}   style={{ width: `${hRetained}%`, background: C.green, transition: 'width 0.4s' }} />}
-                    {hPlRaw > 0  && <div title={`Personal Lifestyle: ${hPlRaw.toFixed(0)}%`} style={{ flex: 1, background: hOverBudget ? C.red : C.amber, transition: 'width 0.4s' }} />}
+              {/* Stacked bar */}
+              {periodIncome > 0 && (
+                <div>
+                  <div style={{ display: 'flex', height: 8, overflow: 'hidden', gap: 1, marginBottom: 8 }}>
+                    {hiRaw > 0 && <div title={`Invested: ${hiRaw.toFixed(0)}%`} style={{ width: `${Math.min(hiRaw, 100)}%`, background: C.teal, transition: 'width 0.5s' }} />}
+                    {isJoint && hjlRaw > 0 && <div title={`Joint Lifestyle: ${hjlRaw.toFixed(0)}%`} style={{ width: `${Math.min(hjlRaw, 100 - Math.min(hiRaw, 100))}%`, background: C.orange, transition: 'width 0.5s' }} />}
+                    {hRetained > 0 && <div title={`Retained: ${hRetained.toFixed(0)}%`} style={{ width: `${hRetained}%`, background: C.green, transition: 'width 0.5s' }} />}
+                    {hPlRaw > 0 && <div title={`Lifestyle: ${hPlRaw.toFixed(0)}%`} style={{ flex: 1, background: hOverBudget ? C.red : C.accent, transition: 'width 0.5s' }} />}
                   </div>
                   <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     {[
-                      { label: 'Invested',          pct: hiRaw,   color: C.teal,    show: hiRaw > 0   },
-                      { label: 'Joint Lifestyle',   pct: hjlRaw,  color: '#fb923c', show: isJoint && hjlRaw > 0 },
-                      { label: 'Retained',          pct: hRetained, color: C.green, show: hRetained > 0 },
-                      { label: 'Personal Lifestyle', pct: hPlRaw, color: hOverBudget ? C.red : C.amber, show: hPlRaw > 0 },
-                    ].filter((s) => s.show).map(({ label, pct, color }) => (
+                      { label: 'Invested', color: C.teal, pct: hiRaw, show: hiRaw > 0 },
+                      { label: 'Joint Lifestyle', color: C.orange, pct: hjlRaw, show: isJoint && hjlRaw > 0 },
+                      { label: 'Retained', color: C.green, pct: hRetained, show: hRetained > 0 },
+                      { label: 'Personal Lifestyle', color: hOverBudget ? C.red : C.accent, pct: hPlRaw, show: hPlRaw > 0 },
+                    ].filter((s) => s.show).map(({ label, color, pct }) => (
                       <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
-                        <span style={{ color: label === 'Personal Lifestyle' && hOverBudget ? C.red : C.text2 }}>{label}</span>
-                        <span style={{ color: label === 'Personal Lifestyle' && hOverBudget ? C.red : C.textW, fontWeight: 700 }}>{pct.toFixed(0)}%</span>
+                        <div style={{ width: 8, height: 8, background: color }} />
+                        <span style={{ color: C.text3 }}>{label}</span>
+                        <span style={{ color: C.textW, fontWeight: 700 }}>{pct.toFixed(0)}%</span>
                       </div>
                     ))}
                   </div>
-
-                  {/* Breakdown note */}
-                  <div style={{ marginTop: 14, padding: '10px 14px', background: C.bg, borderRadius: 8, fontSize: 12, color: C.muted, lineHeight: 1.8 }}>
-                    💡 <strong style={{ color: C.text1 }}>Personal Lifestyle:</strong> {names.a} {fmt(personalLifestyleA)} + {names.b} {fmt(personalLifestyleB)}
-                    {hasPartner && <><br />
-                    <strong style={{ color: C.text1 }}>Note:</strong> Partner cards show personal spending only. Joint account expenses appear here at the household level.</>}
-                  </div>
-                </>
-              ) : (
-                <div style={{ color: C.muted, fontSize: 13, fontStyle: 'italic' }}>
-                  Log your income for this period to see the allocation breakdown.
                 </div>
               )}
-            </>
-          );
-        })()}
-      </Card>
-
-      {/* Partner Activity Trend — last 6 months */}
-      {/* Category breakdown */}
-      <Card>
-        <SectionTitle>Lifestyle Category Allocation</SectionTitle>
-        {topCats.length === 0 ? <p style={{ color: C.muted, fontSize: 13 }}>No lifestyle expenses matching current criteria.</p> : topCats.map(([cat, amt]) => {
-          const budget = data.settings.budgets[cat];
-          const over = budget && amt > budget;
-          return (
-            <div key={cat} style={{ marginBottom: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ color: C.text1, fontSize: 13 }}>{cat}</span>
-                <span style={{ color: over ? C.red : C.textW, fontSize: 13, fontWeight: 700 }}>{fmt(amt)}{over ? ' ⚠️' : ''}</span>
-              </div>
-              <ProgressBar pct={(amt / maxCat) * 100} color={over ? C.red : C.amber} />
             </div>
-          );
-        })}
-      </Card>
+          </div>
+        );
+      })()}
 
-      {/* ── Shared trend filter ──────────────────────────────────────────────── */}
-      <Card style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Trend window:</span>
-        <div style={{ background: C.bg, padding: 3, borderRadius: 8, display: 'inline-flex', border: `1px solid ${C.border}` }}>
-          {([6, 12, 24] as const).map((n) => (
-            <button key={n} onClick={() => setTrendMonths(n)} style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: trendMonths === n ? 700 : 500, background: trendMonths === n ? C.teal : 'transparent', color: trendMonths === n ? C.bg : C.text2, border: 'none', cursor: 'pointer', transition: 'all 0.2s' }}>
-              {n}M
-            </button>
-          ))}
-        </div>
-        <span style={{ fontSize: 11, color: C.muted }}>Applies to all three trend charts below</span>
-      </Card>
-
-      {/* ── Partner Activity Trend ───────────────────────────────────────────── */}
+      {/* ── Partner Activity cards ─────────────────────────────────────────── */}
       {hasPartner && (
-        <Card>
-          <SectionTitle>Partner Activity Trend — Last {trendMonths} Months</SectionTitle>
-          <p style={{ color: C.muted, fontSize: 12, margin: '0 0 16px' }}>
-            Lifestyle spending and income per partner over time. Hover bars for exact values.
-          </p>
-
-          {/* SVG line chart */}
-          {(() => {
-            const W = 600, H = 160, PAD = { t: 16, r: 12, b: 28, l: 10 };
-            const cW = W - PAD.l - PAD.r;
-            const cH = H - PAD.t - PAD.b;
-            const pts = trendMonthKeys;
-            const series = [
-              { key: `${names.a} Lifestyle`, color: C.purple, dash: '' },
-              { key: `${names.a} Income`,    color: C.green,  dash: '4 2' },
-              { key: `${names.b} Lifestyle`, color: C.blue,   dash: '' },
-              { key: `${names.b} Income`,    color: '#86efac', dash: '4 2' },
-            ];
-            const allVals = partnerTrendData.flatMap((m) => series.map((s) => Number(m[s.key] ?? 0)));
-            const maxV = Math.max(1, ...allVals);
-            const x = (i: number) => PAD.l + (i / Math.max(1, pts.length - 1)) * cW;
-            const y = (v: number) => PAD.t + cH - (v / maxV) * cH;
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 12 }}>
+          {([
+            { name: names.a, lifestyle: personalLifestyleA, invested: personalInvestedA, contrib: contribA, income: incomeA, retained: capitalRetainedA, show: true },
+            { name: names.b, lifestyle: personalLifestyleB, invested: personalInvestedB, contrib: contribB, income: incomeB, retained: capitalRetainedB, show: hasPartner },
+          ] as any[]).filter((p) => p.show).map((p) => {
+            const totalOut     = p.lifestyle + p.invested + (isJoint ? p.contrib : 0);
+            const isOver       = p.income > 0 && totalOut > p.income;
+            const pRaw = (n: number) => p.income > 0 ? (n / p.income) * 100 : 0;
+            const iRaw = pRaw(p.invested), cRaw = isJoint ? pRaw(p.contrib) : 0;
+            const nonLife = Math.min(iRaw + cRaw, 100);
+            const lRaw = pRaw(p.lifestyle);
+            const retained = Math.max(0, 100 - nonLife - lRaw);
             return (
-              <div style={{ overflowX: 'auto' }}>
-                <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', minWidth: 320, display: 'block' }}>
-                  {/* Grid lines */}
-                  {[0, 0.25, 0.5, 0.75, 1].map((f) => (
-                    <line key={f} x1={PAD.l} x2={W - PAD.r} y1={PAD.t + cH * (1 - f)} y2={PAD.t + cH * (1 - f)} stroke="#ffffff10" strokeWidth={1} />
-                  ))}
-                  {/* Series lines + dots */}
-                  {series.map((s) => {
-                    const points = partnerTrendData.map((m, i) => `${x(i)},${y(Number(m[s.key] ?? 0))}`).join(' ');
-                    return (
-                      <g key={s.key}>
-                        <polyline points={points} fill="none" stroke={s.color} strokeWidth={2} strokeDasharray={s.dash} strokeLinecap="round" strokeLinejoin="round" />
-                        {partnerTrendData.map((m, i) => (
-                          <circle key={i} cx={x(i)} cy={y(Number(m[s.key] ?? 0))} r={3} fill={s.color}>
-                            <title>{s.key}: ₹{Number(m[s.key] ?? 0).toLocaleString()}</title>
-                          </circle>
-                        ))}
-                      </g>
-                    );
-                  })}
-                  {/* Month labels */}
-                  {partnerTrendData.map((m, i) => (
-                    <text key={i} x={x(i)} y={H - 4} textAnchor="middle" fontSize={9} fill="#ffffff60">{m.month}</text>
-                  ))}
-                </svg>
+              <div key={p.name} style={{ background: C.surface, border: `1px solid ${isOver ? C.red : C.border}`, boxShadow: C.neoShadow }}>
+                <div style={{ padding: '12px 14px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.02em', color: C.textW }}>{p.name}</div>
+                  {p.income > 0 && <div style={{ fontSize: 11, color: isOver ? C.red : C.text3 }}>
+                    {fmt2(totalOut)} of {fmt2(p.income)}
+                  </div>}
+                </div>
+                <div style={{ padding: '12px 14px' }}>
+                  <div className="grid-3" style={{ gap: 6, marginBottom: 12 }}>
+                    {[
+                      { label: 'Income', value: fmt2(p.income), color: C.green },
+                      { label: 'Lifestyle', value: fmt2(p.lifestyle), color: C.accent },
+                      { label: 'Invested', value: fmt2(p.invested), color: C.teal },
+                      ...(isJoint ? [{ label: 'Joint Pool', value: fmt2(p.contrib), color: C.orange }] : []),
+                      { label: 'Retained', value: fmt2(p.retained), color: p.retained >= 0 ? C.green : C.red },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} style={{ background: C.surface2, border: `1px solid ${C.border}`, padding: '8px 10px' }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.text3, marginBottom: 4 }}>{label}</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {p.income > 0 && (
+                    <div style={{ display: 'flex', height: 6, overflow: 'hidden', gap: 1 }}>
+                      {iRaw > 0 && <div style={{ width: `${Math.min(iRaw, 100)}%`, background: C.teal }} />}
+                      {cRaw > 0 && <div style={{ width: `${Math.min(cRaw, 100 - Math.min(iRaw, 100))}%`, background: C.orange }} />}
+                      {retained > 0 && <div style={{ width: `${retained}%`, background: C.green }} />}
+                      {lRaw > 0 && <div style={{ flex: 1, background: isOver ? C.red : C.accent }} />}
+                    </div>
+                  )}
+                </div>
               </div>
             );
-          })()}
-
-          {/* Legend */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-            {[
-              { label: `${names.a} Lifestyle`, color: C.purple, dash: false },
-              { label: `${names.a} Income`,    color: C.green,  dash: true  },
-              { label: `${names.b} Lifestyle`, color: C.blue,   dash: false },
-              { label: `${names.b} Income`,    color: '#86efac', dash: true  },
-            ].map(({ label, color, dash }) => (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                <svg width={18} height={10}>
-                  <line x1={0} y1={5} x2={18} y2={5} stroke={color} strokeWidth={2} strokeDasharray={dash ? '4 2' : ''} />
-                </svg>
-                <span style={{ color: C.text2 }}>{label}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Summary table */}
-          <div style={{ overflowX: 'auto', marginTop: 14 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr style={{ background: C.bg }}>
-                  {['Month', `${names.a} Income`, `${names.a} Lifestyle`, `${names.a} Invested`, `${names.b} Income`, `${names.b} Lifestyle`, `${names.b} Invested`].map((h) => (
-                    <th key={h} style={{ padding: '7px 10px', color: C.muted, fontWeight: 600, textAlign: 'right', whiteSpace: 'nowrap' as const }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {partnerTrendData.map((m, i) => (
-                  <tr key={m.month} style={{ borderTop: `1px solid ${C.border}`, background: i % 2 === 0 ? 'transparent' : `${C.bg}80` }}>
-                    <td style={{ padding: '7px 10px', color: C.text1, fontWeight: 600 }}>{m.month}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.green  }}>{fmt(m[`${names.a} Income`]   as number)}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.purple }}>{fmt(m[`${names.a} Lifestyle`] as number)}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.teal   }}>{fmt(m[`${names.a} Invested`]  as number)}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.green  }}>{fmt(m[`${names.b} Income`]   as number)}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.blue   }}>{fmt(m[`${names.b} Lifestyle`] as number)}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right', color: C.teal   }}>{fmt(m[`${names.b} Invested`]  as number)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+          })}
+        </div>
       )}
 
-      {/* ── Lifestyle Trend ──────────────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Monthly Lifestyle Expenses — Last {trendMonths} Months</SectionTitle>
-        <div style={{ overflowX: 'auto', width: '100%', marginTop: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12, minWidth: 500 }}>
-            {lifestyleTrendData.map((m) => {
-              const pct = (m.total / maxLifestyleTrend) * 100;
-              return (
-                <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 65 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>{m.total > 0 ? fmt(m.total) : '₹0'}</div>
-                  <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                    <div style={{ width: '100%', height: `${Math.max(6, pct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.amber})`, border: `1px solid ${C.border}`, borderRadius: '4px 4px 0 0', transition: 'height 0.3s ease' }} />
+      {/* ── Category breakdown ─────────────────────────────────────────────── */}
+      {filteredExp.length > 0 && (
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.neoShadow }}>
+          <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.text3 }}>Spending by Category</div>
+          </div>
+          <div style={{ padding: '12px 16px' }}>
+            {(() => {
+              const byCat: Record<string, number> = {};
+              filteredExp.filter((e) => !INVESTMENT_CATS.has(e.category)).forEach((e) => {
+                byCat[e.category] = (byCat[e.category] || 0) + Number(e.amount ?? 0);
+              });
+              const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+              const maxCat = sorted[0]?.[1] || 1;
+              return sorted.map(([cat, amt]) => (
+                <div key={cat} style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, color: C.text1, fontWeight: 600 }}>{cat}</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: C.textW }}>{fmt2(amt)}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
+                  <div style={{ height: 4, background: C.surface2, border: `1px solid ${C.border}` }}>
+                    <div style={{ width: `${(amt / maxCat) * 100}%`, height: '100%', background: C.accent, transition: 'width 0.5s' }} />
+                  </div>
                 </div>
-              );
-            })}
+              ));
+            })()}
           </div>
         </div>
-      </Card>
+      )}
 
-      {/* ── Investment Trend ─────────────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Monthly Investments & Policies — Last {trendMonths} Months</SectionTitle>
-        <div style={{ overflowX: 'auto', width: '100%', marginTop: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 150, paddingTop: 14, gap: 12, minWidth: 500 }}>
-            {investmentTrendData.map((m) => {
-              const pct = (m.total / maxInvestmentTrend) * 100;
-              return (
-                <div key={m.monthLabel} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, minWidth: 65 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>{m.total > 0 ? fmt(m.total) : '₹0'}</div>
-                  <div style={{ height: 90, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                    <div style={{ width: '100%', height: `${Math.max(6, pct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.teal})`, border: `1px solid ${C.border}`, borderRadius: '4px 4px 0 0', transition: 'height 0.3s ease' }} />
-                  </div>
-                  <div style={{ fontSize: 11, color: C.text2, fontWeight: 600 }}>{m.monthLabel}</div>
-                </div>
-              );
-            })}
+      {/* ── Trend chart (bar) ──────────────────────────────────────────────── */}
+      {lifestyleTrendData.some((m) => m.total > 0) && (
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.neoShadow }}>
+          <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.text3 }}>Monthly Lifestyle Trend</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[6, 12].map((n) => (
+                <button key={n} onClick={() => setTrendMonths(n)}
+                  style={{ padding: '3px 10px', fontSize: 11, fontWeight: trendMonths === n ? 800 : 400, background: trendMonths === n ? C.accent : 'transparent', color: trendMonths === n ? '#09090b' : C.text3, border: `1px solid ${trendMonths === n ? C.accent : C.border}`, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {n}M
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </Card>
-
-      {isJoint && showAudit && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Card style={{ width: '100%', maxWidth: 500, maxHeight: '85vh', overflowY: 'auto', position: 'relative' }}>
-            <button onClick={() => setShowAudit(false)} style={{ position: 'absolute', top: 15, right: 15, background: C.surface, border: `1px solid ${C.border}`, color: C.text1, borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
-            <SectionTitle>Joint Balance Ledger Audit</SectionTitle>
-            {[['[+] Total Seeded Contributions', allTimePool, C.green], ['[+] Total Joint Income', allTimeJointIncome, C.green], ['[-] Total Joint Expenses', allTimeJointSpent, C.red]].map(([label, val, color]) => (
-              <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: `1px solid ${C.border}`, paddingBottom: 8, marginBottom: 8 }}>
-                <span style={{ fontWeight: 600, color: color as string }}>{label}</span>
-                <span style={{ fontWeight: 700, color: C.textW }}>{fmt(val as number)}</span>
+          <div style={{ padding: '16px', display: 'flex', alignItems: 'flex-end', gap: 4, height: 120 }}>
+            {lifestyleTrendData.map((m, i) => (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
+                <div style={{ width: '100%', background: C.accent, height: `${(m.total / maxLifestyleTrend) * 100}%`, minHeight: m.total > 0 ? 4 : 0, transition: 'height 0.5s' }} />
+                <div style={{ fontSize: 8, color: C.text3, textAlign: 'center', transform: 'rotate(-45deg)', transformOrigin: 'center', whiteSpace: 'nowrap' }}>{m.monthLabel}</div>
               </div>
             ))}
-            <div style={{ background: C.surface, padding: 12, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <span style={{ fontWeight: 700, fontSize: 16, color: C.text1 }}>Calculated Balance:</span>
-              <span style={{ fontWeight: 800, fontSize: 20, color: currentJointBalance < 0 ? C.red : C.teal }}>{fmt(currentJointBalance)}</span>
-            </div>
-            <SectionTitle>Month-by-Month Breakdown</SectionTitle>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10, marginBottom: 24 }}>
-              {monthlyAuditList.map((m) => (
-                <div key={m.month} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, padding: '8px 12px', background: C.bg, borderRadius: 6, border: `1px solid ${C.border}` }}>
-                  <span style={{ fontWeight: 700, color: C.text1 }}>{monthLabel(m.month)}</span>
-                  <div style={{ display: 'flex', gap: 12 }}>
-                    <span style={{ color: C.green }}>In: {fmt(m.in)}</span>
-                    <span style={{ color: C.red }}>Out: {fmt(m.out)}</span>
-                    <span style={{ color: m.net >= 0 ? C.teal : C.amber, fontWeight: 800, minWidth: 80 }}>Net: {fmt(m.net)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <SectionTitle>Recent Joint Outflows</SectionTitle>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
-              {data.expenses.filter((e) => e.account === 'Joint' && e.type !== 'income').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 15).map((e) => (
-                <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '6px 0', borderBottom: `1px solid ${C.border}55` }}>
-                  <div><span style={{ color: C.text1 }}>{e.category}</span><span style={{ color: C.muted, fontSize: 11, marginLeft: 8 }}>{e.date} • {e.note || 'No note'}</span></div>
-                  <span style={{ color: C.red, fontWeight: 600 }}>{fmt(e.amount)}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
+          </div>
+        </div>
+      )}
+
+      {/* ── Joint balance audit modal ─────────────────────────────────────── */}
+      {showAudit && isJoint && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => setShowAudit(false)}>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '6px 6px 0px #000', padding: '24px', maxWidth: 400, width: '100%' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.text3, marginBottom: 16 }}>Joint Account Audit</div>
+            {[
+              { label: 'Total Contributions', value: allTimePool, color: C.green },
+              { label: 'Joint Income', value: allTimeJointIncome, color: C.teal },
+              { label: 'Total Joint Spent', value: allTimeJointSpent, color: C.red },
+              { label: 'Current Balance', value: currentJointBalance, color: currentJointBalance >= 0 ? C.green : C.red },
+            ].map(({ label, value, color }) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: `1px solid ${C.border}` }}>
+                <span style={{ fontSize: 13, color: C.text2 }}>{label}</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color }}>{fmt2(value)}</span>
+              </div>
+            ))}
+            <button onClick={() => setShowAudit(false)}
+              style={{ marginTop: 16, width: '100%', background: C.accent, color: '#09090b', border: '1px solid #000', boxShadow: '3px 3px 0px #000', padding: '12px', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none' }}>
+              Close
+            </button>
+          </div>
         </div>
       )}
     </div>
