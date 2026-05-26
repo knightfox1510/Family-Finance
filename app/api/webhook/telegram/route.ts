@@ -1,95 +1,22 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { canUseAI, incrementUsage, getUsageSummary, FREE_MONTHLY_LIMIT } from '@/lib/planUtils';
+import {
+  supabaseBot as supabase,
+  CATEGORY_DESCRIPTIONS,
+  loadHouseholdSettings,
+  buildCategoryPrompt,
+  settleTrackLabel,
+  parseWithGemini,
+  saveTransaction,
+  formatTxSummary,
+  validateByTelegram,
+} from '@/lib/botUtils';
 
 export const maxDuration = 60;
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-service-role-key-for-build-phase';
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
-
-// ─── Category description enrichment ─────────────────────────────────────────
-const CATEGORY_DESCRIPTIONS: Record<string, string> = {
-  'Alcohol':                 'Wine shops, Living Liquidz, pub/bar drinks, beer, whiskey, gin, vodka',
-  'Dining Out':              'Restaurants, cafes, dine-in, fine dining, coffee shops, physically eating out',
-  'Education':               'Course fees, certifications, books, training programs, upskilling materials',
-  'Entertainment':           'Movie tickets, BookMyShow, gaming arcades, concerts, events, fun outings',
-  'Groceries':               'Offline kirana stores, Metro, fruits, physical vegetable/fruit markets',
-  'Healthcare':              'Pharmacies, Apollo, doctor visits, checkups, lab tests, dental, medicines',
-  'Gifting':                 'Gifts for friends/family; shagun/cash envelopes for weddings or birthdays',
-  'Housing':                 'Monthly house rent, society maintenance bills, home loan EMI',
-  'Insurance':               'Health, car/bike, term life insurance premiums',
-  'Investments':             'Mutual fund SIPs, Smallcase, Zerodha, Gold, US stocks, PPF, Index funds',
-  'Miscellaneous':           'Unclassifiable payments, ATM cash withdrawals, random one-off items',
-  'Offline Shopping':        'Physical retail, apparel or footwear bought at a mall or store',
-  'Online Shopping':         'Amazon, Flipkart, Myntra, Ajio, Tata CLiQ, retail websites',
-  'Personal Care':           'Salon, haircut, beauty parlour, grooming, spa, cosmetics, skincare',
-  'Personal Transportation': 'Petrol, bike EMI, car/motorcycle service, toll, fastag, parking',
-  'Savings':                 'Manual transfers to emergency savings, sinking fund, long-term reserves',
-  'Subscriptions':           'Netflix, Prime, Spotify, iCloud, YouTube Premium, gym memberships',
-  'Health & Fitness':        'Protein, gym supplements, Yoga classes, workout gear, organic health food',
-  'Taxes':                   'Income tax, property tax, government filings',
-  'Technology':              'Software, digital tools, cloud hosting, gadgets, accessories',
-  'Travel':                  'Flights, hotels, Airbnb, IRCTC, vacation bookings, luggage',
-  'Utilities':               'Mobile recharges, broadband, electricity, piped gas, maid/cook salary',
-  'Online Food Orders':      'Zomato, Swiggy, Dominos, pizza/burger delivery, cloud kitchen orders',
-  'Household Items':         'Cleaning liquids, detergents, mop, house decor, bedsheets',
-  'Cab Services':            'Uber, Ola, Rapido, InDrive, auto, rickshaw rides',
-  'Hosting Day':             'Bulk food/alcohol/snacks when friends or family visit at home',
-  'Online Groceries':        'Zepto, Blinkit, Swiggy Instamart, BigBasket, daily produce apps',
-  'Interest Earned':         'Bank savings account interest payouts, FD interest pay-ins',
-  'Spouse Gifting':          'Anniversary, birthday surprises or gifts bought for your partner',
-  'Family payments':         'Money sent to parents/siblings -- mom, dad, Kari mom, Kari dad, sohan',
-};
-const DEFAULT_CAT_DESC = 'Expenses in this category';
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const settleTrackLabel = (track: string, toSettle: boolean) => {
-  if (track === 'partner') return 'Partner Split';
-  if (track === 'joint' || toSettle) return 'Joint Reimbursement';
-  return 'Personal (No Settlement)';
-};
-
-const buildCategoryPrompt = (cats: string[]): string =>
-  cats.map((cat) => `      - "${cat}" (${CATEGORY_DESCRIPTIONS[cat] || DEFAULT_CAT_DESC})`).join('\n');
-
-const validateTelegramUser = async (tgUser: string) => {
-  const handle = tgUser.replace(/@/g, '').trim().toLowerCase();
-  if (!handle) return null;
-  const { data, error } = await supabase.from('profiles').select('household_id, display_name, telegram_username');
-  if (error || !data) return null;
-  const match = data.find((p) => (p.telegram_username || '').replace(/@/g, '').trim().toLowerCase() === handle);
-  if (!match) return null;
-  return { householdId: match.household_id, senderIdentity: match.display_name === 'Partner B' ? 'Partner B' : 'Partner A' };
-};
-
-const loadHouseholdSettings = async (householdId: string) => {
-  let nameA = 'Partner A', nameB = 'Partner B', householdMode = 'joint';
-  const STANDARD_QUICK = ['Dining Out','Online Food Orders','Online Groceries','Groceries','Cab Services','Personal Transportation','Online Shopping','Miscellaneous'];
-  let expenseCats: string[] = Object.keys(CATEGORY_DESCRIPTIONS);
-  let quickCats: string[]   = STANDARD_QUICK;
-
-  if (householdId) {
-    const { data: st } = await supabase.from('household_settings').select('settings_data').eq('household_id', householdId).single();
-    if (st?.settings_data) {
-      const s = typeof st.settings_data === 'string' ? JSON.parse(st.settings_data) : st.settings_data;
-      nameA         = s.partnerAName  || nameA;
-      nameB         = s.partnerBName  || nameB;
-      householdMode = s.householdMode || householdMode;
-      if (Array.isArray(s.expenseCategories) && s.expenseCategories.length > 0) {
-        expenseCats = s.expenseCategories;
-        if (!expenseCats.includes('Miscellaneous')) expenseCats = [...expenseCats, 'Miscellaneous'];
-        const theirQuick = STANDARD_QUICK.filter((c) => expenseCats.includes(c));
-        const extras     = expenseCats.filter((c) => !STANDARD_QUICK.includes(c));
-        quickCats        = [...theirQuick, ...extras].slice(0, 8);
-      }
-    }
-  }
-  return { nameA, nameB, householdMode, expenseCats, quickCats };
-};
+// validateByTelegram imported from botUtils
 
 // ─── Telegram API wrappers ────────────────────────────────────────────────────
 const tgPost = async (method: string, body: object) => {
@@ -123,7 +50,7 @@ async function handleReturnToMenu(chatId: number, messageId: number, txId: strin
     'Amount: ' + tx.amount + '\n' +
     'Category: ' + tx.category + '\n' +
     'Account: ' + acct + '\n' +
-    'Settlement: ' + settleTrackLabel(tx.settle_track || 'none', tx.to_settle) + '\n' +
+    'Settlement: ' + settleLabel(tx.settle_track || 'none', tx.to_settle) + '\n' +
     'Type: ' + (tx.type === 'expense' ? 'Expense' : 'Income') + '\n' +
     'Note: ' + (tx.note || '--');
   await editMsgInline(chatId, messageId, banner, txKeyboard(txId, tx.type));
@@ -141,7 +68,7 @@ export async function POST(request: Request) {
       const chatId = cq.message.chat.id;
       const mid    = cq.message.message_id;
       const data   = cq.data || '';
-      const ctx    = await validateTelegramUser(cq.from.username || '');
+      const ctx    = await validateByTelegram(cq.from.username || '');
       if (!ctx) { await answerCQ(cq.id, 'Unauthorized. Link your Telegram handle in Settings first.'); return NextResponse.json({ ok: true }); }
 
       // Wizard: category
@@ -304,7 +231,7 @@ export async function POST(request: Request) {
       if (data.startsWith('v_trk_')) {
         const parts = data.split('_'), track = parts[parts.length - 1], txId = parts.slice(2, -1).join('_');
         await supabase.from('transactions').update({ settle_track: track, to_settle: track === 'joint', split_mode: 'equal', partner_a_share: 0.5, partner_b_share: 0.5 }).eq('id', txId);
-        await answerCQ(cq.id, settleTrackLabel(track, track === 'joint'));
+        await answerCQ(cq.id, settleLabel(track, track === 'joint'));
         return handleReturnToMenu(chatId, mid, txId);
       }
 
@@ -326,7 +253,7 @@ export async function POST(request: Request) {
     if (payload.message) {
       const chatId  = payload.message.chat.id;
       const rawText = (payload.message.text || '').trim();
-      const ctx     = await validateTelegramUser(payload.message.from.username || '');
+      const ctx     = await validateByTelegram(payload.message.from.username || '');
 
       if (!ctx) {
         await sendMsg(chatId, 'Access Denied. Go to Settings to link your Telegram handle.');
@@ -394,7 +321,7 @@ export async function POST(request: Request) {
       // /start
       if (rawText.startsWith('/start')) {
         await sendMsg(chatId,
-          '<b>Welcome to FamilyFinance Bot!</b>\n\n' +
+          '<b>Welcome to ChillarFlow!</b>\n\n' +
           'How to log:\n' +
           '- 450 Zomato -> personal expense\n' +
           '- 450 Zomato ' + nameA + ' -> ' + nameA + "'s account\n" +
@@ -414,7 +341,7 @@ export async function POST(request: Request) {
         const { plan, count, remaining, month } = await getUsageSummary(householdId);
         if (plan === 'pro') {
           await sendMsg(chatId,
-            '<b>Your Plan: PRO</b>\n\nUnlimited AI expense logging. Thank you for supporting FamilyFinance!');
+            '<b>Your Plan: PRO</b>\n\nUnlimited AI expense logging. Thank you for supporting ChillarFlow!');
         } else {
           const bar = Array.from({ length: 10 }, (_, i) => i < Math.round((count / FREE_MONTHLY_LIMIT) * 10) ? '\u25a0' : '\u25a1').join('');
           const usageMsg = '<b>Your Plan: Free</b>\n\n' +
@@ -431,7 +358,7 @@ export async function POST(request: Request) {
       // /upgrade command
       if (rawText === '/upgrade') {
         const upgradeMsg =
-          '<b>Upgrade to FamilyFinance Pro</b>\n\n' +
+          '<b>Upgrade to ChillarFlow Pro</b>\n\n' +
           'Free plan: ' + FREE_MONTHLY_LIMIT + ' AI expense parses per month\n' +
           'Pro plan: Unlimited AI parses\n\n' +
           '<b>How to upgrade:</b>\n' +
@@ -555,7 +482,7 @@ export async function POST(request: Request) {
           'Amount: ' + saved.amount + '\n' +
           'Category: ' + saved.category + '\n' +
           'Account: ' + acct + '\n' +
-          'Settlement: ' + settleTrackLabel(saved.settle_track, saved.to_settle) + '\n' +
+          'Settlement: ' + settleLabel(saved.settle_track, saved.to_settle) + '\n' +
           'Type: ' + (saved.type === 'expense' ? 'Expense' : 'Income') + '\n' +
           'Note: ' + saved.note;
         await sendMsgInline(chatId, msg, txKeyboard(saved.id, saved.type));
