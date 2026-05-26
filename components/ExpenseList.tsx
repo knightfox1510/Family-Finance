@@ -66,13 +66,13 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
   const toggleAll = () => setSelectedIds(selectedIds.size === filtered.length ? new Set() : new Set(filtered.map((e) => e.id)));
   const saveEdit = () => { onUpdate(editingId!, { ...editForm, amount: Number(editForm.amount) }); setEditingId(null); };
 
-  const selStyle: React.CSSProperties = { background: C.bg, border: `1px solid ${C.border}`, color: C.text1, borderRadius: 8, padding: '6px 10px', fontSize: 12, cursor: 'pointer' };
+  const selStyle: React.CSSProperties = { background: C.bg, border: `1px solid ${C.border}`, color: C.text1, borderRadius: 0, padding: '6px 10px', fontSize: 12, cursor: 'pointer' };
   const allCats = [...data.settings.expenseCategories, ...data.settings.incomeCategories];
 
   const accountBadge = (acc: string) => {
-    if (acc === names.a || acc === 'Partner A') return <Badge color={C.purple}>{names.a}</Badge>;
-    if (acc === names.b || acc === 'Partner B') return <Badge color={C.blue}>{names.b}</Badge>;
-    return <Badge color={C.green}>Joint</Badge>;
+    if (acc === names.a || acc === 'Partner A') return <Badge color="purple">{names.a}</Badge>;
+    if (acc === names.b || acc === 'Partner B') return <Badge color="blue">{names.b}</Badge>;
+    return <Badge color="green">Joint</Badge>;
   };
 
   return (
@@ -173,13 +173,13 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
                         <span style={{ color: C.muted }}>—</span>
                       ) : e.settled ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <Badge color={C.green}>
+                          <Badge color="green">
                             ✓ Settled{e.settledFor ? ` — ${e.settledFor === 'Partner A' ? names.a : e.settledFor === 'Partner B' ? names.b : e.settledFor}` : ''}
                           </Badge>
                           <button
                             title="Mark as unsettled"
                             onClick={() => onUnsettle(e.id)}
-                            style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 10, padding: '1px 4px', borderRadius: 4, lineHeight: 1 }}
+                            style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 10, padding: '1px 4px', borderRadius: 0, lineHeight: 1 }}
                           >
                             ↩ Unsettle
                           </button>
@@ -187,11 +187,11 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
                       ) : e.account === 'Joint' && isJoint ? (
                         <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Shared</span>
                       ) : e.settleTrack === 'partner' && hasPartner ? (
-                        <Badge color={C.purple}>🤝 Partner Split</Badge>
+                        <Badge color="purple">🤝 Partner Split</Badge>
                       ) : !e.toSettle ? (
                         <span style={{ color: C.text2, fontSize: 12 }}>Personal</span>
                       ) : isJoint ? (
-                        <Badge color={C.amber}>⏳ Pending — Joint</Badge>
+                        <Badge color="accent">⏳ Pending — Joint</Badge>
                       ) : (
                         <span style={{ color: C.text2, fontSize: 12 }}>Personal</span>
                       )}
