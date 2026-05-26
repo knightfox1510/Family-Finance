@@ -9,6 +9,7 @@ import { C } from '@/constants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Variant = 'primary' | 'ghost' | 'danger' | 'teal' | 'green' | 'success';
+export type ToastType = 'success' | 'error' | 'info';
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 // NeoPOP card: sharp corners, hard drop shadow, press-to-lift animation
