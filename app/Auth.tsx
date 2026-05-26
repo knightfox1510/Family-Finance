@@ -120,7 +120,7 @@ export default function Auth() {
         if (profileError) throw profileError;
 
         if (typeof window !== 'undefined') {
-          localStorage.setItem('active_partner_role', assignedRole);
+          localStorage.setItem('cf_partner_role', assignedRole);
         }
 
       } else {
@@ -163,7 +163,7 @@ export default function Auth() {
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
-          <h2 style={{ color: C.textW, fontSize: 24, margin: 0, fontWeight: 800 }}>FamilyFinance</h2>
+          <h2 style={{ color: C.textW, fontSize: 24, margin: 0, fontWeight: 800 }}>ChillarFlow</h2>
           <p style={{ color: C.text1, fontSize: 14, marginTop: 4 }}>
             {isSignUp ? 'Create your household account' : 'Welcome back — sign in below'}
           </p>
