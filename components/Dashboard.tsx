@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import type { AppData } from '@/types';
-import { Card, SectionTitle, StatCard, ProgressBar } from '@/components/ui';
+import { Card, SectionTitle, StatCard, ProgressBar, Metric } from '@/components/ui';
 import { C, INVESTMENT_CATS } from '@/constants';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -243,7 +243,7 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
       </div>
 
       {/* ── Filter bar ───────────────────────────────────────────────────── */}
-      <div style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: C.neoShadowSm, padding: '12px 16px', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+      <div style={{ background: C.surface, border: `1px solid ${C.border}`, boxShadow: '0 1px 8px rgba(0,0,0,0.2)', padding: '12px 16px', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
         <div style={{ display: 'flex', border: `1px solid ${C.border}`, overflow: 'hidden' }}>
           <button onClick={() => setRangeMode('month')}  style={neo(rangeMode === 'month')}>Month</button>
           <button onClick={() => setRangeMode('year')}   style={{ ...neo(rangeMode === 'year'),  borderLeft: `1px solid ${C.border}` }}>Year</button>
@@ -448,6 +448,97 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
         </div>
       )}
 
+      {/* ── Partner Activity Trend ──────────────────────────────────────────── */}
+      {hasPartner && partnerTrendData.length > 0 && (
+        <div style={{ background: C.surface, borderRadius: 16, boxShadow: '0 4px 16px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.text3 }}>Partner Activity Trend</div>
+            <div style={{ display: 'flex', gap: 12, fontSize: 10 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: C.purple }} />{names.a}</span>
+              {hasPartner && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: C.blue }} />{names.b}</span>}
+            </div>
+          </div>
+          <div style={{ padding: '16px', overflowX: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 100, minWidth: partnerTrendData.length * 60 }}>
+              {partnerTrendData.map((m: any, i: number) => {
+                const aVal = (m[names.a + ' Lifestyle'] as number || 0) + (m[names.a + ' Invested'] as number || 0);
+                const bVal = (m[names.b + ' Lifestyle'] as number || 0) + (m[names.b + ' Invested'] as number || 0);
+                const maxVal = Math.max(1, maxPartnerTrend);
+                return (
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end', minWidth: 50 }}>
+                    <div style={{ width: '100%', display: 'flex', gap: 2, alignItems: 'flex-end', height: '80%' }}>
+                      <div style={{ flex: 1, background: C.purple, borderRadius: '4px 4px 0 0', height: `${(aVal / maxVal) * 100}%`, minHeight: aVal > 0 ? 4 : 0, transition: 'height 0.5s', opacity: 0.85 }} />
+                      {hasPartner && <div style={{ flex: 1, background: C.blue, borderRadius: '4px 4px 0 0', height: `${(bVal / maxVal) * 100}%`, minHeight: bVal > 0 ? 4 : 0, transition: 'height 0.5s', opacity: 0.85 }} />}
+                    </div>
+                    <div style={{ fontSize: 8, color: C.text3, textAlign: 'center', whiteSpace: 'nowrap' }}>{m.month.slice(0, 3)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Monthly Investment Trend ──────────────────────────────────────────── */}
+      {investmentTrendData.some((m: any) => m.total > 0) && (
+        <div style={{ background: C.surface, borderRadius: 16, boxShadow: '0 4px 16px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.text3 }}>Monthly Investment Trend</div>
+          </div>
+          <div style={{ padding: '16px', display: 'flex', alignItems: 'flex-end', gap: 4, height: 100 }}>
+            {investmentTrendData.map((m: any, i: number) => (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end' }}>
+                <div style={{ width: '100%', background: C.teal, borderRadius: '4px 4px 0 0', height: `${(m.total / maxInvestmentTrend) * 100}%`, minHeight: m.total > 0 ? 4 : 0, transition: 'height 0.5s' }} />
+                <div style={{ fontSize: 8, color: C.text3, textAlign: 'center', whiteSpace: 'nowrap' }}>{m.monthLabel.slice(0, 3)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Asset Allocation ──────────────────────────────────────────────────── */}
+      {periodIncome > 0 && (
+        <div style={{ background: C.surface, borderRadius: 16, boxShadow: '0 4px 16px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 16px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.text3 }}>Asset Allocation Breakdown</div>
+          </div>
+          <div style={{ padding: '16px' }}>
+            {(() => {
+              const items = [
+                { label: 'Personal Lifestyle', value: personalLifestyleA + personalLifestyleB, color: C.accent, icon: '🛒' },
+                ...(isJoint ? [{ label: 'Joint Expenses', value: jointLifestyle, color: C.orange, icon: '🏠' }] : []),
+                { label: 'Investments', value: periodInvested, color: C.teal, icon: '📈' },
+                { label: 'Retained', value: Math.max(0, capitalRetained), color: C.green, icon: '💰' },
+              ].filter((i) => i.value > 0);
+              const total = items.reduce((s, i) => s + i.value, 0) || 1;
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Donut-style allocation bar */}
+                  <div style={{ height: 10, borderRadius: 99, overflow: 'hidden', display: 'flex', gap: 2 }}>
+                    {items.map((item, i) => (
+                      <div key={i} style={{ width: `${(item.value / total) * 100}%`, background: item.color, borderRadius: i === 0 ? '99px 0 0 99px' : i === items.length - 1 ? '0 99px 99px 0' : 0 }} />
+                    ))}
+                  </div>
+                  {/* Legend */}
+                  {items.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+                        <span style={{ fontSize: 13, color: C.text2 }}>{item.icon} {item.label}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: C.textW }}>{fmt2(item.value)}</span>
+                        <span style={{ fontSize: 11, color: C.text3, width: 36, textAlign: 'right' }}>{((item.value / total) * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* ── Joint balance audit modal ─────────────────────────────────────── */}
       {showAudit && isJoint && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
@@ -467,7 +558,7 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
               </div>
             ))}
             <button onClick={() => setShowAudit(false)}
-              style={{ marginTop: 16, width: '100%', background: C.accent, color: '#09090b', border: '1px solid #000', boxShadow: '3px 3px 0px #000', padding: '12px', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none' }}>
+              style={{ marginTop: 16, width: '100%', background: C.accent, color: '#09090b', border: '1px solid #000', boxShadow: '0 2px 8px rgba(0,0,0,0.3)', padding: '12px', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none' }}>
               Close
             </button>
           </div>
