@@ -42,7 +42,7 @@ export function IncomeTracker({ data, fmt }: Props) {
   }));
   const maxTrend = Math.max(1, ...trendData.map((m) => m.total));
 
-  const selStyle: React.CSSProperties = { background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', outline: 'none' };
+  const selStyle: React.CSSProperties = { background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 0, fontSize: 13, cursor: 'pointer', outline: 'none' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -82,7 +82,7 @@ export function IncomeTracker({ data, fmt }: Props) {
                   <div key={m.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, color: m.total > 0 ? C.textW : C.muted }}>{m.total > 0 ? fmt(m.total) : '₹0'}</div>
                     <div style={{ height: 85, width: '100%', display: 'flex', alignItems: 'flex-end' }}>
-                      <div style={{ width: '100%', height: `${Math.max(6, pct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.green})`, border: `1px solid ${C.border}`, borderRadius: '4px 4px 0 0', transition: 'height 0.3s ease' }} />
+                      <div style={{ width: '100%', height: `${Math.max(6, pct)}%`, background: `linear-gradient(to top, ${C.surface}, ${C.green})`, border: `1px solid ${C.border}`, borderRadius: 0, transition: 'height 0.3s ease' }} />
                     </div>
                     <div style={{ fontSize: 11, color: C.text2, fontWeight: 600, whiteSpace: 'nowrap' }}>{m.label}</div>
                   </div>
@@ -113,7 +113,7 @@ export function IncomeTracker({ data, fmt }: Props) {
           <SectionTitle>Inflow Audit Ledger</SectionTitle>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12, maxHeight: 280, overflowY: 'auto', paddingRight: 4 }}>
             {periodInflows.length === 0 ? <p style={{ color: C.muted, fontSize: 13 }}>No transactions match.</p> : periodInflows.map((e) => (
-              <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${C.bg}80`, padding: '10px 12px', borderRadius: 8, border: `1px solid ${C.border}` }}>
+              <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${C.bg}80`, padding: '10px 12px', borderRadius: 0, border: `1px solid ${C.border}` }}>
                 <div>
                   <div style={{ color: C.textW, fontSize: 13, fontWeight: 600 }}>{e.note || 'Income Deposit'}</div>
                   <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>{e.date} • {e.account === 'Joint' ? 'Joint' : e.account} • <span style={{ color: C.text2 }}>{e.category}</span></div>
