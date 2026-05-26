@@ -2,17 +2,15 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'ChillarFlow',
-  description: 'Household finance tracker for couples and families',
+  title: 'ChillarFlow — Track every rupee. Effortlessly.',
+  description: 'Household finance tracker for couples and families. Log expenses via WhatsApp and Telegram.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
     title: 'ChillarFlow',
   },
-  other: {
-    'mobile-web-app-capable': 'yes',
-  },
+  other: { 'mobile-web-app-capable': 'yes' },
 };
 
 export const viewport: Viewport = {
@@ -21,19 +19,21 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: '#0b0f1a',
+  themeColor: '#09090b',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark-navy" suppressHydrationWarning>
+    <html lang="en" data-theme="obsidian" suppressHydrationWarning>
       <head>
+        {/* No-flash: read theme from localStorage before React hydrates */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                var t = localStorage.getItem('cf_theme') || 'dark-navy';
+                var t = localStorage.getItem('cf_theme') || 'obsidian';
                 document.documentElement.setAttribute('data-theme', t);
+                document.documentElement.style.background = t === 'pearl' ? '#fafafa' : '#09090b';
               } catch(e) {}
             `,
           }}
