@@ -1,128 +1,87 @@
 'use client';
+// ─── Auth.tsx ─────────────────────────────────────────────────────────────────
+// ChillarFlow NeoPOP sign-in / sign-up screen.
+// Sharp corners, hard shadows, Inter font, physical button press animation.
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
-const C = {
-  bg:      '#0b0f1a',
-  surface: '#131928',
-  border:  '#1e2840',
-  text1:   '#a8b8d4',
-  textW:   '#e8eeff',
-  amber:   '#f59e0b',
-  red:     '#ef4444',
-  teal:    '#06b6d4',
-};
-
-const inputStyle: React.CSSProperties = {
-  background: C.bg,
-  border: `1px solid ${C.border}`,
-  color: C.textW,
-  borderRadius: 8,
-  padding: '12px 14px',
-  width: '100%',
-  boxSizing: 'border-box',
-  outline: 'none',
-  fontSize: 16, // 16px prevents iOS auto-zoom on focus
-  WebkitAppearance: 'none',
-};
+// Local colour vars (Auth has no session yet so C tokens may not be loaded)
+const bg      = 'var(--bg, #09090b)';
+const surface = 'var(--surface, #18181b)';
+const border  = 'var(--border, #3f3f46)';
+const border2 = 'var(--border2, #52525b)';
+const textW   = 'var(--textW, #fafafa)';
+const text1   = 'var(--text1, #d4d4d8)';
+const text2   = 'var(--text2, #a1a1aa)';
+const text3   = 'var(--text3, #71717a)';
+const accent  = 'var(--accent, #f59e0b)';
+const teal    = 'var(--teal, #14b8a6)';
+const red     = 'var(--red, #ef4444)';
 
 export default function Auth() {
   const [loading, setLoading]   = useState(false);
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false); // default = sign in
+  const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError]       = useState<string | null>(null);
-  const [onboardingChoice, setOnboardingChoice] = useState<'create' | 'join'>('create');
+  const [mode, setMode]         = useState<'create' | 'join'>('create');
   const [inviteCode, setInviteCode] = useState('');
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
     try {
       if (isSignUp) {
-        if (onboardingChoice === 'join' && !inviteCode.trim()) {
-          throw new Error('Please enter a valid Household Invite Code to proceed.');
-        }
+        if (mode === 'join' && !inviteCode.trim()) throw new Error('Enter a valid Household Invite Code.');
 
         const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
         if (authError) throw authError;
-
         const userId = authData.user?.id;
         if (!userId) throw new Error('Authentication failed — please try again.');
 
         let targetHouseholdId = '';
 
-        if (onboardingChoice === 'create') {
-          const newHouseholdId = crypto.randomUUID();
-
-          // Insert into households table (required for plan/usage tracking)
-          const { error: householdError } = await supabase
-            .from('households')
-            .insert({ id: newHouseholdId });
-          // Non-fatal if households table doesn't exist yet — log and continue
-          if (householdError) console.warn('households insert skipped:', householdError.message);
-
-          // Insert household settings
-          const { error: settingsError } = await supabase
-            .from('household_settings')
-            .insert({
-              household_id: newHouseholdId,
-              settings_data: {
-                partnerAName:      'Partner A',
-                partnerBName:      'Partner B',
-                householdMode:     'joint',
-                expenseCategories: [
-                  'Groceries', 'Dining Out', 'Online Food Orders', 'Online Groceries',
-                  'Utilities', 'Housing', 'Personal Transportation', 'Cab Services',
-                  'Online Shopping', 'Offline Shopping', 'Subscriptions', 'Entertainment',
-                  'Healthcare', 'Personal Care', 'Health & Fitness', 'Investments',
-                  'Insurance', 'Savings', 'Travel', 'Education', 'Gifting',
-                  'Spouse Gifting', 'Family payments', 'Household Items',
-                  'Technology', 'Alcohol', 'Hosting Day', 'Taxes', 'Miscellaneous',
-                ],
-                incomeCategories: ['Salary', 'Freelance', 'Business', 'Interest Earned', 'Other Income'],
-                budgets:  {},
-                currency: 'INR',
-                setupComplete: false,
-              },
-            });
+        if (mode === 'create') {
+          const newId = crypto.randomUUID();
+          const { error: householdErr } = await supabase.from('households').insert({ id: newId });
+          if (householdErr) console.warn('households insert skipped:', householdErr.message);
+          const { error: settingsError } = await supabase.from('household_settings').insert({
+            household_id: newId,
+            settings_data: {
+              partnerAName: 'Partner A', partnerBName: 'Partner B',
+              householdMode: 'joint',
+              expenseCategories: [
+                'Groceries','Dining Out','Online Food Orders','Online Groceries',
+                'Utilities','Housing','Personal Transportation','Cab Services',
+                'Online Shopping','Offline Shopping','Subscriptions','Entertainment',
+                'Healthcare','Personal Care','Health & Fitness','Investments',
+                'Insurance','Savings','Travel','Education','Gifting',
+                'Spouse Gifting','Family payments','Household Items',
+                'Technology','Alcohol','Hosting Day','Taxes','Miscellaneous',
+              ],
+              incomeCategories: ['Salary','Freelance','Business','Interest Earned','Other Income'],
+              budgets: {}, currency: 'INR', setupComplete: false,
+            },
+          });
           if (settingsError) throw settingsError;
-
-          targetHouseholdId = newHouseholdId;
-
+          targetHouseholdId = newId;
         } else {
-          // Joining an existing household
           const { data: existing, error: verifyError } = await supabase
-            .from('household_settings')
-            .select('household_id')
-            .eq('household_id', inviteCode.trim())
-            .single();
-
-          if (verifyError || !existing) {
-            throw new Error('Invalid Household Code. Please verify with your partner.');
-          }
+            .from('household_settings').select('household_id')
+            .eq('household_id', inviteCode.trim()).single();
+          if (verifyError || !existing) throw new Error('Invalid Household Code. Verify with your partner.');
           targetHouseholdId = inviteCode.trim();
         }
 
-        const assignedRole = onboardingChoice === 'create' ? 'Partner A' : 'Partner B';
-
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id:           userId,
-            household_id: targetHouseholdId,
-            email:        email.toLowerCase().trim(),
-            display_name: assignedRole,
-          });
+        const assignedRole = mode === 'create' ? 'Partner A' : 'Partner B';
+        const { error: profileError } = await supabase.from('profiles').insert({
+          id: userId, household_id: targetHouseholdId,
+          email: email.toLowerCase().trim(), display_name: assignedRole,
+        });
         if (profileError) throw profileError;
-
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('cf_partner_role', assignedRole);
-        }
-
+        if (typeof window !== 'undefined') localStorage.setItem('cf_partner_role', assignedRole);
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
@@ -134,161 +93,114 @@ export default function Auth() {
     }
   };
 
-  const choiceTabStyle = (active: boolean): React.CSSProperties => ({
-    flex:       1,
-    padding:    '8px',
-    fontSize:   12,
-    fontWeight: 600,
-    background: active ? C.teal + '22' : 'transparent',
-    color:      active ? C.teal : C.text1,
-    border:     active ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
-    borderRadius: 8,
-    cursor:     'pointer',
-    outline:    'none',
-    transition: 'all 0.2s ease',
-    WebkitAppearance: 'none' as any,
-    minHeight:  44,
-  });
-
   return (
-    <div style={{
-      background: C.bg, minHeight: '100vh',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 20, fontFamily: 'system-ui, sans-serif',
-    }}>
-      <div style={{
-        background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 16, padding: '32px 28px', width: '100%', maxWidth: 400,
-      }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
-          <h2 style={{ color: C.textW, fontSize: 24, margin: 0, fontWeight: 800 }}>ChillarFlow</h2>
-          <p style={{ color: C.text1, fontSize: 14, marginTop: 4 }}>
-            {isSignUp ? 'Create your household account' : 'Welcome back — sign in below'}
-          </p>
-        </div>
+    <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Inter', -apple-system, sans-serif" }}>
 
-        {/* Error */}
-        {error && (
-          <div style={{ background: C.red + '22', color: C.red, border: `1px solid ${C.red}44`, padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
-            {error}
+      {/* Logo mark */}
+      <div style={{ marginBottom: 40, textAlign: 'center' }}>
+        <div style={{ width: 56, height: 56, background: accent, border: `2px solid #000`, boxShadow: '4px 4px 0px #000', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <span style={{ fontSize: 24, fontWeight: 900, color: '#09090b', letterSpacing: '-0.05em' }}>CF</span>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.04em', color: textW }}>ChillarFlow</div>
+        <div style={{ fontSize: 12, color: text3, marginTop: 4, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+          {isSignUp ? 'Create your household' : 'Welcome back'}
+        </div>
+      </div>
+
+      {/* Card */}
+      <div style={{ width: '100%', maxWidth: 400, background: surface, border: `1px solid ${border}`, boxShadow: '4px 4px 0px #000' }}>
+
+        {/* Sign-up mode tabs */}
+        {isSignUp && (
+          <div style={{ display: 'flex', borderBottom: `1px solid ${border}` }}>
+            {(['create', 'join'] as const).map((m) => (
+              <button key={m} onClick={() => setMode(m)}
+                style={{ flex: 1, padding: '14px', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', background: 'transparent', border: 'none', cursor: 'pointer', borderBottom: mode === m ? `2px solid ${accent}` : '2px solid transparent', color: mode === m ? accent : text3, transition: 'color 0.15s', WebkitAppearance: 'none' }}>
+                {m === 'create' ? '✦ Create New' : '⊕ Join Partner'}
+              </button>
+            ))}
           </div>
         )}
 
-        <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Sign-up mode toggle */}
-          {isSignUp && (
-            <div style={{ background: C.bg, padding: 12, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10, border: `1px solid ${C.border}` }}>
-              <label style={{ display: 'block', color: C.textW, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Setup mode
-              </label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={() => setOnboardingChoice('create')} style={choiceTabStyle(onboardingChoice === 'create')}>
-                  ✨ Create New
-                </button>
-                <button type="button" onClick={() => setOnboardingChoice('join')} style={choiceTabStyle(onboardingChoice === 'join')}>
-                  🔗 Join Partner
-                </button>
-              </div>
+        <div style={{ padding: '28px 24px' }}>
+          {/* Error */}
+          {error && (
+            <div style={{ background: `rgba(239,68,68,0.1)`, border: `1px solid ${red}`, padding: '10px 14px', fontSize: 13, color: red, marginBottom: 20 }}>
+              {error}
             </div>
           )}
 
-          {/* Email */}
-          <div>
-            <label htmlFor="email" style={{ display: 'block', color: C.text1, fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={inputStyle}
-            />
-          </div>
+          <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* Password */}
-          <div>
-            <label htmlFor="password" style={{ display: 'block', color: C.text1, fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete={isSignUp ? 'new-password' : 'current-password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              style={inputStyle}
-            />
-          </div>
-
-          {/* Invite code for join flow */}
-          {isSignUp && onboardingChoice === 'join' && (
+            {/* Email */}
             <div>
-              <label htmlFor="inviteCode" style={{ display: 'block', color: C.teal, fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                🔗 Partner Invite Code
+              <label htmlFor="email" style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: text3, marginBottom: 8 }}>
+                Email
               </label>
-              <input
-                id="inviteCode"
-                name="inviteCode"
-                type="text"
-                placeholder="Paste household ID from your partner's Settings"
-                value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value)}
-                required={onboardingChoice === 'join'}
-                style={{ ...inputStyle, border: `1px solid ${C.teal}`, fontFamily: 'monospace', fontSize: 13 }}
+              <input id="email" name="email" type="email" autoComplete="email" required value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${border2}`, boxShadow: '2px 2px 0px #000', color: textW, padding: '12px 14px', fontSize: 16, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
+                onFocus={(e) => e.target.style.borderColor = accent}
+                onBlur={(e) => e.target.style.borderColor = border2}
               />
-              <p style={{ color: C.text1, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
-                Your partner can find this in Settings → Household ID.
-              </p>
             </div>
-          )}
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              background: loading ? C.border : `linear-gradient(135deg, ${C.amber}, #d97706)`,
-              color: '#0b0f1a', border: 'none', borderRadius: 8,
-              padding: '14px', fontSize: 15, fontWeight: 700,
-              cursor: loading ? 'not-allowed' : 'pointer', marginTop: 8,
-              minHeight: 44, WebkitAppearance: 'none',
-            }}
-          >
-            {loading
-              ? 'Please wait…'
-              : isSignUp
-                ? onboardingChoice === 'join' ? 'Link & Sign Up' : 'Create & Sign Up'
-                : 'Sign In'}
-          </button>
-        </form>
+            {/* Password */}
+            <div>
+              <label htmlFor="password" style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: text3, marginBottom: 8 }}>
+                Password
+              </label>
+              <input id="password" name="password" type="password" autoComplete={isSignUp ? 'new-password' : 'current-password'} required minLength={6} value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${border2}`, boxShadow: '2px 2px 0px #000', color: textW, padding: '12px 14px', fontSize: 16, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
+                onFocus={(e) => e.target.style.borderColor = accent}
+                onBlur={(e) => e.target.style.borderColor = border2}
+              />
+            </div>
 
-        {/* Toggle sign in / sign up */}
-        <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <button
-            onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
-            style={{ background: 'transparent', border: 'none', color: C.text1, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
-          >
-            {isSignUp ? 'Already have an account? Sign in.' : 'Need an account? Sign up.'}
-          </button>
+            {/* Invite code (join mode) */}
+            {isSignUp && mode === 'join' && (
+              <div>
+                <label htmlFor="inviteCode" style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal, marginBottom: 8 }}>
+                  Household invite code
+                </label>
+                <input id="inviteCode" name="inviteCode" type="text" value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  placeholder="Paste code from your partner's Settings"
+                  required={mode === 'join'}
+                  style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${teal}`, boxShadow: '2px 2px 0px #000', color: textW, padding: '12px 14px', fontSize: 14, fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
+                />
+                <div style={{ fontSize: 11, color: text3, marginTop: 6 }}>Find this in your partner's Settings → Your Household ID</div>
+              </div>
+            )}
+
+            {/* Submit — NeoPOP press effect */}
+            <button type="submit" disabled={loading}
+              style={{ width: '100%', background: loading ? '#52525b' : accent, color: '#09090b', border: '1px solid #000', boxShadow: loading ? 'none' : '4px 4px 0px #000', padding: '14px', fontSize: 14, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none', transition: 'transform 0.08s, box-shadow 0.08s', marginTop: 4 }}
+              onMouseDown={(e) => { if (!loading) { (e.target as HTMLElement).style.transform = 'translate(4px,4px)'; (e.target as HTMLElement).style.boxShadow = 'none'; } }}
+              onMouseUp={(e) => { (e.target as HTMLElement).style.transform = ''; (e.target as HTMLElement).style.boxShadow = '4px 4px 0px #000'; }}
+            >
+              {loading ? '— Please wait —'
+                : isSignUp
+                  ? mode === 'join' ? 'Join Household' : 'Create Household'
+                  : 'Sign In'}
+            </button>
+          </form>
+
+          {/* Toggle */}
+          <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${border}`, textAlign: 'center' }}>
+            <button onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
+              style={{ background: 'transparent', border: 'none', color: text2, fontSize: 13, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}>
+              {isSignUp ? 'Already have an account? Sign in.' : 'Need an account? Sign up.'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Back to landing page */}
-      <div style={{ textAlign: 'center', marginTop: 20 }}>
-        <a href="/" style={{ color: C.text1, fontSize: 13, textDecoration: 'none' }}>
-          ← Back to chillarflow.com
-        </a>
-      </div>
+      {/* Back to site */}
+      <a href="/" style={{ marginTop: 24, color: text3, fontSize: 12, textDecoration: 'none', letterSpacing: '0.04em' }}>
+        ← Back to chillarflow.com
+      </a>
     </div>
   );
 }
