@@ -124,10 +124,18 @@ export const C = {
   purpleBg: 'var(--purple-bg)',
   orange:   'var(--orange)',
   orangeBg: 'var(--orange-bg)',
-  // NeoPOP shadows
-  neoShadow:  'var(--neo-shadow)',
-  neoShadowSm:'var(--neo-shadow-sm)',
-  neoBorder:  'var(--neo-border)',
+  // Shadows (soft, CRED-style)
+  neoShadow:   'var(--shadow-md)',
+  neoShadowSm: 'var(--shadow-sm)',
+  neoBorder:   '1px solid var(--border)',
+  shadowSm:    'var(--shadow-sm)',
+  shadowMd:    'var(--shadow-md)',
+  shadowLg:    'var(--shadow-lg)',
+  // Radius tokens
+  radiusSm:    'var(--radius-sm)',
+  radiusMd:    'var(--radius-md)',
+  radiusLg:    'var(--radius-lg)',
+  radiusPill:  'var(--radius-pill)',
 } as const;
 
 // Raw hex — used only for SVG chart strokes/fills that can't use var()
