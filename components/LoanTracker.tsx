@@ -86,7 +86,7 @@ export function LoanTracker({ data, onAdd, onUpdate, onDelete, fmt }: Props) {
                       <Btn variant="danger" style={{ fontSize: 11, padding: '4px 9px' }} onClick={() => onDelete(l.id)}>✕</Btn>
                     </div>
                   </div>
-                  <ProgressBar pct={paidPct} color={C.teal} height={10} />
+                  <ProgressBar value={paidPct} color={C.teal} height={10} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', margin: '8px 0 14px' }}>
                     <span style={{ color: C.muted, fontSize: 12 }}>{paidPct.toFixed(1)}% paid off</span>
                     <span style={{ color: C.teal, fontSize: 12, fontWeight: 600 }}>~{monthsLeft} months left</span>
