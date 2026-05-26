@@ -375,6 +375,16 @@ export function ToastContainer() {
   );
 }
 
+// ─── useToast hook (backward-compatible shim) ─────────────────────────────────
+// Wraps the standalone addToast function so components using the hook still work.
+export function useToast() {
+  const toast = React.useCallback(
+    (message: string, type: 'success' | 'error' | 'info' = 'success') => addToast(message, type),
+    []
+  );
+  return { addToast: toast };
+}
+
 // ─── Divider ──────────────────────────────────────────────────────────────────
 export function Divider({ style }: { style?: React.CSSProperties }) {
   return <div className="divider" style={style} />;
