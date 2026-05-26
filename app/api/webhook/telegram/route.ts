@@ -50,7 +50,7 @@ async function handleReturnToMenu(chatId: number, messageId: number, txId: strin
     'Amount: ' + tx.amount + '\n' +
     'Category: ' + tx.category + '\n' +
     'Account: ' + acct + '\n' +
-    'Settlement: ' + settleLabel(tx.settle_track || 'none', tx.to_settle) + '\n' +
+    'Settlement: ' + settleTrackLabel(tx.settle_track || 'none', tx.to_settle) + '\n' +
     'Type: ' + (tx.type === 'expense' ? 'Expense' : 'Income') + '\n' +
     'Note: ' + (tx.note || '--');
   await editMsgInline(chatId, messageId, banner, txKeyboard(txId, tx.type));
@@ -231,7 +231,7 @@ export async function POST(request: Request) {
       if (data.startsWith('v_trk_')) {
         const parts = data.split('_'), track = parts[parts.length - 1], txId = parts.slice(2, -1).join('_');
         await supabase.from('transactions').update({ settle_track: track, to_settle: track === 'joint', split_mode: 'equal', partner_a_share: 0.5, partner_b_share: 0.5 }).eq('id', txId);
-        await answerCQ(cq.id, settleLabel(track, track === 'joint'));
+        await answerCQ(cq.id, settleTrackLabel(track, track === 'joint'));
         return handleReturnToMenu(chatId, mid, txId);
       }
 
@@ -482,7 +482,7 @@ export async function POST(request: Request) {
           'Amount: ' + saved.amount + '\n' +
           'Category: ' + saved.category + '\n' +
           'Account: ' + acct + '\n' +
-          'Settlement: ' + settleLabel(saved.settle_track, saved.to_settle) + '\n' +
+          'Settlement: ' + settleTrackLabel(saved.settle_track, saved.to_settle) + '\n' +
           'Type: ' + (saved.type === 'expense' ? 'Expense' : 'Income') + '\n' +
           'Note: ' + saved.note;
         await sendMsgInline(chatId, msg, txKeyboard(saved.id, saved.type));
