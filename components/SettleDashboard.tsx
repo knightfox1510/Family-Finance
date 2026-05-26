@@ -117,7 +117,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
       {/* ── Settle wizard modal ──────────────────────────────────────────────── */}
       {wizard && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 28, maxWidth: 500, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 0, padding: 28, maxWidth: 500, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
 
             {/* Modal header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
@@ -135,7 +135,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
             {/* Step indicator */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
               {([1, 2] as const).map((s) => (
-                <div key={s} style={{ flex: 1, height: 3, borderRadius: 2, background: wizard.step >= s ? C.amber : `${C.border}60`, transition: 'background 0.3s' }} />
+                <div key={s} style={{ flex: 1, height: 3, borderRadius: 0, background: wizard.step >= s ? C.amber : `${C.border}60`, transition: 'background 0.3s' }} />
               ))}
             </div>
 
@@ -143,7 +143,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
             {wizard.step === 1 && (
               <>
                 {/* Net balance summary */}
-                <div style={{ background: wizardNetBalance === 0 ? `${C.border}30` : `${C.amber}15`, border: `1px solid ${wizardNetBalance === 0 ? C.border : C.amber}44`, borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                <div style={{ background: wizardNetBalance === 0 ? `${C.border}30` : `${C.amber}15`, border: `1px solid ${wizardNetBalance === 0 ? C.border : C.amber}44`, borderRadius: 0, padding: '14px 16px', marginBottom: 16 }}>
                   <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Net settlement direction</div>
                   {wizardNetBalance === 0 && (
                     <div style={{ color: C.green, fontWeight: 700, fontSize: 15 }}>🏆 These cancel out — net zero</div>
@@ -169,7 +169,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
                     const paidByA = item.account === names.a || item.account === 'Partner A';
                     const debtor  = paidByA ? names.b : names.a;
                     return (
-                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${C.bg}80`, padding: '10px 14px', borderRadius: 8, border: `1px solid ${C.border}33` }}>
+                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${C.bg}80`, padding: '10px 14px', borderRadius: 0, border: `1px solid ${C.border}33` }}>
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600, color: C.text1 }}>
                             {item.category}
@@ -201,7 +201,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
             {wizard.step === 2 && (
               <>
                 {/* Summary recap */}
-                <div style={{ background: `${C.amber}12`, border: `1px solid ${C.amber}33`, borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+                <div style={{ background: `${C.amber}12`, border: `1px solid ${C.amber}33`, borderRadius: 0, padding: '14px 16px', marginBottom: 16 }}>
                   <div style={{ fontSize: 13, color: C.text2, marginBottom: 6 }}>
                     You are about to settle <strong style={{ color: C.textW }}>{wizard.items.length} transaction{wizard.items.length > 1 ? 's' : ''}</strong>
                   </div>
@@ -224,12 +224,12 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
                     value={wizard.note}
                     onChange={(e) => setWizard((w) => w ? { ...w, note: e.target.value } : w)}
                     placeholder="e.g. Settled via GPay, May 2026"
-                    style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 8, padding: '10px 14px', fontSize: 13, outline: 'none', boxSizing: 'border-box' as const }}
+                    style={{ width: '100%', background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 0, padding: '10px 14px', fontSize: 13, outline: 'none', boxSizing: 'border-box' as const }}
                   />
                 </div>
 
                 {/* What happens explanation */}
-                <div style={{ background: `${C.teal}10`, border: `1px solid ${C.teal}30`, borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: C.teal, lineHeight: 1.6 }}>
+                <div style={{ background: `${C.teal}10`, border: `1px solid ${C.teal}30`, borderRadius: 0, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: C.teal, lineHeight: 1.6 }}>
                   💡 Each transaction will be split into two entries — one per partner for their share — and marked as settled. The originals will be updated in place.
                 </div>
 
@@ -269,7 +269,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {/* Net balance pill */}
-            <div style={{ padding: '6px 12px', borderRadius: 20, fontSize: 13, fontWeight: 700, background: p2pNetBalance === 0 ? `${C.border}40` : `${C.amber}22`, color: p2pNetBalance === 0 ? C.muted : C.amber, border: `1px solid ${p2pNetBalance === 0 ? C.border : C.amber}44` }}>
+            <div style={{ padding: '6px 12px', borderRadius: 0, fontSize: 13, fontWeight: 700, background: p2pNetBalance === 0 ? `${C.border}40` : `${C.amber}22`, color: p2pNetBalance === 0 ? C.muted : C.amber, border: `1px solid ${p2pNetBalance === 0 ? C.border : C.amber}44` }}>
               {p2pNetBalance === 0 && '🏆 Fully Settled'}
               {p2pNetBalance > 0 && `${names.b} owes ${names.a} ${fmt(Math.abs(p2pNetBalance))}`}
               {p2pNetBalance < 0 && `${names.a} owes ${names.b} ${fmt(Math.abs(p2pNetBalance))}`}
@@ -289,7 +289,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
 
         {/* Item list */}
         {pendingPartnerItems.length === 0 ? (
-          <div style={{ padding: '24px 12px', textAlign: 'center', color: C.muted, fontSize: 13, background: `${C.bg}40`, borderRadius: 8, border: `1px dashed ${C.border}` }}>
+          <div style={{ padding: '24px 12px', textAlign: 'center', color: C.muted, fontSize: 13, background: `${C.bg}40`, borderRadius: 0, border: `1px dashed ${C.border}` }}>
             Everything is clear! 🏆
           </div>
         ) : (
@@ -297,11 +297,11 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
             {pendingPartnerItems.map((item: any) => {
               const paidByA = item.account === names.a || item.account === 'Partner A';
               return (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${C.bg}60`, padding: '10px 14px', borderRadius: 8, border: `1px solid ${C.border}44` }}>
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${C.bg}60`, padding: '10px 14px', borderRadius: 0, border: `1px solid ${C.border}44` }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: C.text1 }}>{item.category}</span>
-                      <span style={{ fontSize: 11, background: `${C.border}60`, color: C.text2, padding: '2px 6px', borderRadius: 4 }}>{item.breakdownText}</span>
+                      <span style={{ fontSize: 11, background: `${C.border}60`, color: C.text2, padding: '2px 6px', borderRadius: 0 }}>{item.breakdownText}</span>
                     </div>
                     <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
                       {item.date} • paid by {paidByA ? names.a : names.b}
@@ -316,7 +316,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
                     <button
                       type="button"
                       onClick={() => openWizard([item])}
-                      style={{ background: `${C.amber}15`, border: `1px solid ${C.amber}44`, color: C.amber, padding: '6px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' as const }}
+                      style={{ background: `${C.amber}15`, border: `1px solid ${C.amber}44`, color: C.amber, padding: '6px 10px', borderRadius: 0, fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' as const }}
                     >
                       Settle ⚡
                     </button>
