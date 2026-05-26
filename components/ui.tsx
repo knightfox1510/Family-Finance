@@ -1,598 +1,466 @@
-/* ─── ChillarFlow Design System v2 ─────────────────────────────────────────
-   Inspired by CRED's current UI: rounded, premium, clean.
-   Inter font, soft shadows, pill buttons, high contrast numbers.
-*/
+'use client';
+// ─── components/ui.tsx ────────────────────────────────────────────────────────
+// ChillarFlow NeoPOP Component Library
+// All primitives: Card, Button, Input, Badge, Progress, Metric, ThemePicker, etc.
+// Uses CSS classes from globals.css — no inline theme colours needed.
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+import React from 'react';
+import { C } from '@/constants';
 
-/* ── Reset ──────────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; }
-* { -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; padding: 0; overflow-x: hidden; }
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+// ─── Types ────────────────────────────────────────────────────────────────────
+type Variant = 'primary' | 'ghost' | 'danger' | 'teal' | 'green' | 'success';
+export type ToastType = 'success' | 'error' | 'info';
+
+// ─── Card ─────────────────────────────────────────────────────────────────────
+// NeoPOP card: sharp corners, hard drop shadow, press-to-lift animation
+interface CardProps {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  onClick?: () => void;
+  animate?: boolean;
+  padding?: string;
 }
-input, select, textarea, button {
-  font-family: inherit;
-  -webkit-appearance: none;
-  appearance: none;
-}
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
-
-/* ── Safe areas ─────────────────────────────────────────────────────────── */
-.safe-top    { padding-top:    env(safe-area-inset-top, 0px); }
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   THEMES
-   ════════════════════════════════════════════════════════════════════════ */
-
-/* ── 01. Obsidian (dark, CRED-like deep dark) ───────────────────────────── */
-:root, [data-theme="obsidian"] {
-  --bg:         #0a0a0a;
-  --bg2:        #111111;
-  --surface:    #1a1a1a;
-  --surface2:   #242424;
-  --surface3:   #2e2e2e;
-  --border:     #2e2e2e;
-  --border2:    #3a3a3a;
-  --muted:      #3a3a3a;
-  --text3:      #666666;
-  --text2:      #999999;
-  --text1:      #cccccc;
-  --textW:      #f5f5f5;
-
-  --accent:     #f0b429;
-  --accent2:    #f7cc6f;
-  --accent-bg:  rgba(240,180,41,0.12);
-  --accent-glow:rgba(240,180,41,0.20);
-
-  --green:      #22c55e;
-  --green-bg:   rgba(34,197,94,0.12);
-  --red:        #ff4d4d;
-  --red-bg:     rgba(255,77,77,0.12);
-  --blue:       #4d9fff;
-  --blue-bg:    rgba(77,159,255,0.12);
-  --teal:       #2dd4bf;
-  --teal-bg:    rgba(45,212,191,0.12);
-  --purple:     #b197fc;
-  --purple-bg:  rgba(177,151,252,0.12);
-  --orange:     #ff8c42;
-  --orange-bg:  rgba(255,140,66,0.12);
-
-  /* Shadows — soft, no hard drop */
-  --shadow-sm:  0 1px 8px rgba(0,0,0,0.4);
-  --shadow-md:  0 4px 20px rgba(0,0,0,0.5);
-  --shadow-lg:  0 8px 40px rgba(0,0,0,0.6);
-  --shadow-accent: 0 4px 20px rgba(240,180,41,0.25);
-
-  /* Radius — CRED style: generous rounding */
-  --radius-sm:  8px;
-  --radius-md:  14px;
-  --radius-lg:  20px;
-  --radius-xl:  28px;
-  --radius-pill:99px;
-
-  --scrollbar-thumb: #2e2e2e;
+export function Card({ children, className = '', style, onClick, animate, padding = '18px 20px' }: CardProps) {
+  return (
+    <div
+      className={`cf-card${animate ? ' animate-fade-up' : ''}${className ? ' ' + className : ''}`}
+      style={{ padding, cursor: onClick ? 'pointer' : undefined, ...style }}
+      onClick={onClick}
+    >
+      {children}
+    </div>
+  );
 }
 
-/* ── 02. Pearl (light) ──────────────────────────────────────────────────── */
-[data-theme="pearl"] {
-  --bg:         #f5f5f5;
-  --bg2:        #ebebeb;
-  --surface:    #ffffff;
-  --surface2:   #f5f5f5;
-  --surface3:   #ebebeb;
-  --border:     #e8e8e8;
-  --border2:    #d8d8d8;
-  --muted:      #d0d0d0;
-  --text3:      #aaaaaa;
-  --text2:      #777777;
-  --text1:      #444444;
-  --textW:      #111111;
-
-  --accent:     #d4960a;
-  --accent2:    #f0b429;
-  --accent-bg:  rgba(212,150,10,0.08);
-  --accent-glow:rgba(212,150,10,0.15);
-
-  --green:      #16a34a;
-  --green-bg:   rgba(22,163,74,0.08);
-  --red:        #dc2626;
-  --red-bg:     rgba(220,38,38,0.08);
-  --blue:       #2563eb;
-  --blue-bg:    rgba(37,99,235,0.08);
-  --teal:       #0d9488;
-  --teal-bg:    rgba(13,148,136,0.08);
-  --purple:     #7c3aed;
-  --purple-bg:  rgba(124,58,237,0.08);
-  --orange:     #ea580c;
-  --orange-bg:  rgba(234,88,12,0.08);
-
-  --shadow-sm:  0 1px 4px rgba(0,0,0,0.08);
-  --shadow-md:  0 4px 16px rgba(0,0,0,0.10);
-  --shadow-lg:  0 8px 32px rgba(0,0,0,0.12);
-  --shadow-accent: 0 4px 16px rgba(212,150,10,0.20);
-
-  --radius-sm:  8px;
-  --radius-md:  14px;
-  --radius-lg:  20px;
-  --radius-xl:  28px;
-  --radius-pill:99px;
-
-  --scrollbar-thumb: #e0e0e0;
+// ─── Section title (NeoPOP style with trailing rule line) ──────────────────────
+export function SectionTitle({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div className="cf-section-title" style={style}>
+      {children}
+    </div>
+  );
 }
 
-/* ── 03. Emerald (dark green) ───────────────────────────────────────────── */
-[data-theme="emerald"] {
-  --bg:         #030d07;
-  --bg2:        #071a0e;
-  --surface:    #0d2618;
-  --surface2:   #133220;
-  --surface3:   #1a4028;
-  --border:     #1a4028;
-  --border2:    #225434;
-  --muted:      #2a6640;
-  --text3:      #3d8f5a;
-  --text2:      #5ab87a;
-  --text1:      #86efac;
-  --textW:      #f0fdf4;
-
-  --accent:     #4ade80;
-  --accent2:    #86efac;
-  --accent-bg:  rgba(74,222,128,0.12);
-  --accent-glow:rgba(74,222,128,0.20);
-
-  --green:      #4ade80;
-  --green-bg:   rgba(74,222,128,0.12);
-  --red:        #ff6b6b;
-  --red-bg:     rgba(255,107,107,0.12);
-  --blue:       #60a5fa;
-  --blue-bg:    rgba(96,165,250,0.12);
-  --teal:       #2dd4bf;
-  --teal-bg:    rgba(45,212,191,0.12);
-  --purple:     #c084fc;
-  --purple-bg:  rgba(192,132,252,0.12);
-  --orange:     #fb923c;
-  --orange-bg:  rgba(251,146,60,0.12);
-
-  --shadow-sm:  0 1px 8px rgba(0,0,0,0.5);
-  --shadow-md:  0 4px 20px rgba(0,0,0,0.6);
-  --shadow-lg:  0 8px 40px rgba(0,0,0,0.7);
-  --shadow-accent: 0 4px 20px rgba(74,222,128,0.25);
-
-  --radius-sm:  8px;
-  --radius-md:  14px;
-  --radius-lg:  20px;
-  --radius-xl:  28px;
-  --radius-pill:99px;
-
-  --scrollbar-thumb: #1a4028;
+// ─── Button ───────────────────────────────────────────────────────────────────
+interface BtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: Variant;
+  size?: 'sm' | 'md' | 'lg';
+  fullWidth?: boolean;
+  children: React.ReactNode;
+}
+export function Btn({ variant = 'primary', size = 'md', fullWidth, children, style, ...p }: BtnProps) {
+  const sizeMap = { sm: '8px 14px', md: '12px 20px', lg: '14px 28px' };
+  const fontMap  = { sm: 11, md: 13, lg: 15 };
+  const cls = variant === 'primary' ? 'neo-btn'
+    : variant === 'ghost'   ? 'neo-btn neo-btn-ghost'
+    : variant === 'danger'  ? 'neo-btn neo-btn-danger'
+    : variant === 'success' ? 'neo-btn'
+    : variant === 'teal'    ? 'neo-btn'
+    : 'neo-btn neo-btn-ghost';
+  return (
+    <button
+      className={cls}
+      style={{
+        padding: sizeMap[size],
+        fontSize: fontMap[size],
+        width: fullWidth ? '100%' : undefined,
+        ...(variant === 'success' ? { background: C.green,  borderColor: '#000' } : {}),
+        ...(variant === 'teal'    ? { background: C.teal,   borderColor: '#000' } : {}),
+        ...(variant === 'green'   ? { background: C.green,  borderColor: '#000' } : {}),
+        ...style,
+      }}
+      {...p}
+    >
+      {children}
+    </button>
+  );
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   COMPONENTS
-   ════════════════════════════════════════════════════════════════════════ */
-
-/* ── Card ─────────────────────────────────────────────────────────────────── */
-.cf-card {
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+// ─── Input ────────────────────────────────────────────────────────────────────
+interface InpProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  hint?: string;
 }
-.cf-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-.cf-card-sm {
-  background: var(--surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-}
-.cf-card-inset {
-  background: var(--surface2);
-  border-radius: var(--radius-md);
-}
-
-/* ── Button ───────────────────────────────────────────────────────────────── */
-.cf-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: none;
-  border-radius: var(--radius-pill);
-  padding: 13px 24px;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-  transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.12s ease;
-  min-height: 48px;
-  user-select: none;
-  -webkit-user-select: none;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.cf-btn:active { transform: scale(0.96); opacity: 0.9; }
-.cf-btn-primary {
-  background: var(--accent);
-  color: #0a0a0a;
-  box-shadow: var(--shadow-accent);
-}
-.cf-btn-ghost {
-  background: var(--surface2);
-  color: var(--textW);
-}
-.cf-btn-ghost:hover { background: var(--surface3); }
-.cf-btn-danger  { background: var(--red-bg); color: var(--red); }
-.cf-btn-success { background: var(--green-bg); color: var(--green); }
-.cf-btn-teal    { background: var(--teal-bg); color: var(--teal); }
-.cf-btn-sm { padding: 8px 16px; font-size: 12px; min-height: 36px; }
-.cf-btn-lg { padding: 16px 32px; font-size: 16px; min-height: 56px; }
-.cf-btn-full { width: 100%; }
-
-/* ── Input ────────────────────────────────────────────────────────────────── */
-.cf-input {
-  width: 100%;
-  background: var(--surface2);
-  border: 1.5px solid transparent;
-  border-radius: var(--radius-md);
-  color: var(--textW);
-  font-family: 'Inter', sans-serif;
-  font-size: 15px;
-  font-weight: 500;
-  padding: 14px 16px;
-  outline: none;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-  min-height: 52px;
-}
-.cf-input::placeholder { color: var(--text3); font-weight: 400; }
-.cf-input:focus {
-  border-color: var(--accent);
-  background: var(--surface);
-  box-shadow: 0 0 0 4px var(--accent-bg);
+export function Inp({ label, hint, style, id, ...p }: InpProps) {
+  const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  return (
+    <div style={{ width: '100%' }}>
+      {label && (
+        <label htmlFor={inputId} style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.text3, marginBottom: 8 }}>
+          {label}
+        </label>
+      )}
+      <input
+        id={inputId}
+        className="cf-input"
+        style={{ fontSize: 16, ...style }} // 16px prevents iOS zoom
+        {...p}
+      />
+      {hint && <div style={{ fontSize: 11, color: C.text3, marginTop: 6 }}>{hint}</div>}
+    </div>
+  );
 }
 
-/* ── Badge / Tag ──────────────────────────────────────────────────────────── */
-.cf-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+// ─── Select ───────────────────────────────────────────────────────────────────
+export function Sel({ style, ...p }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      className="cf-input"
+      style={{ cursor: 'pointer', ...style }}
+      {...p}
+    />
+  );
 }
 
-/* ── Toggle ───────────────────────────────────────────────────────────────── */
-.cf-toggle {
-  position: relative;
-  width: 48px;
-  height: 28px;
-  background: var(--surface3);
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-.cf-toggle.on { background: var(--accent); }
-.cf-toggle-thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
-  background: #fff;
-  border-radius: 50%;
-  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-}
-.cf-toggle.on .cf-toggle-thumb { transform: translateX(20px); }
-
-/* ── Progress ─────────────────────────────────────────────────────────────── */
-.cf-progress {
-  height: 6px;
-  background: var(--surface2);
-  border-radius: var(--radius-pill);
-  overflow: hidden;
-}
-.cf-progress-fill {
-  height: 100%;
-  border-radius: var(--radius-pill);
-  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+// ─── Label ────────────────────────────────────────────────────────────────────
+export function Label({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div className="t-caption" style={{ marginBottom: 8, ...style }}>{children}</div>
+  );
 }
 
-/* ── Metric tile ──────────────────────────────────────────────────────────── */
-.cf-metric {
-  background: var(--surface2);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
-}
-.cf-metric-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text3);
-  margin-bottom: 8px;
-}
-.cf-metric-value {
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--textW);
-  line-height: 1;
+// ─── Badge / Tag ──────────────────────────────────────────────────────────────
+type BadgeColor = 'accent' | 'green' | 'red' | 'blue' | 'teal' | 'purple' | 'orange' | 'muted';
+export function Badge({ children, color = 'muted', style }: { children: React.ReactNode; color?: BadgeColor; style?: React.CSSProperties }) {
+  const colorMap: Record<BadgeColor, { color: string; borderColor: string }> = {
+    accent:  { color: C.accent,  borderColor: C.accent  },
+    green:   { color: C.green,   borderColor: C.green   },
+    red:     { color: C.red,     borderColor: C.red     },
+    blue:    { color: C.blue,    borderColor: C.blue    },
+    teal:    { color: C.teal,    borderColor: C.teal    },
+    purple:  { color: C.purple,  borderColor: C.purple  },
+    orange:  { color: C.orange,  borderColor: C.orange  },
+    muted:   { color: C.text3,   borderColor: C.border  },
+  };
+  return (
+    <span className="cf-badge" style={{ ...colorMap[color], ...style }}>{children}</span>
+  );
 }
 
-/* ── Section label ────────────────────────────────────────────────────────── */
-.cf-section-title {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text3);
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+// ─── Progress bar ─────────────────────────────────────────────────────────────
+interface ProgressProps {
+  value: number;  // 0–100
+  color?: string;
+  height?: number;
 }
-.cf-section-title::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-  border-radius: 1px;
-}
-
-/* ── Horizontal tray ──────────────────────────────────────────────────────── */
-.cf-tray {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding: 4px 0 8px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.cf-tray::-webkit-scrollbar { display: none; }
-.cf-tray-item {
-  flex-shrink: 0;
-  background: var(--surface2);
-  border-radius: var(--radius-md);
-  padding: 12px 16px;
-  cursor: pointer;
-  transition: transform 0.12s, background 0.12s;
-}
-.cf-tray-item:active { transform: scale(0.95); }
-
-/* ── Action chip (pill) ───────────────────────────────────────────────────── */
-.cf-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: var(--surface2);
-  border-radius: var(--radius-pill);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--textW);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.12s, transform 0.12s;
-  border: 1px solid var(--border2);
-}
-.cf-chip:active { transform: scale(0.96); }
-.cf-chip.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
-
-/* ── Bottom navigation ────────────────────────────────────────────────────── */
-.cf-bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  box-shadow: 0 -8px 32px rgba(0,0,0,0.3);
-  display: flex;
-  padding-bottom: max(8px, env(safe-area-inset-bottom));
-  padding-top: 4px;
-}
-.cf-nav-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 4px 4px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity 0.15s;
-  position: relative;
-}
-.cf-nav-item:active { opacity: 0.6; }
-.cf-nav-icon-wrap {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s;
-  font-size: 20px;
-}
-.cf-nav-item.active .cf-nav-icon-wrap {
-  background: var(--accent-bg);
-}
-.cf-nav-label {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text3);
-  transition: color 0.15s;
-}
-.cf-nav-item.active .cf-nav-label { color: var(--accent); }
-
-/* ── Top header ───────────────────────────────────────────────────────────── */
-.cf-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: var(--bg);
-  padding: 14px 20px 10px;
-  padding-top: max(14px, env(safe-area-inset-top));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border);
+export function Progress({ value, color, height = 6 }: ProgressProps) {
+  const pct = Math.min(100, Math.max(0, value));
+  const barColor = color || (pct >= 90 ? C.red : pct >= 70 ? C.accent : C.green);
+  return (
+    <div className="cf-progress" style={{ height }}>
+      <div
+        className="cf-progress-fill"
+        style={{ width: `${pct}%`, background: barColor }}
+      />
+    </div>
+  );
 }
 
-/* ── Page shell ───────────────────────────────────────────────────────────── */
-.cf-page {
-  min-height: 100vh;
-  background: var(--bg);
-  color: var(--textW);
-  padding-bottom: 88px;
-}
-.cf-content {
-  padding: 0 16px;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-/* ── Divider ──────────────────────────────────────────────────────────────── */
-.cf-divider { height: 1px; background: var(--border); }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   TYPOGRAPHY
-   ════════════════════════════════════════════════════════════════════════ */
-.t-display  { font-size: clamp(28px,8vw,48px); font-weight: 900; letter-spacing: -0.04em; line-height: 1.0; color: var(--textW); }
-.t-h1       { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; color: var(--textW); }
-.t-h2       { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; color: var(--textW); }
-.t-h3       { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--textW); }
-.t-body     { font-size: 14px; font-weight: 400; line-height: 1.6; color: var(--text2); }
-.t-small    { font-size: 12px; font-weight: 400; color: var(--text2); }
-.t-caption  { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); }
-.t-number   { font-size: 28px; font-weight: 800; letter-spacing: -0.04em; color: var(--textW); line-height: 1; }
-.t-accent   { color: var(--accent); }
-.t-green    { color: var(--green); }
-.t-red      { color: var(--red); }
-.t-muted    { color: var(--text3); }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   ANIMATIONS
-   ════════════════════════════════════════════════════════════════════════ */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-up { animation: fadeUp 0.3s cubic-bezier(0.4,0,0.2,1) forwards; }
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-.animate-fade-in { animation: fadeIn 0.25s ease forwards; }
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(24px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-slide-up { animation: slideUp 0.28s cubic-bezier(0.4,0,0.2,1) forwards; }
-
-@keyframes slideRight {
-  from { opacity: 0; transform: translateX(20px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-.animate-slide-right { animation: slideRight 0.25s cubic-bezier(0.4,0,0.2,1) forwards; }
-
-@keyframes countUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-count { animation: countUp 0.35s cubic-bezier(0.4,0,0.2,1) forwards; }
-
-/* Stagger */
-.stagger > *:nth-child(1) { animation-delay: 0ms; }
-.stagger > *:nth-child(2) { animation-delay: 60ms; }
-.stagger > *:nth-child(3) { animation-delay: 120ms; }
-.stagger > *:nth-child(4) { animation-delay: 180ms; }
-.stagger > *:nth-child(5) { animation-delay: 240ms; }
-.stagger > *:nth-child(6) { animation-delay: 300ms; }
-
-/* Pro shimmer */
-@keyframes shimmer {
-  0%   { background-position: -200% center; }
-  100% { background-position:  200% center; }
-}
-.pro-shimmer {
-  background: linear-gradient(90deg, var(--accent), var(--accent2), #fff8, var(--accent));
-  background-size: 200% auto;
-  animation: shimmer 2.5s linear infinite;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 800;
+// ─── Toggle ───────────────────────────────────────────────────────────────────
+export function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div
+      className={`cf-toggle${on ? ' on' : ''}`}
+      role="switch"
+      aria-checked={on}
+      tabIndex={0}
+      onClick={() => onChange(!on)}
+      onKeyDown={(e) => e.key === 'Enter' || e.key === ' ' ? onChange(!on) : undefined}
+      style={{ cursor: 'pointer' }}
+    >
+      <div className="cf-toggle-thumb" />
+    </div>
+  );
 }
 
-/* Pulse */
-@keyframes pulse {
-  0%,100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.7; transform: scale(0.96); }
+// ─── Metric tile ──────────────────────────────────────────────────────────────
+interface MetricProps {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+  progress?: number;
+  animate?: boolean;
 }
-.pulse { animation: pulse 2s ease-in-out infinite; }
+export function Metric({ label, value, sub, color, progress, animate }: MetricProps) {
+  return (
+    <div className={`neo-metric${animate ? ' animate-count' : ''}`}>
+      <div className="cf-metric-label">{label}</div>
+      <div className="cf-metric-value" style={color ? { color } : undefined}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: C.text3, marginTop: 4 }}>{sub}</div>}
+      {progress !== undefined && (
+        <div style={{ marginTop: 10 }}>
+          <Progress value={progress} />
+        </div>
+      )}
+    </div>
+  );
+}
 
-/* ══════════════════════════════════════════════════════════════════════════
-   UTILITIES
-   ════════════════════════════════════════════════════════════════════════ */
-.divider { height: 1px; background: var(--border); }
-.flex { display: flex; }
-.flex-col { display: flex; flex-direction: column; }
-.items-center { align-items: center; }
-.justify-between { justify-content: space-between; }
-.flex-1 { flex: 1; }
-.w-full { width: 100%; }
-.text-right { text-align: right; }
-.text-center { text-align: center; }
-.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.gap-4  { gap: 4px; }
-.gap-8  { gap: 8px; }
-.gap-12 { gap: 12px; }
-.gap-16 { gap: 16px; }
-.grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
-.grid-auto { display: grid; grid-template-columns: repeat(auto-fit,minmax(130px,1fr)); gap: 10px; }
-.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+// ─── Usage meter (plan/AI parse tracker) ─────────────────────────────────────
+export function UsageMeter({ count, limit, pct }: { count: number; limit: number; pct: number }) {
+  const color = pct >= 90 ? C.red : pct >= 70 ? C.accent : C.teal;
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span className="t-caption">AI parses this month</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color }}>{count} / {limit}</span>
+      </div>
+      <Progress value={pct} color={color} height={4} />
+      {pct >= 80 && (
+        <div style={{ fontSize: 11, color: pct >= 100 ? C.red : C.accent, marginTop: 6 }}>
+          {pct >= 100 ? '▪ Limit reached — upgrade for unlimited' : `▪ ${Math.round(100 - pct)}% remaining`}
+        </div>
+      )}
+    </div>
+  );
+}
 
-/* Thin scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+// ─── Plan badge ───────────────────────────────────────────────────────────────
+export function PlanBadge({ plan }: { plan: 'free' | 'pro' }) {
+  if (plan === 'pro') {
+    return <span className="pro-shimmer" style={{ fontSize: 12, letterSpacing: '0.05em' }}>✦ PRO</span>;
+  }
+  return <Badge color="muted">FREE</Badge>;
+}
 
-/* No-flash */
-html { background: #0a0a0a; }
+// ─── Theme picker ─────────────────────────────────────────────────────────────
+const THEMES = [
+  { id: 'obsidian', label: 'Obsidian', swatches: ['#09090b', '#18181b', '#f59e0b'] },
+  { id: 'pearl',    label: 'Pearl',    swatches: ['#fafafa', '#ffffff', '#d97706'] },
+  { id: 'emerald',  label: 'Emerald',  swatches: ['#030a06', '#071a0e', '#22c55e'] },
+] as const;
 
-/* Backward compat — map neo- classes to cf- equivalents */
-.neo-card      { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
-.neo-card-sm   { background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); }
-.neo-btn       { border-radius: var(--radius-pill) !important; border: none !important; box-shadow: var(--shadow-accent) !important; }
-.neo-btn-ghost { background: var(--surface2) !important; box-shadow: var(--shadow-sm) !important; color: var(--textW) !important; }
-.neo-btn-danger{ background: var(--red-bg) !important; color: var(--red) !important; }
-.neo-input     { border-radius: var(--radius-md) !important; border: 1.5px solid transparent !important; box-shadow: none !important; }
-.neo-input:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 4px var(--accent-bg) !important; }
-.neo-badge     { border-radius: var(--radius-pill) !important; border: none !important; }
-.neo-metric    { border-radius: var(--radius-md) !important; box-shadow: var(--shadow-sm) !important; }
-.neo-section-title { letter-spacing: 0.12em; }
-.neo-tray      { gap: 10px; }
-.neo-tray-card { border-radius: var(--radius-md) !important; box-shadow: var(--shadow-sm) !important; border: none !important; }
-.neo-bottom-nav { border-radius: 0 !important; box-shadow: 0 -8px 32px rgba(0,0,0,0.3) !important; }
-.neo-nav-item .neo-nav-pip { display: none; }
-.neo-progress  { border-radius: var(--radius-pill) !important; border: none !important; }
-.neo-toggle    { border-radius: var(--radius-pill) !important; border: none !important; }
-.neo-toggle-thumb { border-radius: 50% !important; box-shadow: 0 2px 6px rgba(0,0,0,0.25) !important; }
+export function ThemePicker({ current, onChange }: { current: string; onChange: (t: string) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 8 }}>
+      {THEMES.map(({ id, label, swatches }) => (
+        <button
+          key={id}
+          onClick={() => onChange(id)}
+          className="neo-btn-ghost"
+          style={{
+            flex: 1, padding: '12px 8px',
+            background: current === id ? C.accentBg : C.surface2,
+            borderColor: current === id ? C.accent : C.border,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+            boxShadow: current === id ? C.neoShadow : C.neoShadowSm,
+          }}
+        >
+          <div style={{ display: 'flex', gap: 4 }}>
+            {swatches.map((s) => (
+              <div key={s} style={{ width: 14, height: 14, background: s, border: '1px solid rgba(255,255,255,0.15)' }} />
+            ))}
+          </div>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: current === id ? C.accent : C.text3 }}>
+            {label}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Horizontal quick-action tray (NeoPOP story bar) ──────────────────────────
+interface TrayItem {
+  icon: string;
+  label: string;
+  value?: string;
+  color?: string;
+  onClick?: () => void;
+}
+export function QuickTray({ items }: { items: TrayItem[] }) {
+  return (
+    <div className="cf-tray">
+      {items.map((item, i) => (
+        <div key={i} className="cf-tray-item" onClick={item.onClick}>
+          <div style={{ fontSize: 18, marginBottom: 4 }}>{item.icon}</div>
+          {item.value && (
+            <div style={{ fontSize: 13, fontWeight: 800, color: item.color || C.textW, letterSpacing: '-0.02em', marginBottom: 2 }}>
+              {item.value}
+            </div>
+          )}
+          <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.text3 }}>
+            {item.label}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Bottom navigation ────────────────────────────────────────────────────────
+interface NavItem {
+  id: string;
+  icon: React.ReactNode;
+  label: string;
+}
+export function BottomNav({
+  items,
+  active,
+  onSelect,
+}: {
+  items: NavItem[];
+  active: string;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <nav className="cf-bottom-nav" role="navigation" aria-label="Main navigation">
+      {items.map((item) => (
+        <div
+          key={item.id}
+          className={`cf-nav-item${active === item.id ? ' active' : ''}`}
+          onClick={() => onSelect(item.id)}
+          role="button"
+          aria-label={item.label}
+          aria-pressed={active === item.id}
+        >
+          <div className="cf-nav-pip" />
+          <div className="cf-nav-icon-wrap">
+            <div style={{ color: active === item.id ? C.accent : C.text3, transition: 'color 0.15s', fontSize: 20 }}>
+              {item.icon}
+            </div>
+          </div>
+          <div className="cf-nav-label">{item.label}</div>
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+// ─── Toast notification ───────────────────────────────────────────────────────
+interface ToastState {
+  message: string;
+  type: 'success' | 'error' | 'info';
+  visible: boolean;
+}
+const toastEmit = new EventTarget();
+export function addToast(message: string, type: 'success' | 'error' | 'info' = 'success') {
+  toastEmit.dispatchEvent(Object.assign(new Event('toast'), { message, type }));
+}
+
+export function ToastContainer() {
+  const [toasts, setToasts] = React.useState<(ToastState & { id: number })[]>([]);
+  const idRef = React.useRef(0);
+
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as Event & { message: string; type: string };
+      const id = ++idRef.current;
+      setToasts((t) => [...t, { id, message: ev.message, type: ev.type as any, visible: true }]);
+      setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000);
+    };
+    toastEmit.addEventListener('toast', handler);
+    return () => toastEmit.removeEventListener('toast', handler);
+  }, []);
+
+  if (!toasts.length) return null;
+  return (
+    <div style={{ position: 'fixed', top: 'max(20px, env(safe-area-inset-top))', right: 20, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className="neo-card-sm animate-slide-right"
+          style={{
+            padding: '12px 16px',
+            background: t.type === 'success' ? C.greenBg : t.type === 'error' ? C.redBg : C.accentBg,
+            borderColor: t.type === 'success' ? C.green : t.type === 'error' ? C.red : C.accent,
+            boxShadow: C.neoShadow,
+            maxWidth: 320,
+            fontSize: 13,
+            fontWeight: 600,
+            color: t.type === 'success' ? C.green : t.type === 'error' ? C.red : C.accent,
+          }}
+        >
+          {t.type === 'success' ? '✓ ' : t.type === 'error' ? '✕ ' : '· '}{t.message}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Backward-compatibility aliases ───────────────────────────────────────────
+// Some existing components import these names — keep them working.
+export const ProgressBar = Progress;
+
+interface StatCardProps {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+}
+export function StatCard({ label, value, sub, color }: StatCardProps) {
+  return <Metric label={label} value={value} sub={sub} color={color} />;
+}
+
+// ─── useToast hook (backward-compatible shim) ─────────────────────────────────
+// Wraps the standalone addToast function so components using the hook still work.
+export function useToast() {
+  const toast = React.useCallback(
+    (message: string, type: 'success' | 'error' | 'info' = 'success') => addToast(message, type),
+    []
+  );
+  return { addToast: toast };
+}
+
+// ─── Divider ──────────────────────────────────────────────────────────────────
+export function Divider({ style }: { style?: React.CSSProperties }) {
+  return <div className="divider" style={style} />;
+}
+
+// ─── Collapsible section (NeoPOP style) ───────────────────────────────────────
+interface CollapsibleProps {
+  title: string;
+  badge?: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}
+export function Collapsible({ title, badge, children, defaultOpen = false }: CollapsibleProps) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  return (
+    <div className="cf-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '16px 20px', background: 'transparent', border: 'none', cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.textW }}>{title}</span>
+          {badge && !open && (
+            <span style={{ fontSize: 10, color: C.text3, fontWeight: 500 }}>{badge}</span>
+          )}
+        </div>
+        <span style={{ color: C.text3, transition: 'transform 0.2s', display: 'inline-block', transform: open ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: 12 }}>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div style={{ padding: '0 20px 20px', borderTop: `1px solid ${C.border}` }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+export function EmptyState({ icon, title, body }: { icon: string; title: string; body: string }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+      <div style={{ fontSize: 40, marginBottom: 16 }}>{icon}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: C.textW, marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 13, color: C.text2, lineHeight: 1.6 }}>{body}</div>
+    </div>
+  );
+}
+
+// ─── Skeleton loader ──────────────────────────────────────────────────────────
+export function Skeleton({ width = '100%', height = 16 }: { width?: string | number; height?: number }) {
+  return (
+    <div style={{ width, height, background: C.surface2, animation: 'pulse 1.5s ease-in-out infinite' }} />
+  );
+}
