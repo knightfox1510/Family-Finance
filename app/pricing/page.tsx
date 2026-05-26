@@ -1,4 +1,3 @@
-
 // app/pricing/page.tsx
 
 import Link from 'next/link';
@@ -36,7 +35,7 @@ const plans = [
       'Priority support',
     ],
     cta: 'Start free',
-    ctaHref: '/app/auth',
+    ctaHref: '/app',
     highlight: false,
   },
   {
