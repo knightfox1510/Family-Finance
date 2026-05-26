@@ -15,7 +15,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 
 import { supabase } from '@/lib/supabaseClient';
-import Auth from './Auth';
+import Auth from '@/Auth';
 
 import { loadData } from '@/lib/supabaseHelpers';
 import { SetupWizard } from '@/components/SetupWizard';
@@ -74,7 +74,7 @@ function exportToExcel(data: AppData) {
       'Progress %': g.target > 0 ? ((g.current / g.target) * 100).toFixed(1) : 0,
     }))
   ), 'Goals');
-  XLSX.writeFile(wb, `FamilyFinance_${today()}.xlsx`);
+  XLSX.writeFile(wb, `ChillarFlow_${today()}.xlsx`);
 }
 
 // ─── App root ─────────────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ export default function App() {
 
   React.useEffect(() => {
     // Read persisted theme on mount and apply
-    const saved = localStorage.getItem('ff_theme') || 'dark-navy';
+    const saved = localStorage.getItem('cf_theme') || 'dark-navy';
     setTheme(saved);
     document.documentElement.setAttribute('data-theme', saved);
   }, []);
@@ -103,7 +103,7 @@ export default function App() {
   const handleThemeChange = (t: string) => {
     setTheme(t);
     document.documentElement.setAttribute('data-theme', t);
-    localStorage.setItem('ff_theme', t);
+    localStorage.setItem('cf_theme', t);
   };
   const [duplicateData, setDuplicateData] = useState<any>(null);
 
@@ -135,7 +135,7 @@ export default function App() {
 
   // ── Offline queue + online/offline detection ──────────────────────────────
   const [offlineQueue, setOfflineQueue] = React.useState<any[]>(() => {
-    try { return JSON.parse(localStorage.getItem('ff_offline_queue') || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem('cf_offline_queue') || '[]'); } catch { return []; }
   });
   const [isOnline, setIsOnline] = React.useState(
     typeof navigator !== 'undefined' ? navigator.onLine : true
@@ -144,10 +144,10 @@ export default function App() {
   React.useEffect(() => {
     const goOnline = async () => {
       setIsOnline(true);
-      const q: any[] = (() => { try { return JSON.parse(localStorage.getItem('ff_offline_queue') || '[]'); } catch { return []; } })();
+      const q: any[] = (() => { try { return JSON.parse(localStorage.getItem('cf_offline_queue') || '[]'); } catch { return []; } })();
       if (q.length > 0) {
         for (const item of q) { try { await actions.addExpense(item); } catch {} }
-        localStorage.setItem('ff_offline_queue', '[]');
+        localStorage.setItem('cf_offline_queue', '[]');
         setOfflineQueue([]);
         addToast(`✅ ${q.length} offline expense${q.length > 1 ? 's' : ''} synced`, 'success');
       }
@@ -284,7 +284,7 @@ export default function App() {
         alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16,
       }}>
         <div style={{ fontSize: 40 }}>💰</div>
-        <div style={{ color: C.amber, fontSize: 17, fontWeight: 700 }}>Loading FamilyFinance…</div>
+        <div style={{ color: C.amber, fontSize: 17, fontWeight: 700 }}>Loading ChillarFlow…</div>
       </div>
     );
   }
@@ -333,7 +333,7 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 150 }}>
                 <span style={{ fontSize: 26 }}>💰</span>
                 <span style={{ color: C.amber, fontWeight: 900, fontSize: 18, letterSpacing: -0.5 }}>
-                  FamilyFinance
+                  ChillarFlow
                 </span>
               </div>
             )}
@@ -413,7 +413,7 @@ export default function App() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 22 }}>💰</span>
-              <span style={{ color: C.amber, fontWeight: 900, fontSize: 16 }}>FamilyFinance</span>
+              <span style={{ color: C.amber, fontWeight: 900, fontSize: 16 }}>ChillarFlow</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button onClick={() => setPrivacyMode((p) => !p)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16 }}>
