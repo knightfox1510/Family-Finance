@@ -930,7 +930,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               Import from a matching .xlsx or .csv file. Existing data is merged, not replaced.
             </div>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} style={{ display: 'none' }} />
-            <Btn variant="purple" onClick={() => fileRef.current?.click()}>⬆ Import File</Btn>
+            <Btn variant="ghost" onClick={() => fileRef.current?.click()}>⬆ Import File</Btn>
             {importMsg && (
               <div style={{ marginTop: 10, padding: '9px 14px', borderRadius: 0, fontSize: 13,
                 background: importMsg.type === 'success' ? C.green + '22' : C.red + '22',
