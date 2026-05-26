@@ -1,6 +1,7 @@
 // app/pricing/page.tsx
 
 import Link from 'next/link';
+import { CoinMark } from '@/components/CoinMark';
 
 export const metadata = {
   title: 'Pricing — ChillarFlow',
@@ -98,8 +99,8 @@ export default function PricingPage() {
       <nav style={{ borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 64 }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{ width: 36, height: 36, background: C.amber, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, color: C.bg }}>C</div>
-            <span style={{ fontWeight: 800, fontSize: 18, color: C.textW }}>ChillarFlow</span>
+            <CoinMark size={36} color={C.amber} />
+            <span style={{ fontWeight: 800, fontSize: 18, color: C.textW, letterSpacing: '-0.02em' }}>ChillarFlow</span>
           </Link>
           <Link href="/app" style={{ background: C.amber, color: C.bg, padding: '8px 20px', borderRadius: 8, fontWeight: 700, fontSize: 14, textDecoration: 'none' }}>Sign In</Link>
         </div>
@@ -107,7 +108,7 @@ export default function PricingPage() {
 
       {/* Hero */}
       <section style={{ padding: '80px 24px 60px', textAlign: 'center' }}>
-        <h1 style={{ fontSize: 48, fontWeight: 800, margin: '0 0 16px' }}>Simple, honest pricing</h1>
+        <h1 style={{ fontSize: 48, fontWeight: 800, margin: '0 0 16px', letterSpacing: '-0.02em', color: C.textW }}>Simple, honest pricing</h1>
         <p style={{ color: C.text2, fontSize: 18, margin: 0 }}>Free for casual use. Pro for power users. No surprises.</p>
       </section>
 
@@ -164,7 +165,7 @@ export default function PricingPage() {
       {/* FAQ */}
       <section style={{ padding: '60px 24px 100px', borderTop: `1px solid ${C.border}` }}>
         <div style={{ maxWidth: 700, margin: '0 auto' }}>
-          <h2 style={{ fontSize: 32, fontWeight: 800, textAlign: 'center', marginBottom: 48 }}>Frequently asked questions</h2>
+          <h2 style={{ fontSize: 32, fontWeight: 800, textAlign: 'center', marginBottom: 48, letterSpacing: '-0.02em', color: C.textW }}>Frequently asked questions</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {faqs.map((f, i) => (
               <div key={i} style={{ borderTop: `1px solid ${C.border}`, padding: '24px 0' }}>

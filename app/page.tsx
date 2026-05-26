@@ -3,6 +3,7 @@
 // The app moves to /app route — see routing note at the bottom.
 
 import Link from 'next/link';
+import { CoinMark } from '@/components/CoinMark';
 
 export const metadata = {
   title: 'ChillarFlow — Track every rupee. Effortlessly.',
@@ -84,10 +85,8 @@ export default function HomePage() {
       <nav style={{ borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 64 }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{ width: 36, height: 36, background: C.amber, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, color: C.bg }}>
-              C
-            </div>
-            <span style={{ fontWeight: 800, fontSize: 18, color: C.textW }}>ChillarFlow</span>
+            <CoinMark size={36} color={C.amber} />
+            <span style={{ fontWeight: 800, fontSize: 18, color: C.textW, letterSpacing: '-0.02em' }}>ChillarFlow</span>
           </Link>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
@@ -135,7 +134,9 @@ export default function HomePage() {
         <div style={{ maxWidth: 480, margin: '0 auto', background: '#075e54', borderRadius: 16, overflow: 'hidden' }}>
           {/* Chat header */}
           <div style={{ background: '#128c7e', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, background: C.amber, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: C.bg }}>C</div>
+            <div style={{ width: 40, height: 40, background: '#0a0a0a', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CoinMark size={28} color={C.amber} />
+            </div>
             <div>
               <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>ChillarFlow</div>
               <div style={{ color: '#d1fae5', fontSize: 12 }}>online</div>
@@ -146,9 +147,9 @@ export default function HomePage() {
           <div style={{ padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 10, background: '#e5ddd5' }}>
             {[
               { from: 'user', text: '450 Zomato, 1200 Big Bazaar to settle, 400 Ola' },
-              { from: 'bot',  text: 'Transaction logged!\n\nAmount: Rs.450\nCategory: Online Food Orders\nAccount: Rahul\nSettlement: Personal\nNote: Zomato' },
-              { from: 'bot',  text: 'Transaction logged!\n\nAmount: Rs.1200\nCategory: Groceries\nAccount: Rahul\nSettlement: Joint Reimbursement\nNote: Big Bazaar' },
-              { from: 'bot',  text: 'Transaction logged!\n\nAmount: Rs.400\nCategory: Cab Services\nAccount: Rahul\nSettlement: Personal\nNote: Ola' },
+              { from: 'bot',  text: 'Transaction logged!\n\nAmount: ₹450\nCategory: Online Food Orders\nAccount: Rahul\nSettlement: Personal\nNote: Zomato' },
+              { from: 'bot',  text: 'Transaction logged!\n\nAmount: ₹1,200\nCategory: Groceries\nAccount: Rahul\nSettlement: Joint Reimbursement\nNote: Big Bazaar' },
+              { from: 'bot',  text: 'Transaction logged!\n\nAmount: ₹400\nCategory: Cab Services\nAccount: Rahul\nSettlement: Personal\nNote: Ola' },
             ].map((m, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: m.from === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div style={{
@@ -176,7 +177,7 @@ export default function HomePage() {
       {/* ── Products ──────────────────────────────────────────────────────────── */}
       <section style={{ padding: '80px 24px', borderTop: `1px solid ${C.border}` }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
-          <h2 style={{ textAlign: 'center', fontSize: 36, fontWeight: 800, marginBottom: 12 }}>Two products. One platform.</h2>
+          <h2 style={{ textAlign: 'center', fontSize: 36, fontWeight: 800, marginBottom: 12, letterSpacing: '-0.02em', color: C.textW }}>Two products. One platform.</h2>
           <p style={{ textAlign: 'center', color: C.text2, fontSize: 16, marginBottom: 60 }}>Same powerful engine. Tuned for your life.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
             {modes.map((m) => (
@@ -204,7 +205,7 @@ export default function HomePage() {
       {/* ── Features grid ─────────────────────────────────────────────────────── */}
       <section style={{ padding: '80px 24px', borderTop: `1px solid ${C.border}` }}>
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <h2 style={{ textAlign: 'center', fontSize: 36, fontWeight: 800, marginBottom: 60 }}>Everything you need. Nothing you don't.</h2>
+          <h2 style={{ textAlign: 'center', fontSize: 36, fontWeight: 800, marginBottom: 60, letterSpacing: '-0.02em', color: C.textW }}>Everything you need. Nothing you don't.</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
             {features.map((f) => (
               <div key={f.title} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '24px 22px' }}>
@@ -219,7 +220,7 @@ export default function HomePage() {
 
       {/* ── CTA ───────────────────────────────────────────────────────────────── */}
       <section style={{ padding: '100px 24px', textAlign: 'center', borderTop: `1px solid ${C.border}` }}>
-        <h2 style={{ fontSize: 40, fontWeight: 800, marginBottom: 16 }}>Ready to see where your money goes?</h2>
+        <h2 style={{ fontSize: 40, fontWeight: 800, marginBottom: 16, letterSpacing: '-0.02em', color: C.textW }}>Ready to see where your money goes?</h2>
         <p style={{ color: C.text2, fontSize: 16, marginBottom: 40 }}>Free forever for basic usage. Upgrade when you need more.</p>
         <Link href="/app" style={{ background: C.amber, color: C.bg, padding: '16px 40px', borderRadius: 12, fontWeight: 700, fontSize: 17, textDecoration: 'none' }}>
           Create your household — it's free

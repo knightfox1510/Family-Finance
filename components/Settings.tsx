@@ -214,7 +214,7 @@ function ReferralCard({ householdId }: { householdId: string }) {
   );
 }
 
-export function Settings({ data, householdId, onSave, onExport, onImport, onJoinHousehold, theme = 'dark-navy', onThemeChange, planInfo }: Props) {
+export function Settings({ data, householdId, onSave, onExport, onImport, onJoinHousehold, theme = 'obsidian', onThemeChange, planInfo }: Props) {
 
   const [s, setS]                 = useState<SettingsType>(() => JSON.parse(JSON.stringify(data.settings)));
   const [flash, setFlash]         = useState(false);
@@ -950,7 +950,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
 
       {/* ── App Theme ───────────────────────────────────────────── */}
       {onThemeChange && (
-        <CollapsibleCard id="theme" title="App Theme" badge={theme === 'light' ? 'Light' : theme === 'dark-green' ? 'Emerald' : theme === 'dark-slate' ? 'Slate' : 'Navy'}>
+        <CollapsibleCard id="theme" title="App Theme" badge={theme === 'pearl' ? 'Pearl' : theme === 'slate' ? 'Slate' : theme === 'indigo' ? 'Indigo' : theme === 'mono' ? 'Mono' : 'Obsidian'}>
           <div style={{ paddingTop: 14 }}>
             <ThemePicker current={theme} onChange={onThemeChange} />
           </div>

@@ -2,6 +2,7 @@
 // app/about/page.tsx
 
 import Link from 'next/link';
+import { CoinMark } from '@/components/CoinMark';
 
 export const metadata = {
   title: 'About — ChillarFlow',
@@ -21,8 +22,8 @@ export default function AboutPage() {
       <nav style={{ borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 64 }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{ width: 36, height: 36, background: C.amber, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, color: C.bg }}>C</div>
-            <span style={{ fontWeight: 800, fontSize: 18, color: C.textW }}>ChillarFlow</span>
+            <CoinMark size={36} color={C.amber} />
+            <span style={{ fontWeight: 800, fontSize: 18, color: C.textW, letterSpacing: '-0.02em' }}>ChillarFlow</span>
           </Link>
           <Link href="/app" style={{ background: C.amber, color: C.bg, padding: '8px 20px', borderRadius: 8, fontWeight: 700, fontSize: 14, textDecoration: 'none' }}>Sign In</Link>
         </div>

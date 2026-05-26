@@ -227,9 +227,11 @@ export function PlanBadge({ plan }: { plan: 'free' | 'pro' }) {
 
 // ─── Theme picker ─────────────────────────────────────────────────────────────
 const THEMES = [
-  { id: 'obsidian', label: 'Obsidian', swatches: ['#09090b', '#18181b', '#f59e0b'] },
-  { id: 'pearl',    label: 'Pearl',    swatches: ['#fafafa', '#ffffff', '#d97706'] },
-  { id: 'emerald',  label: 'Emerald',  swatches: ['#030a06', '#071a0e', '#22c55e'] },
+  { id: 'obsidian', label: 'Obsidian', swatches: ['#0a0a0a', '#1a1a1a', '#f0b429'] },
+  { id: 'pearl',    label: 'Pearl',    swatches: ['#f5f5f5', '#ffffff', '#d4960a'] },
+  { id: 'slate',    label: 'Slate',    swatches: ['#0d1117', '#1a212e', '#f0b429'] },
+  { id: 'indigo',   label: 'Indigo',   swatches: ['#0a0f1f', '#161e3a', '#818cf8'] },
+  { id: 'mono',     label: 'Mono',     swatches: ['#0a0a0a', '#161616', '#f0b429'] },
 ] as const;
 
 export function ThemePicker({ current, onChange }: { current: string; onChange: (t: string) => void }) {

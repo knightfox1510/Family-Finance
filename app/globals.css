@@ -174,6 +174,129 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   --scrollbar-thumb: #1a4028;
 }
 
+/* ── 04. Slate (softer dark · keeps signature amber) ────────────────────── */
+[data-theme="slate"] {
+  --bg:         #0d1117;
+  --bg2:        #131923;
+  --surface:    #1a212e;
+  --surface2:   #232b3a;
+  --surface3:   #2d3548;
+  --border:     #2d3548;
+  --border2:    #3a4254;
+  --muted:      #3a4254;
+  --text3:      #6b7385;
+  --text2:      #9ba2b3;
+  --text1:      #d4d8e1;
+  --textW:      #f0f2f6;
+
+  --accent:     #f0b429;
+  --accent2:    #f7cc6f;
+  --accent-bg:  rgba(240,180,41,0.12);
+  --accent-glow:rgba(240,180,41,0.20);
+
+  --green:      #22c55e;   --green-bg:  rgba(34,197,94,0.12);
+  --red:        #ff4d4d;   --red-bg:    rgba(255,77,77,0.12);
+  --blue:       #4d9fff;   --blue-bg:   rgba(77,159,255,0.12);
+  --teal:       #2dd4bf;   --teal-bg:   rgba(45,212,191,0.12);
+  --purple:     #b197fc;   --purple-bg: rgba(177,151,252,0.12);
+  --orange:     #ff8c42;   --orange-bg: rgba(255,140,66,0.12);
+
+  --shadow-sm:  0 1px 8px rgba(0,0,0,0.4);
+  --shadow-md:  0 4px 20px rgba(0,0,0,0.5);
+  --shadow-lg:  0 8px 40px rgba(0,0,0,0.6);
+  --shadow-accent: 0 4px 20px rgba(240,180,41,0.25);
+
+  --radius-sm:  8px;
+  --radius-md:  14px;
+  --radius-lg:  20px;
+  --radius-xl:  28px;
+  --radius-pill:99px;
+
+  --scrollbar-thumb: #2d3548;
+}
+
+/* ── 05. Indigo (professional fintech · indigo-led) ─────────────────────── */
+[data-theme="indigo"] {
+  --bg:         #0a0f1f;
+  --bg2:        #0f1530;
+  --surface:    #161e3a;
+  --surface2:   #1f2747;
+  --surface3:   #2a3358;
+  --border:     #2a3358;
+  --border2:    #36406a;
+  --muted:      #36406a;
+  --text3:      #5a6285;
+  --text2:      #8e96b5;
+  --text1:      #c8cde0;
+  --textW:      #ecedf5;
+
+  --accent:     #818cf8;
+  --accent2:    #a5b4fc;
+  --accent-bg:  rgba(129,140,248,0.14);
+  --accent-glow:rgba(129,140,248,0.22);
+
+  --green:      #22c55e;   --green-bg:  rgba(34,197,94,0.14);
+  --red:        #ff6b6b;   --red-bg:    rgba(255,107,107,0.14);
+  --blue:       #38bdf8;   --blue-bg:   rgba(56,189,248,0.14);
+  --teal:       #2dd4bf;   --teal-bg:   rgba(45,212,191,0.14);
+  --purple:     #c084fc;   --purple-bg: rgba(192,132,252,0.14);
+  --orange:     #fb923c;   --orange-bg: rgba(251,146,60,0.14);
+
+  --shadow-sm:  0 1px 8px rgba(0,0,0,0.5);
+  --shadow-md:  0 4px 20px rgba(0,0,0,0.6);
+  --shadow-lg:  0 8px 40px rgba(0,0,0,0.7);
+  --shadow-accent: 0 4px 20px rgba(129,140,248,0.30);
+
+  --radius-sm:  8px;
+  --radius-md:  14px;
+  --radius-lg:  20px;
+  --radius-xl:  28px;
+  --radius-pill:99px;
+
+  --scrollbar-thumb: #2a3358;
+}
+
+/* ── 06. Mono (dual-tone minimalist · amber + neutrals only) ─────────────── */
+[data-theme="mono"] {
+  --bg:         #0a0a0a;
+  --bg2:        #111111;
+  --surface:    #161616;
+  --surface2:   #1f1f1f;
+  --surface3:   #2a2a2a;
+  --border:     #262626;
+  --border2:    #333333;
+  --muted:      #333333;
+  --text3:      #6b6b6b;
+  --text2:      #a0a0a0;
+  --text1:      #d4d4d4;
+  --textW:      #f5f5f5;
+
+  --accent:     #f0b429;
+  --accent2:    #f7cc6f;
+  --accent-bg:  rgba(240,180,41,0.10);
+  --accent-glow:rgba(240,180,41,0.18);
+
+  --green:      #e6e6e6;   --green-bg:  rgba(230,230,230,0.06);
+  --red:        #8a8a8a;   --red-bg:    rgba(138,138,138,0.10);
+  --blue:       #b0b0b0;   --blue-bg:   rgba(176,176,176,0.08);
+  --teal:       #c8c8c8;   --teal-bg:   rgba(200,200,200,0.08);
+  --purple:     #989898;   --purple-bg: rgba(152,152,152,0.08);
+  --orange:     #f0b429;   --orange-bg: rgba(240,180,41,0.10);
+
+  --shadow-sm:  0 1px 8px rgba(0,0,0,0.5);
+  --shadow-md:  0 4px 20px rgba(0,0,0,0.6);
+  --shadow-lg:  0 8px 40px rgba(0,0,0,0.7);
+  --shadow-accent: 0 4px 20px rgba(240,180,41,0.20);
+
+  --radius-sm:  8px;
+  --radius-md:  14px;
+  --radius-lg:  20px;
+  --radius-xl:  28px;
+  --radius-pill:99px;
+
+  --scrollbar-thumb: #262626;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    COMPONENTS
    ════════════════════════════════════════════════════════════════════════ */

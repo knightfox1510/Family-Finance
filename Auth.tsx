@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { CoinMark } from '@/components/CoinMark';
 
 const C = {
   bg:      '#0b0f1a',
@@ -162,8 +163,10 @@ export default function Auth() {
       }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>💰</div>
-          <h2 style={{ color: C.textW, fontSize: 24, margin: 0, fontWeight: 800 }}>ChillarFlow</h2>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <CoinMark size={56} color={C.amber} />
+          </div>
+          <h2 style={{ color: C.textW, fontSize: 24, margin: 0, fontWeight: 800, letterSpacing: '-0.03em' }}>ChillarFlow</h2>
           <p style={{ color: C.text1, fontSize: 14, marginTop: 4 }}>
             {isSignUp ? 'Create your household account' : 'Welcome back — sign in below'}
           </p>
@@ -257,11 +260,13 @@ export default function Auth() {
             type="submit"
             disabled={loading}
             style={{
-              background: loading ? C.border : `linear-gradient(135deg, ${C.amber}, #d97706)`,
-              color: '#0b0f1a', border: 'none', borderRadius: 8,
+              background: loading ? C.border : C.amber,
+              color: '#0b0f1a', border: 'none', borderRadius: 999,
               padding: '14px', fontSize: 15, fontWeight: 700,
               cursor: loading ? 'not-allowed' : 'pointer', marginTop: 8,
-              minHeight: 44, WebkitAppearance: 'none',
+              minHeight: 48, WebkitAppearance: 'none', width: '100%',
+              boxShadow: loading ? 'none' : '0 4px 20px rgba(245,158,11,0.25)',
+              transition: 'transform .12s ease, opacity .12s ease',
             }}
           >
             {loading
