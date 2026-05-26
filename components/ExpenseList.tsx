@@ -124,89 +124,119 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
         </Card>
       )}
 
-      {/* Table */}
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: C.bg }}>
-                <th style={{ padding: '11px 14px', width: 40 }}><input type="checkbox" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleAll} style={{ cursor: 'pointer', accentColor: C.amber }} /></th>
-                <th style={{ padding: '11px 14px', width: 65, color: C.muted, fontWeight: 600, textAlign: 'left' }}>Copy</th>
-                {['Date', 'Note', 'Category', 'Amount', 'Account', 'Status', 'Actions'].map((h) => <th key={h} style={{ padding: '11px 14px', color: C.muted, fontWeight: 600, textAlign: 'left' }}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((e, i) => {
-                if (editingId === e.id) return (
-                  <tr key={e.id} style={{ background: C.bg + '99', borderTop: `1px solid ${C.amber}` }}>
-                    <td /><td />
-                    <td style={{ padding: 8 }}><Inp type="date" value={editForm.date} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, date: ev.target.value }))} /></td>
-                    <td style={{ padding: 8 }}><Inp value={editForm.note} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, note: ev.target.value }))} /></td>
-                    <td style={{ padding: 8 }}><Sel value={editForm.category} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, category: ev.target.value }))}>{allCats.map((c) => <option key={c} value={c}>{c}</option>)}</Sel></td>
-                    <td style={{ padding: 8 }}><Inp type="number" value={editForm.amount} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, amount: ev.target.value }))} style={{ width: 80 }} /></td>
-                    <td style={{ padding: 8 }}><Sel value={editForm.account} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, account: ev.target.value }))}><option value="Joint">Joint</option><option value={names.a}>{names.a}</option><option value={names.b}>{names.b}</option></Sel></td>
-                    <td style={{ padding: 8 }}>
-                      {editForm.type === 'income' || editForm.account === 'Joint' || isSolo
-                        ? <span style={{ color: C.muted, fontSize: 12 }}>N/A</span>
-                        : <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: C.text1 }}>
-                            <input type="checkbox" checked={editForm.toSettle} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, toSettle: ev.target.checked }))} style={{ accentColor: C.amber }} />
-                            {isJoint ? 'Shared' : 'Partner Split'}
-                          </label>}
-                    </td>
-                    <td style={{ padding: 8, display: 'flex', gap: 6 }}><Btn variant="success" onClick={saveEdit} style={{ padding: '6px 10px' }}>✓</Btn><Btn variant="ghost" onClick={() => setEditingId(null)} style={{ padding: '6px 10px' }}>✕</Btn></td>
-                  </tr>
-                );
-                return (
-                  <tr key={e.id} style={{ borderTop: `1px solid ${C.border}`, background: selectedIds.has(e.id) ? C.red + '08' : i % 2 === 0 ? 'transparent' : C.bg + '80' }}>
-                    <td style={{ padding: '10px 14px' }}><input type="checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} style={{ cursor: 'pointer', accentColor: C.amber }} /></td>
-                    <td style={{ padding: '10px 14px' }}><Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11, color: C.amber, borderColor: `${C.amber}33` }} onClick={() => onDuplicate(e)}>📋 Copy</Btn></td>
-                    <td style={{ padding: '10px 14px', color: C.text2, whiteSpace: 'nowrap' }}>{e.date}</td>
-                    <td style={{ padding: '10px 14px', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <span style={{ color: C.textW }}>{e.note || '—'}</span>
-                      {e.isRecurring && <span title={`Recurring: ${e.recurrenceInterval}`} style={{ marginLeft: 6, color: C.amber, fontSize: 13 }}>🔄</span>}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: C.text1 }}>{e.category}</td>
-                    <td style={{ padding: '10px 14px', color: e.type === 'income' ? C.green : C.textW, fontWeight: 700 }}>{e.type === 'income' ? '+' : ''}{fmt(e.amount)}</td>
-                    <td style={{ padding: '10px 14px' }}>{accountBadge(e.account)}</td>
-                    <td style={{ padding: '10px 14px' }}>
-                      {e.type === 'income' ? (
-                        <span style={{ color: C.muted }}>—</span>
-                      ) : e.settled ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                          <Badge color="green">
-                            ✓ Settled{e.settledFor ? ` — ${e.settledFor === 'Partner A' ? names.a : e.settledFor === 'Partner B' ? names.b : e.settledFor}` : ''}
-                          </Badge>
-                          <button
-                            title="Mark as unsettled"
-                            onClick={() => onUnsettle(e.id)}
-                            style={{ background: 'transparent', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 10, padding: '1px 4px', borderRadius: 0, lineHeight: 1 }}
-                          >
-                            ↩ Unsettle
-                          </button>
-                        </div>
-                      ) : e.account === 'Joint' && isJoint ? (
-                        <span style={{ color: C.muted, fontSize: 12, fontStyle: 'italic' }}>Shared</span>
-                      ) : e.settleTrack === 'partner' && hasPartner ? (
-                        <Badge color="purple">🤝 Partner Split</Badge>
-                      ) : !e.toSettle ? (
-                        <span style={{ color: C.text2, fontSize: 12 }}>Personal</span>
-                      ) : isJoint ? (
-                        <Badge color="accent">⏳ Pending — Joint</Badge>
-                      ) : (
-                        <span style={{ color: C.text2, fontSize: 12 }}>Personal</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '10px 14px', display: 'flex', gap: 6 }}>
-                      <Btn variant="ghost" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => onTriggerEdit(e)}>Edit</Btn>
-                      <Btn variant="danger" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => onDelete(e.id)}>✕</Btn>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* Expense cards — mobile first */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+        {/* Select all row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: C.text2 }}>
+            <input type="checkbox" checked={filtered.length > 0 && selectedIds.size === filtered.length} onChange={toggleAll}
+              style={{ cursor: 'pointer', accentColor: C.accent, width: 16, height: 16 }} />
+            {selectedIds.size > 0 ? `${selectedIds.size} selected` : `${filtered.length} transactions`}
+          </label>
         </div>
-      </Card>
+
+        {filtered.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '48px 24px', color: C.text3 }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.text1, marginBottom: 6 }}>No transactions found</div>
+            <div style={{ fontSize: 13 }}>Try adjusting your filters</div>
+          </div>
+        )}
+
+        {filtered.map((e, i) => {
+          const isEditing = editingId === e.id;
+          const isSelected = selectedIds.has(e.id);
+
+          if (isEditing) return (
+            <div key={e.id} style={{ background: C.surface, borderRadius: 16, padding: '16px', boxShadow: `0 0 0 2px ${C.accent}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.accent, marginBottom: 4 }}>Editing transaction</div>
+              <div className="grid-2" style={{ gap: 8 }}>
+                <Inp type="date" label="Date" value={editForm.date} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, date: ev.target.value }))} />
+                <Inp label="Note" value={editForm.note} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, note: ev.target.value }))} />
+                <Sel value={editForm.category} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, category: ev.target.value }))} style={{ fontSize: 14 }}>
+                  {allCats.map((c) => <option key={c} value={c}>{c}</option>)}
+                </Sel>
+                <Inp type="number" label="Amount" value={editForm.amount} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, amount: ev.target.value }))} />
+              </div>
+              <Sel value={editForm.account} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, account: ev.target.value }))} style={{ fontSize: 14 }}>
+                <option value="Joint">Joint</option>
+                <option value={names.a}>{names.a}</option>
+                <option value={names.b}>{names.b}</option>
+              </Sel>
+              {!(editForm.type === 'income' || editForm.account === 'Joint' || isSolo) && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: C.text1 }}>
+                  <input type="checkbox" checked={editForm.toSettle} onChange={(ev: any) => setEditForm((f: any) => ({ ...f, toSettle: ev.target.checked }))} style={{ accentColor: C.accent }} />
+                  {isJoint ? 'Shared / Reimburse from pool' : 'Split with partner'}
+                </label>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn variant="success" onClick={saveEdit} style={{ flex: 1 }}>✓ Save</Btn>
+                <Btn variant="ghost" onClick={() => setEditingId(null)} style={{ flex: 1 }}>✕ Cancel</Btn>
+              </div>
+            </div>
+          );
+
+          return (
+            <div key={e.id}
+              style={{
+                background: isSelected ? C.accentBg : C.surface,
+                borderRadius: 14,
+                padding: '14px 16px',
+                boxShadow: isSelected ? `0 0 0 1.5px ${C.accent}` : '0 2px 8px rgba(0,0,0,0.2)',
+                transition: 'all 0.15s',
+                cursor: 'pointer',
+              }}
+              onClick={() => toggleSelect(e.id)}
+            >
+              {/* Row 1: checkbox + note + amount */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <input type="checkbox" checked={isSelected}
+                  onChange={() => toggleSelect(e.id)}
+                  onClick={(ev) => ev.stopPropagation()}
+                  style={{ cursor: 'pointer', accentColor: C.accent, width: 18, height: 18, marginTop: 2, flexShrink: 0 }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: C.textW, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {e.note || e.category}
+                      {e.isRecurring && <span style={{ marginLeft: 6, fontSize: 12 }}>🔄</span>}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: e.type === 'income' ? C.green : C.textW, flexShrink: 0, letterSpacing: '-0.02em' }}>
+                      {e.type === 'income' ? '+' : ''}{fmt(e.amount)}
+                    </div>
+                  </div>
+                  {/* Row 2: date + category + account badge */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: C.text3 }}>{e.date}</span>
+                    <span style={{ fontSize: 11, color: C.text2 }}>{e.category}</span>
+                    {accountBadge(e.account)}
+                    {e.settled && <Badge color="green">✓ Settled</Badge>}
+                    {!e.settled && e.toSettle && <Badge color="accent">⏳ Pending</Badge>}
+                    {!e.settled && e.settleTrack === 'partner' && <Badge color="purple">Split</Badge>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions row — only shown when selected */}
+              {isSelected && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}
+                  onClick={(ev) => ev.stopPropagation()}>
+                  <Btn variant="ghost" size="sm" onClick={() => onTriggerEdit(e)}>✏️ Edit</Btn>
+                  <Btn variant="ghost" size="sm" onClick={() => onDuplicate(e)}>📋 Copy</Btn>
+                  {!e.settled && e.type !== 'income' && (
+                    <Btn variant="ghost" size="sm" onClick={() => onBulkFlagToSettle([e.id])}>⚖️ Flag</Btn>
+                  )}
+                  {e.settled && (
+                    <Btn variant="ghost" size="sm" onClick={() => onUnsettle(e.id)}>↩ Unsettle</Btn>
+                  )}
+                  <Btn variant="danger" size="sm" onClick={() => onDelete(e.id)} style={{ marginLeft: 'auto' }}>🗑️</Btn>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
