@@ -253,8 +253,8 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
 
       {/* ── Joint settle stat cards ──────────────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <StatCard label={`${names.a} — Pending`} value={fmt(totalA)} accent={C.purple} icon="👤" sub={`${pendingA.length} transactions`} />
-        <StatCard label={`${names.b} — Pending`} value={fmt(totalB)} accent={C.blue}   icon="👤" sub={`${pendingB.length} transactions`} />
+        <StatCard label={`${names.a} — Pending`} value={fmt(totalA)} color={C.purple} sub={`${pendingA.length} transactions`} />
+        <StatCard label={`${names.b} — Pending`} value={fmt(totalB)} color={C.blue}   sub={`${pendingB.length} transactions`} />
       </div>
 
       {/* ── Partner-to-partner track ─────────────────────────────────────────── */}
