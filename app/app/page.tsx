@@ -20,7 +20,7 @@ import Auth from '@/Auth';
 import { loadData } from '@/lib/supabaseHelpers';
 import { SetupWizard } from '@/components/SetupWizard';
 import { useActions } from '@/hooks/useActions';
-import { ToastContainer, useToast, BottomNav, QuickTray, addToast as uiAddToast } from '@/components/ui';
+import { ToastContainer, BottomNav, QuickTray, addToast } from '@/components/ui';
 
 import { C, navForMode } from '@/constants';
 import type { AppData, ViewId, HouseholdMode } from '@/types';
@@ -107,7 +107,7 @@ export default function App() {
   };
   const [duplicateData, setDuplicateData] = useState<any>(null);
 
-  const { toasts, addToast, dismiss } = useToast();
+  // addToast is imported as a standalone function from ui.tsx (ToastContainer handles display)
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
