@@ -36,12 +36,17 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<any>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [searchNote, setSearchNote]   = useState('');
   const [selectedTargetAccount, setSelectedTargetAccount] = useState('');
   const sf = (k: string, v: string) => setFilter((f) => ({ ...f, [k]: v }));
 
   const allMonths = [...new Set(data.expenses.map((e) => monthKey(e.date)))].sort().reverse();
   const filtered = data.expenses.filter((e) => {
-    if (filter.month !== 'All' && monthKey(e.date) !== filter.month) return false;
+    if (searchNote && !(e.note || '').toLowerCase().includes(searchNote.toLowerCase()) &&
+        !e.category.toLowerCase().includes(searchNote.toLowerCase())) return false;
+    if (filter.month === 'year') {
+      if (!e.date.startsWith(new Date().getFullYear().toString())) return false;
+    } else if (filter.month !== 'All' && monthKey(e.date) !== filter.month) return false;
     const acc = e.account;
     if (filter.account !== 'All') {
       const mA = (filter.account === names.a || filter.account === 'Partner A') && (acc === names.a || acc === 'Partner A');
@@ -77,29 +82,52 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Filter bar */}
-      <Card style={{ padding: '12px 18px' }}>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ color: C.muted, fontSize: 12 }}>Filter:</span>
-          <select style={selStyle} value={filter.month} onChange={(e) => sf('month', e.target.value)}><option value="All">All Months</option>{allMonths.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}</select>
-          <select style={selStyle} value={filter.type} onChange={(e) => sf('type', e.target.value)}><option value="All">All Types</option><option value="expense">Expenses</option><option value="income">Income</option></select>
+      {/* Filter bar — stacked rows for mobile clarity */}
+      <Card style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Search */}
+        <input
+          type="search"
+          placeholder="🔍 Search notes or merchants..."
+          value={searchNote}
+          onChange={(e) => setSearchNote(e.target.value)}
+          style={{ width: '100%', background: C.surface2, border: 'none', color: C.textW, borderRadius: 99, padding: '10px 16px', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }}
+        />
+        {/* Row 1: Month + Type */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <select style={selStyle} value={filter.month} onChange={(e) => sf('month', e.target.value)}>
+            <option value="All">All Months</option>
+            <option value="year">Current Year</option>
+            {allMonths.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+          </select>
+          <select style={selStyle} value={filter.type} onChange={(e) => sf('type', e.target.value)}>
+            <option value="All">All Types</option>
+            <option value="expense">Expenses</option>
+            <option value="income">Income</option>
+          </select>
+        </div>
+        {/* Row 2: Account + Category */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <select style={selStyle} value={filter.account} onChange={(e) => sf('account', e.target.value)}>
             <option value="All">All Accounts</option>
             {isJoint && <option value="Joint">Joint</option>}
             <option value={names.a}>{names.a}</option>
             {hasPartner && <option value={names.b}>{names.b}</option>}
           </select>
-          <select style={selStyle} value={filter.category} onChange={(e) => sf('category', e.target.value)}><option value="All">All Categories</option>{allCats.map((c) => <option key={c} value={c}>{c}</option>)}</select>
-          <select style={selStyle} value={filter.settled} onChange={(e) => sf('settled', e.target.value)}>
-            <option value="All">All Statuses</option>
-            {isJoint && <option value="pendingJoint">⏳ Pending — Joint Reimbursement</option>}
-            {hasPartner && <option value="pendingPartner">🤝 Pending — Partner Split</option>}
-            <option value="personal">👤 Personal (no settlement)</option>
-            <option value="settled">✅ All Settled</option>
-            <option value="settledA">✅ Settled — {names.a}</option>
-            {hasPartner && <option value="settledB">✅ Settled — {names.b}</option>}
+          <select style={selStyle} value={filter.category} onChange={(e) => sf('category', e.target.value)}>
+            <option value="All">All Categories</option>
+            {allCats.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
+        {/* Row 3: Status */}
+        <select style={{ ...selStyle, width: '100%' }} value={filter.settled} onChange={(e) => sf('settled', e.target.value)}>
+          <option value="All">All Statuses</option>
+          {isJoint && <option value="pendingJoint">⏳ Pending — Joint Reimbursement</option>}
+          {hasPartner && <option value="pendingPartner">🤝 Pending — Partner Split</option>}
+          <option value="personal">👤 Personal (no settlement)</option>
+          <option value="settled">✅ All Settled</option>
+          <option value="settledA">✅ Settled — {names.a}</option>
+          {hasPartner && <option value="settledB">✅ Settled — {names.b}</option>}
+        </select>
       </Card>
 
       {/* Bulk action bar */}
@@ -211,9 +239,15 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
                     <span style={{ fontSize: 11, color: C.text3 }}>{e.date}</span>
                     <span style={{ fontSize: 11, color: C.text2 }}>{e.category}</span>
                     {accountBadge(e.account)}
-                    {e.settled && <Badge color="green">✓ Settled</Badge>}
+                    {e.settled && (
+                      <Badge color="green">
+                        ✓ Settled{e.settledFor
+                          ? ` — ${e.settledFor === 'Partner A' ? names.a : e.settledFor === 'Partner B' ? names.b : e.settledFor}`
+                          : ''}
+                      </Badge>
+                    )}
                     {!e.settled && e.toSettle && <Badge color="accent">⏳ Pending</Badge>}
-                    {!e.settled && e.settleTrack === 'partner' && <Badge color="purple">Split</Badge>}
+                    {!e.settled && e.settleTrack === 'partner' && <Badge color="purple">Split w/ partner</Badge>}
                   </div>
                 </div>
               </div>
@@ -225,7 +259,15 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
                   <Btn variant="ghost" size="sm" onClick={() => onTriggerEdit(e)}>✏️ Edit</Btn>
                   <Btn variant="ghost" size="sm" onClick={() => onDuplicate(e)}>📋 Copy</Btn>
                   {!e.settled && e.type !== 'income' && (
-                    <Btn variant="ghost" size="sm" onClick={() => onBulkFlagToSettle([e.id])}>⚖️ Flag</Btn>
+                    {/* Only show Flag if personal account — Joint expenses are already shared */}
+                  {e.account !== 'Joint' && !e.settled && e.type !== 'income' && (
+                    <Btn variant="ghost" size="sm" onClick={(ev) => {
+                      ev.stopPropagation();
+                      // Ask: joint reimbursement or partner split?
+                      const choice = window.confirm('Reimburse from Joint pool?\n\nOK = Joint Reimbursement\nCancel = Partner Split');
+                      onBulkFlagToSettle([e.id]);
+                    }}>⚖️ Flag</Btn>
+                  )}
                   )}
                   {e.settled && (
                     <Btn variant="ghost" size="sm" onClick={() => onUnsettle(e.id)}>↩ Unsettle</Btn>
