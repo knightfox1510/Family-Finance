@@ -371,7 +371,7 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
             <span>Combined Progress</span>
             <span>{fmt(g.current)} / {fmt(g.target)} ({pct.toFixed(0)}%)</span>
           </div>
-          <ProgressBar pct={pct} color={g.color || statusColor} height={8} />
+          <ProgressBar value={pct} color={g.color || statusColor} height={8} />
 
           {/* Per-partner breakdown — only when two partners exist */}
           {hasPartner && (
@@ -385,7 +385,7 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
                     <span style={{ color: p.color, fontWeight: 600 }}>👤 {p.name}'s Share</span>
                     <span style={{ color: C.text2 }}>{fmt(p.cur)} of {fmt(p.tgt)} ({p.pct.toFixed(0)}%)</span>
                   </div>
-                  <ProgressBar pct={p.pct} color={p.color} height={4} />
+                  <ProgressBar value={p.pct} color={p.color} height={4} />
                 </div>
               ))}
             </div>
