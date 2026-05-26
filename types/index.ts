@@ -1,5 +1,5 @@
 // ─── types/index.ts ───────────────────────────────────────────────────────────
-// Single source of truth for every data shape in FamilyFinance.
+// Single source of truth for every data shape in ChillarFlow.
 // Import from here everywhere: import type { Expense, AppData } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -114,7 +114,9 @@ export interface Settings {
   notifications: NotificationSettings;
   currency: string;
   telegramUsername: string;
+  whatsappNumber?: string;    // E.164 without +, e.g. "919876543210"
   setupComplete?: boolean;    // true once user has finished the setup wizard
+  whatsappNumber?: string;    // E.164 without +, e.g. "919876543210"
 }
 
 // ---------------------------------------------------------------------------
