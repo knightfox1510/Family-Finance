@@ -65,7 +65,7 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
           key={c}
           onClick={() => onChange(c)}
           style={{
-            width: 22, height: 22, borderRadius: '50%', background: c,
+            width: 22, height: 22, borderRadius: 0, background: c,
             cursor: 'pointer',
             border: value === c ? '3px solid #fff' : '3px solid transparent',
             transition: 'border 0.15s',
@@ -85,7 +85,7 @@ function StrategySelect({ value, onChange }: { value: string; onChange: (v: stri
       style={{
         width: '100%', background: C.bg, color: C.text1,
         border: `1px solid ${C.border}`, padding: '8px 10px',
-        borderRadius: 8, fontSize: 13, outline: 'none', cursor: 'pointer',
+        borderRadius: 0, fontSize: 13, outline: 'none', cursor: 'pointer',
       }}
     >
       {HORIZONS.map((h) => <option key={h} value={h}>{h}</option>)}
@@ -346,10 +346,10 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
         <div>
           {/* Status badges */}
           <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 4 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: `${C.border}44`, color: C.text1 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 0, background: `${C.border}44`, color: C.text1 }}>
               {g.strategy}
             </span>
-            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: `${statusColor}15`, color: statusColor, border: `1px solid ${statusColor}33` }}>
+            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 0, background: `${statusColor}15`, color: statusColor, border: `1px solid ${statusColor}33` }}>
               {g.paceStatus}
             </span>
           </div>
@@ -375,7 +375,7 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
 
           {/* Per-partner breakdown — only when two partners exist */}
           {hasPartner && (
-            <div style={{ marginTop: 14, background: `${C.bg}66`, padding: 10, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ marginTop: 14, background: `${C.bg}66`, padding: 10, borderRadius: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
                 { name: nameA, cur: g.partnerACurrent, tgt: g.partnerATarget, pct: pctA, color: C.teal },
                 { name: nameB, cur: g.partnerBCurrent, tgt: g.partnerBTarget, pct: pctB, color: '#ec4899' },
@@ -409,7 +409,7 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
         <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', borderTop: `1px solid ${C.border}11`, paddingTop: 8 }}>
           <span
             onClick={() => startEditing(g)}
-            style={{ fontSize: 10, fontWeight: 600, color: C.muted, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, background: `${C.border}22` }}
+            style={{ fontSize: 10, fontWeight: 600, color: C.muted, cursor: 'pointer', padding: '2px 6px', borderRadius: 0, background: `${C.border}22` }}
           >
             ⚙️ Parameters
           </span>
@@ -422,7 +422,7 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
 
   const CompletedCard = ({ g }: { g: any }) => (
     <Card style={{ position: 'relative', background: `${C.surface}66`, border: `1px solid ${C.green}33`, padding: 16 }}>
-      <span style={{ position: 'absolute', top: 12, right: 12, fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: `${C.green}20`, color: C.green, border: `1px solid ${C.green}44` }}>
+      <span style={{ position: 'absolute', top: 12, right: 12, fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 0, background: `${C.green}20`, color: C.green, border: `1px solid ${C.green}44` }}>
         🏆 Complete
       </span>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
@@ -435,13 +435,13 @@ export function Goals({ data, onUpdate, onAdd, onDelete, fmt }: Props) {
           : `Funded at ${fmt(g.target)} — ${nameA} (${fmt(g.partnerATarget)}) · ${nameB} (${fmt(g.partnerBTarget)})`
         }
       </p>
-      <div style={{ background: `${C.green}11`, padding: '6px 10px', borderRadius: 6, fontSize: 11, color: C.green, fontWeight: 600, textAlign: 'center' }}>
+      <div style={{ background: `${C.green}11`, padding: '6px 10px', borderRadius: 0, fontSize: 11, color: C.green, fontWeight: 600, textAlign: 'center' }}>
         100% Capitalized
       </div>
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
         <span
           onClick={() => startEditing(g)}
-          style={{ fontSize: 10, fontWeight: 600, color: C.muted, cursor: 'pointer', padding: '2px 6px', borderRadius: 4, background: `${C.border}22` }}
+          style={{ fontSize: 10, fontWeight: 600, color: C.muted, cursor: 'pointer', padding: '2px 6px', borderRadius: 0, background: `${C.border}22` }}
         >
           ⚙️ Parameters
         </span>
