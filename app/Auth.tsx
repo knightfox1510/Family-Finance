@@ -98,7 +98,7 @@ export default function Auth() {
 
       {/* Logo mark */}
       <div style={{ marginBottom: 40, textAlign: 'center' }}>
-        <div style={{ width: 56, height: 56, background: accent, border: `2px solid #000`, boxShadow: '4px 4px 0px #000', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+        <div style={{ width: 56, height: 56, background: accent, border: `2px solid #000`, boxShadow: '0 8px 40px rgba(0,0,0,0.5)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
           <span style={{ fontSize: 24, fontWeight: 900, color: '#09090b', letterSpacing: '-0.05em' }}>CF</span>
         </div>
         <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.04em', color: textW }}>ChillarFlow</div>
@@ -108,11 +108,11 @@ export default function Auth() {
       </div>
 
       {/* Card */}
-      <div style={{ width: '100%', maxWidth: 400, background: surface, border: `1px solid ${border}`, boxShadow: '4px 4px 0px #000' }}>
+      <div style={{ width: '100%', maxWidth: 400, background: surface, borderRadius: 24, border: `1px solid ${border}`, boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}>
 
         {/* Sign-up mode tabs */}
         {isSignUp && (
-          <div style={{ display: 'flex', borderBottom: `1px solid ${border}` }}>
+          <div style={{ display: 'flex', borderBottom: `1px solid ${border}`, borderRadius: '20px 20px 0 0', overflow: 'hidden' }}>
             {(['create', 'join'] as const).map((m) => (
               <button key={m} onClick={() => setMode(m)}
                 style={{ flex: 1, padding: '14px', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', background: 'transparent', border: 'none', cursor: 'pointer', borderBottom: mode === m ? `2px solid ${accent}` : '2px solid transparent', color: mode === m ? accent : text3, transition: 'color 0.15s', WebkitAppearance: 'none' }}>
@@ -139,7 +139,7 @@ export default function Auth() {
               </label>
               <input id="email" name="email" type="email" autoComplete="email" required value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${border2}`, boxShadow: '2px 2px 0px #000', color: textW, padding: '12px 14px', fontSize: 16, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
+                style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${border2}`, borderRadius: 12, color: textW, padding: '14px 16px', fontSize: 16, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
                 onFocus={(e) => e.target.style.borderColor = accent}
                 onBlur={(e) => e.target.style.borderColor = border2}
               />
@@ -152,7 +152,7 @@ export default function Auth() {
               </label>
               <input id="password" name="password" type="password" autoComplete={isSignUp ? 'new-password' : 'current-password'} required minLength={6} value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${border2}`, boxShadow: '2px 2px 0px #000', color: textW, padding: '12px 14px', fontSize: 16, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
+                style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${border2}`, borderRadius: 12, color: textW, padding: '14px 16px', fontSize: 16, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
                 onFocus={(e) => e.target.style.borderColor = accent}
                 onBlur={(e) => e.target.style.borderColor = border2}
               />
@@ -168,7 +168,7 @@ export default function Auth() {
                   onChange={(e) => setInviteCode(e.target.value)}
                   placeholder="Paste code from your partner's Settings"
                   required={mode === 'join'}
-                  style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${teal}`, boxShadow: '2px 2px 0px #000', color: textW, padding: '12px 14px', fontSize: 14, fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
+                  style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${teal}`, boxShadow: '0 2px 8px rgba(0,0,0,0.3)', color: textW, padding: '12px 14px', fontSize: 14, fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
                 />
                 <div style={{ fontSize: 11, color: text3, marginTop: 6 }}>Find this in your partner's Settings → Your Household ID</div>
               </div>
@@ -176,9 +176,9 @@ export default function Auth() {
 
             {/* Submit — NeoPOP press effect */}
             <button type="submit" disabled={loading}
-              style={{ width: '100%', background: loading ? '#52525b' : accent, color: '#09090b', border: '1px solid #000', boxShadow: loading ? 'none' : '4px 4px 0px #000', padding: '14px', fontSize: 14, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none', transition: 'transform 0.08s, box-shadow 0.08s', marginTop: 4 }}
-              onMouseDown={(e) => { if (!loading) { (e.target as HTMLElement).style.transform = 'translate(4px,4px)'; (e.target as HTMLElement).style.boxShadow = 'none'; } }}
-              onMouseUp={(e) => { (e.target as HTMLElement).style.transform = ''; (e.target as HTMLElement).style.boxShadow = '4px 4px 0px #000'; }}
+              style={{ width: '100%', background: loading ? '#52525b' : accent, color: '#09090b', border: 'none', borderRadius: 99, boxShadow: loading ? 'none' : '0 4px 20px rgba(240,180,41,0.3)', padding: '14px', fontSize: 14, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none', transition: 'transform 0.08s, box-shadow 0.08s', marginTop: 4 }}
+              onMouseDown={(e) => { if (!loading) { (e.target as HTMLElement).style.transform = 'scale(0.97)'; (e.target as HTMLElement).style.boxShadow = 'none'; } }}
+              onMouseUp={(e) => { (e.target as HTMLElement).style.transform = ''; (e.target as HTMLElement).style.boxShadow = '0 4px 20px rgba(240,180,41,0.3)'; }}
             >
               {loading ? '— Please wait —'
                 : isSignUp
