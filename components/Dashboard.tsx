@@ -134,7 +134,6 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   const periodIncome = data.expenses.filter((e) => inRange(e) && e.type === 'income').reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
   // ── Spending split into three buckets — personal A, personal B, joint ──────
-  // This ensures Household totals = sum of partner cards + joint, with no gaps.
   const personalLifestyleA = filteredExp.filter((e) => e.account === names.a && !INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const personalLifestyleB = filteredExp.filter((e) => e.account === names.b && !INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const jointLifestyle      = filteredExp.filter((e) => e.account === 'Joint' && !INVESTMENT_CATS.has(e.category)).reduce((s, e) => s + Number(e.amount ?? 0), 0);
@@ -145,16 +144,9 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   // Household totals — all three buckets combined
   const trueLifestyleExpenses = personalLifestyleA + personalLifestyleB + jointLifestyle;
   const periodInvested        = personalInvestedA  + personalInvestedB  + jointInvested;
-  const periodContrib         = contribA + contribB; // kept for partner card display only
 
   // Retained = Income − Personal Lifestyle − Joint Lifestyle − Personal Invested − Joint Invested
-  // Contribution is NOT subtracted — it's how money enters the pool, not how it leaves.
-  // Actual joint pool spending is already captured in jointLifestyle and jointInvested.
   const capitalRetained  = periodIncome - trueLifestyleExpenses - periodInvested;
-  const mkPct = (n: number) => periodIncome > 0 ? Math.max(0, Math.min(100, (n / periodIncome) * 100)) : 0;
-  const lifestyleRate    = mkPct(trueLifestyleExpenses);
-  const investmentRate   = mkPct(periodInvested);
-  const retentionRate    = mkPct(Math.max(0, capitalRetained));
 
   // Per-partner income for the period (income transactions on their account)
   const incomeA = data.expenses.filter((e) => inRange(e) && e.type === 'income' && (e.account === names.a || e.account === 'Partner A')).reduce((s, e) => s + Number(e.amount ?? 0), 0);
@@ -163,11 +155,10 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   // Per-partner retention = income − personal lifestyle − personal invested − joint contrib
   const capitalRetainedA = incomeA - personalLifestyleA - personalInvestedA - contribA;
   const capitalRetainedB = incomeB - personalLifestyleB - personalInvestedB - contribB;
-  const mkRate = (num: number, denom: number) => denom > 0 ? Math.max(0, Math.min(100, (num / denom) * 100)) : 0;
 
   const catMap: Record<string, number> = {};
   filteredExp.filter((e) => !INVESTMENT_CATS.has(e.category)).forEach((e) => { catMap[e.category] = (catMap[e.category] || 0) + Number(e.amount); });
-  const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]); // no limit — show all categories
+  const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]);
   const maxCat = topCats[0]?.[1] || 1;
 
   // Asset allocation — investment categories broken down by type
@@ -210,25 +201,6 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
   }, [data.expenses, data.contributions]);
 
   // ── Helper styles (NeoPOP) ───────────────────────────────────────────────
-  const neo = (active: boolean): React.CSSProperties => ({
-    padding: '6px 14px', fontSize: 12, fontWeight: active ? 800 : 500,
-    background: active ? C.accent : 'transparent',
-    color: active ? '#09090b' : C.text3,
-    border: 'none', cursor: 'pointer',
-    letterSpacing: '0.04em', textTransform: 'uppercase', fontFamily: 'inherit',
-  });
-
-  const fmt2 = (n: number) => fmt ? fmt(n) : '₹' + Math.round(n).toLocaleString('en-IN');
-
-  // Quick tray items for top of dashboard
-  const quickItems = [
-    { icon: '📥', label: 'Income', value: fmt2(periodIncome), color: C.green },
-    { icon: '🛒', label: 'Lifestyle', value: fmt2(trueLifestyleExpenses), color: C.accent },
-    { icon: '📈', label: 'Invested', value: fmt2(periodInvested), color: C.teal },
-    { icon: '💰', label: 'Retained', value: fmt2(Math.max(0, capitalRetained)), color: capitalRetained >= 0 ? C.green : C.red },
-    ...(isJoint ? [{ icon: '🏦', label: 'Joint Bal', value: fmt2(currentJointBalance), color: currentJointBalance < 5000 ? C.red : C.teal }] : []),
-  ];
-
   const fmt2 = (n: number) => fmt ? fmt(n) : '₹' + Math.round(n).toLocaleString('en-IN');
 
   // Quick metric items — CRED wealth-strip style
@@ -457,7 +429,7 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
         </div>
       )}
 
-      {/* ── Trend controls — single control for all 3 charts ─────────────── */}
+      {/* ── Trend controls ────────────────────────────────────────────────── */}
       {(lifestyleTrendData.some((m) => m.total > 0) || investmentTrendData.some((m: any) => m.total > 0)) && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px' }}>
           <div style={{ fontSize: 11, color: C.text3, fontWeight: 500 }}>Trend window</div>
@@ -487,14 +459,12 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                 const heightPct = maxLifestyleTrend > 0 ? (m.total / maxLifestyleTrend) * 100 : 0;
                 return (
                   <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, height: '100%', justifyContent: 'flex-end', minWidth: 0 }}>
-                    {/* Data label above bar */}
                     {m.total > 0 && (
                       <div style={{ fontSize: 8, color: C.text3, fontWeight: 600, textAlign: 'center', lineHeight: 1, marginBottom: 2, whiteSpace: 'nowrap' }}>
                         {fmt2(m.total).replace('₹','')}
                       </div>
                     )}
                     <div style={{ width: '80%', background: C.accent, borderRadius: '6px 6px 0 0', height: `${heightPct}%`, minHeight: m.total > 0 ? 8 : 0, transition: 'height 0.5s', opacity: 0.85 }} />
-                    {/* Month label — no rotation, abbreviated */}
                     <div style={{ fontSize: 9, color: C.text3, textAlign: 'center', fontWeight: 500, lineHeight: 1, paddingTop: 4, width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {m.monthLabel.slice(0, 3)}
                     </div>
@@ -528,19 +498,16 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
             </div>
             <div style={{ padding: '16px 18px', overflowX: 'auto' }}>
               <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', minWidth: n * 60, height: svgH }}>
-                {/* Grid lines */}
                 {[0.25, 0.5, 0.75, 1].map((r) => (
                   <line key={r} x1={pad} y1={pad + chartH * (1 - r)} x2={svgW - pad} y2={pad + chartH * (1 - r)}
                     stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
                 ))}
-                {/* Lines */}
                 {lines.map(({ key, color, dash }) => {
                   const pts = partnerTrendData.map((m: any, i: number) => `${xPos(i)},${yPos(m[key] as number || 0)}`).join(' ');
                   return (
                     <g key={key}>
                       <polyline points={pts} fill="none" stroke={color} strokeWidth="2"
                         strokeDasharray={dash ? '5 3' : 'none'} strokeLinecap="round" strokeLinejoin="round" />
-                      {/* Dots + value labels */}
                       {partnerTrendData.map((m: any, i: number) => {
                         const val = m[key] as number || 0;
                         const x = xPos(i); const y = yPos(val);
@@ -558,12 +525,10 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                     </g>
                   );
                 })}
-                {/* Month labels */}
                 {partnerTrendData.map((m: any, i: number) => (
                   <text key={i} x={xPos(i)} y={svgH - 2} fontSize="8" fill="rgba(255,255,255,0.4)" textAnchor="middle">{m.month.slice(0, 3)}</text>
                 ))}
               </svg>
-              {/* Legend */}
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
                 {lines.map(({ key, color, dash }) => (
                   <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10 }}>
@@ -572,7 +537,6 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                   </div>
                 ))}
               </div>
-              {/* Data table */}
               <div style={{ marginTop: 14, overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                   <thead>
@@ -661,7 +625,6 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
             <div style={{ fontSize: 12, color: C.text3, marginTop: 3 }}>How your investments are distributed across asset types</div>
           </div>
           <div style={{ padding: '16px 18px' }}>
-            {/* Allocation bar */}
             <div style={{ display: 'flex', height: 10, borderRadius: 99, overflow: 'hidden', gap: 2, marginBottom: 16 }}>
               {assetDetailEntries.map(([key, val], i) => (
                 <div key={key} style={{ width: `${(val / maxAsset) * 100}%`, background: ASSET_COLORS[i % ASSET_COLORS.length], borderRadius: 99, minWidth: 4 }} />
