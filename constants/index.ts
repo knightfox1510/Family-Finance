@@ -86,38 +86,63 @@ export function navForMode(mode: HouseholdMode): NavItem[] {
 }
 
 // ---------------------------------------------------------------------------
-// Design tokens (single source — import C from here everywhere)
-// ---------------------------------------------------------------------------
+// ─── Design tokens ─────────────────────────────────────────────────────────
 // C maps to CSS custom properties defined in globals.css per [data-theme].
+// All three themes (obsidian / pearl / emerald) use the same var() names.
 // Swapping data-theme on <html> instantly repaints every component.
 export const C = {
-  bg:      'var(--bg)',
-  surface: 'var(--surface)',
-  border:  'var(--border)',
-  muted:   'var(--muted)',
-  text2:   'var(--text2)',
-  text1:   'var(--text1)',
-  textW:   'var(--textW)',
-  amber:   'var(--amber)',
-  green:   'var(--green)',
-  red:     'var(--red)',
-  purple:  'var(--purple)',
-  blue:    'var(--blue)',
-  teal:    'var(--teal)',
+  // Backgrounds
+  bg:       'var(--bg)',
+  bg2:      'var(--bg2)',
+  surface:  'var(--surface)',
+  surface2: 'var(--surface2)',
+  surface3: 'var(--surface3)',
+  // Borders
+  border:   'var(--border)',
+  border2:  'var(--border2)',
+  // Text
+  muted:    'var(--muted)',
+  text3:    'var(--text3)',
+  text2:    'var(--text2)',
+  text1:    'var(--text1)',
+  textW:    'var(--textW)',
+  // Accent
+  amber:    'var(--accent)',
+  accent:   'var(--accent)',
+  accent2:  'var(--accent2)',
+  accentBg: 'var(--accent-bg)',
+  // Semantic
+  green:    'var(--green)',
+  greenBg:  'var(--green-bg)',
+  red:      'var(--red)',
+  redBg:    'var(--red-bg)',
+  blue:     'var(--blue)',
+  blueBg:   'var(--blue-bg)',
+  teal:     'var(--teal)',
+  tealBg:   'var(--teal-bg)',
+  purple:   'var(--purple)',
+  purpleBg: 'var(--purple-bg)',
+  orange:   'var(--orange)',
+  orangeBg: 'var(--orange-bg)',
+  // NeoPOP shadows
+  neoShadow:  'var(--neo-shadow)',
+  neoShadowSm:'var(--neo-shadow-sm)',
+  neoBorder:  'var(--neo-border)',
 } as const;
 
-// Raw hex values for contexts that need actual colours (e.g. SVG charts).
-// Update these if you change the default dark-navy theme.
+// Raw hex — used only for SVG chart strokes/fills that can't use var()
+// These are obsidian-theme values (update if you change default theme)
 export const HEX = {
-  bg:      '#0b0f1a',
-  surface: '#131928',
-  border:  '#1e2840',
-  amber:   '#f59e0b',
-  green:   '#10b981',
+  bg:      '#09090b',
+  surface: '#18181b',
+  border:  '#3f3f46',
+  accent:  '#f59e0b',
+  green:   '#22c55e',
   red:     '#ef4444',
-  teal:    '#06b6d4',
-  purple:  '#8b5cf6',
+  teal:    '#14b8a6',
+  purple:  '#a78bfa',
   blue:    '#3b82f6',
+  orange:  '#f97316',
 } as const;
 
 // ---------------------------------------------------------------------------
