@@ -93,7 +93,7 @@ export function LoanTracker({ data, onAdd, onUpdate, onDelete, fmt }: Props) {
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     {[['Outstanding', fmt(l.outstanding), C.red], ['Monthly EMI', fmt(l.emi), C.teal], ['Principal', fmt(l.principal), C.text1], ['Started', l.startDate, C.text1]].map(([label, val, color]) => (
-                      <div key={label as string} style={{ background: C.bg, borderRadius: 8, padding: '10px 12px' }}>
+                      <div key={label as string} style={{ background: C.bg, borderRadius: 0, padding: '10px 12px' }}>
                         <div style={{ color: C.muted, fontSize: 11 }}>{label}</div>
                         <div style={{ color: color as string, fontWeight: 700, fontSize: 14, marginTop: 2 }}>{val}</div>
                       </div>
