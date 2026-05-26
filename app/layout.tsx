@@ -1,26 +1,45 @@
-import './globals.css'
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] })
-
-export const metadata = {
-  title: 'Goku & Kari Finances',
-  description: 'Shared household expense tracker',
-  manifest: '/manifest.json', // Points to your PWA config file
-  icons: {
-    apple: '/apple-touch-icon.png', // Forces iOS Safari compliance
+export const metadata: Metadata = {
+  title: 'ChillarFlow — Track every rupee. Effortlessly.',
+  description: 'Household finance tracker for couples and families. Log expenses via WhatsApp and Telegram.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'ChillarFlow',
   },
+  other: { 'mobile-web-app-capable': 'yes' },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+  themeColor: '#09090b',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" data-theme="obsidian" suppressHydrationWarning>
+      <head>
+        {/* No-flash: read theme from localStorage before React hydrates */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var t = localStorage.getItem('cf_theme') || 'obsidian';
+                document.documentElement.setAttribute('data-theme', t);
+                document.documentElement.style.background = t === 'pearl' ? '#fafafa' : '#09090b';
+              } catch(e) {}
+            `,
+          }}
+        />
+      </head>
+      <body>{children}</body>
     </html>
-  )
+  );
 }

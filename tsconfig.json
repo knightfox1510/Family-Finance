@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    /* ── Language & output ─────────────────────────────────────────────── */
+    "target": "ES2017",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
@@ -8,20 +9,47 @@
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
+
+    /* ── THIS IS THE LINE THAT FIXES THE ERROR ─────────────────────────── */
+    /* "bundler" tells TypeScript that a bundler (Next.js / webpack) will   */
+    /* resolve modules, so it doesn't need to find them itself.             */
+    /* The old value "node" breaks with modern Next.js App Router.          */
     "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
+
+    /* ── JSX ────────────────────────────────────────────────────────────── */
+    /* "preserve" lets Next.js handle JSX transformation. Do not change.   */
     "jsx": "preserve",
+
+    /* ── Strict extras ──────────────────────────────────────────────────── */
+    "isolatedModules": true,
     "incremental": true,
+
+    /* ── Path aliases ───────────────────────────────────────────────────── */
+    /* This is what makes @/components, @/types, @/lib etc. work.          */
+    /* The "." means "start from the root of the project".                 */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    },
+
+    /* ── Next.js plugin ─────────────────────────────────────────────────── */
     "plugins": [
       {
         "name": "next"
       }
-    ],
-    "paths": {
-      "@/*": ["./*"]
-    }
+    ]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+
+  /* ── Which files TypeScript should check ──────────────────────────────── */
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+
+  /* ── Which folders TypeScript should ignore ────────────────────────────── */
+  "exclude": [
+    "node_modules"
+  ]
 }

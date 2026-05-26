@@ -1,626 +1,504 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { canUseAI, incrementUsage, getUsageSummary, FREE_MONTHLY_LIMIT } from '@/lib/planUtils';
+import {
+  supabaseBot as supabase,
+  CATEGORY_DESCRIPTIONS,
+  loadHouseholdSettings,
+  buildCategoryPrompt,
+  settleTrackLabel,
+  parseWithGemini,
+  saveTransaction,
+  formatTxSummary,
+  validateByTelegram,
+} from '@/lib/botUtils';
 
-export const maxDuration = 60; 
+export const maxDuration = 60;
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-url.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy-service-role-key-for-build-phase'; 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false, autoRefreshToken: false }
-});
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+// validateByTelegram imported from botUtils
 
-// The top 10 predicted categories for the quick-add wizard grid
-const MASTER_PREDICTIONS = [
-  "Groceries", "Dining Out", "Online Groceries", "Online Food Orders",
-  "Cab Services", "Personal Transportation", "Online Shopping", "Miscellaneous",
-  "Entertainment", "Subscriptions"
+// ─── Telegram API wrappers ────────────────────────────────────────────────────
+const tgPost = async (method: string, body: object) => {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+};
+const sendMsg        = (chatId: number, text: string) => tgPost('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML' });
+const sendMsgInline  = (chatId: number, text: string, keyboard: any[]) => tgPost('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } });
+const editMsgInline  = (chatId: number, mid: number, text: string, keyboard: any[]) => tgPost('editMessageText', { chat_id: chatId, message_id: mid, text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } });
+const sendForceReply = (chatId: number, text: string) => tgPost('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', reply_markup: { force_reply: true, selective: true } });
+const answerCQ       = (id: string, text?: string) => tgPost('answerCallbackQuery', { callback_query_id: id, text: text || '', show_alert: false });
+
+// ─── Standard keyboard ────────────────────────────────────────────────────────
+const txKeyboard = (txId: string, type: string) => [
+  [{ text: 'Category', callback_data: `s_cat_${txId}` }, { text: 'Account', callback_data: `s_acc_${txId}` }, { text: 'Note', callback_data: `s_not_${txId}` }],
+  [{ text: 'Edit Amount', callback_data: `s_amt_${txId}` }, { text: 'Settlement', callback_data: `s_trk_${txId}` }, { text: type === 'expense' ? 'Expense' : 'Income', callback_data: `t_typ_${txId}` }],
+  [{ text: 'Delete', callback_data: `d_${txId}` }],
 ];
 
-const QUICK_CATEGORIES = [
-  "Dining Out", "Online Food Orders", "Online Groceries", "Groceries",
-  "Cab Services", "Personal Transportation", "Online Shopping", "Miscellaneous"
-];
+// ─── Return to menu ───────────────────────────────────────────────────────────
+async function handleReturnToMenu(chatId: number, messageId: number, txId: string) {
+  const { data: rows } = await supabase.from('transactions').select().eq('id', txId);
+  if (!rows?.[0]) return NextResponse.json({ ok: true });
+  const tx = rows[0];
+  const { nameA, nameB } = await loadHouseholdSettings(tx.household_id || '');
+  const acct = tx.account_used === 'Partner A' ? nameA : tx.account_used === 'Partner B' ? nameB : 'Joint';
+  const banner =
+    '<b>Transaction Recorded!</b>\n\n' +
+    'Amount: ' + tx.amount + '\n' +
+    'Category: ' + tx.category + '\n' +
+    'Account: ' + acct + '\n' +
+    'Settlement: ' + settleTrackLabel(tx.settle_track || 'none', tx.to_settle) + '\n' +
+    'Type: ' + (tx.type === 'expense' ? 'Expense' : 'Income') + '\n' +
+    'Note: ' + (tx.note || '--');
+  await editMsgInline(chatId, messageId, banner, txKeyboard(txId, tx.type));
+  return NextResponse.json({ ok: true });
+}
 
+// ─── Main POST handler ────────────────────────────────────────────────────────
 export async function POST(request: Request) {
   try {
     const payload = await request.json();
 
-    // ─── 🔑 SHARED DATABASE-DRIVEN SECURITY LOOKUP HELPER ───
-    const validateTelegramUser = async (tgUser: string) => {
-      const cleanHandle = tgUser.replace(/@/g, '').trim().toLowerCase();
-      if (!cleanHandle) return null;
-
-      const { data: allProfiles, error } = await supabase
-        .from('profiles')
-        .select('household_id, display_name, telegram_username');
-
-      if (error || !allProfiles) {
-        console.error("Database connection failure during Telegram routing:", error);
-        return null;
-      }
-
-      // Locate the row matching the clean handle match parameters using lowercase validation
-      const match = allProfiles.find(p => 
-        (p.telegram_username || '').replace(/@/g, '').trim().toLowerCase() === cleanHandle
-      );
-
-      if (!match) return null;
-
-      return {
-        householdId: match.household_id,
-        senderIdentity: match.display_name === 'Partner B' ? 'Partner B' : 'Partner A'
-      };
-    };
-
-    // ────────────────────────────────────────────────────────────────────────
-    // BRANCH A: INTERACTIVE CONTROL CONSOLE DISPATCH (CALLBACK QUERIES)
-    // ────────────────────────────────────────────────────────────────────────
+    // ── CALLBACK QUERIES ────────────────────────────────────────────────────
     if (payload.callback_query) {
-      const callbackQuery = payload.callback_query;
-      const chatId = callbackQuery.message.chat.id;
-      const messageId = callbackQuery.message.message_id;
-      const dataStr = callbackQuery.data || '';
-      const tgUser = callbackQuery.from.username || '';
+      const cq = payload.callback_query;
+      const chatId = cq.message.chat.id;
+      const mid    = cq.message.message_id;
+      const data   = cq.data || '';
+      const ctx    = await validateByTelegram(cq.from.username || '');
+      if (!ctx) { await answerCQ(cq.id, 'Unauthorized. Link your Telegram handle in Settings first.'); return NextResponse.json({ ok: true }); }
 
-      // Run our shared database check!
-      const userContext = await validateTelegramUser(tgUser);
-
-      if (!userContext) {
-        await answerCallbackQuery(callbackQuery.id, "🚫 Unauthorized identity interaction. Linked profile missing.");
-        return NextResponse.json({ ok: true });
-      }
-
-      // Success! Unpack your runtime identities dynamically from the cloud record match
-      const hId = userContext.householdId;
-      const senderIdentity = userContext.senderIdentity;
-
-      // ─── WIZARD STEP 2: CATEGORY SELECTED -> CHOOSE ACCOUNT ───
-      if (dataStr.startsWith('w_cat_')) {
-        const [_, __, txId, catIndex] = dataStr.split('_');
-        const chosenCategory = MASTER_PREDICTIONS[parseInt(catIndex, 10)];
-
-        await supabase.from('transactions').update({ category: chosenCategory }).eq('id', txId);
-
+      // Wizard: category
+      if (data.startsWith('w_cat_')) {
+        const parts = data.split('_'), idx = parseInt(parts[parts.length - 1], 10), txId = parts.slice(2, -1).join('_');
         const { data: tx } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
-        let nameA = "Partner A"; 
-        let nameB = "Partner B";
-        if (tx?.household_id) {
-          const { data: st = null } = await supabase.from('household_settings').select('settings_data').eq('household_id', tx.household_id).single();
-          if (st?.settings_data) {
-            const settings = typeof st.settings_data === 'string' ? JSON.parse(st.settings_data) : st.settings_data;
-            nameA = settings.partnerAName || settings.partner_a_name || nameA;
-            nameB = settings.partnerBName || settings.partner_b_name || nameB;
-          }
-        }
-
-        const accountKeyboard = [
-          [
-            { text: `👤 ${nameA}`, callback_data: `w_acc_${txId}_PartnerA` },
-            { text: `👤 ${nameB}`, callback_data: `w_acc_${txId}_PartnerB` }
-          ],
-          [{ text: "💳 Joint Account", callback_data: `w_acc_${txId}_Joint` }]
-        ];
-
-        await editTelegramMessageInline(chatId, messageId, `📦 <b>Category Set:</b> ${chosenCategory}\n\n🏧 <b>Next, choose the funding account used:</b>`, accountKeyboard);
-        await answerCallbackQuery(callbackQuery.id);
+        const { nameA, nameB, householdMode, expenseCats } = await loadHouseholdSettings(tx?.household_id || '');
+        const chosen = expenseCats[idx] ?? 'Miscellaneous';
+        await supabase.from('transactions').update({ category: chosen }).eq('id', txId);
+        const isSolo = householdMode === 'solo', isJoint = householdMode === 'joint';
+        const kb: any[] = [[{ text: nameA, callback_data: `w_acc_${txId}_PartnerA` }, ...(!isSolo ? [{ text: nameB, callback_data: `w_acc_${txId}_PartnerB` }] : [])]];
+        if (isJoint) kb.push([{ text: 'Joint Account', callback_data: `w_acc_${txId}_Joint` }]);
+        await editMsgInline(chatId, mid, 'Category: ' + chosen + '\n\nWhich account paid?', kb);
+        await answerCQ(cq.id);
         return NextResponse.json({ ok: true });
       }
 
-      // ─── WIZARD STEP 3: ACCOUNT SELECTED -> CHOOSE SETTLEMENT ───
-      if (dataStr.startsWith('w_acc_')) {
-        const [_, __, txId, rawAccount] = dataStr.split('_');
-        const normalizedAccount = rawAccount === 'PartnerA' ? 'Partner A' : rawAccount === 'PartnerB' ? 'Partner B' : 'Joint';
-
-        await supabase.from('transactions').update({ account_used: normalizedAccount }).eq('id', txId);
-
-        if (normalizedAccount === 'Joint') {
-          await answerCallbackQuery(callbackQuery.id, "✅ Wizard Entry Finished!");
-          return handleReturnToMenu(chatId, messageId, txId);
-        }
-
-        const settleKeyboard = [
-          [
-            { text: "⚠️ Yes, Joint Account", callback_data: `w_fin_${txId}_true` },
-            { text: "✅ No, Personal Expense", callback_data: `w_fin_${txId}_false` }
-          ]
-        ];
-
-        await editTelegramMessageInline(chatId, messageId, `🏧 <b>Account Set:</b> ${normalizedAccount}\n\n⚖️ <b>Should this out-of-pocket cost be settled by the joint pool?</b>`, settleKeyboard);
-        await answerCallbackQuery(callbackQuery.id);
+      // Wizard: account
+      if (data.startsWith('w_acc_')) {
+        const parts = data.split('_'), raw = parts[parts.length - 1], txId = parts.slice(2, -1).join('_');
+        const acct = raw === 'PartnerA' ? 'Partner A' : raw === 'PartnerB' ? 'Partner B' : 'Joint';
+        await supabase.from('transactions').update({ account_used: acct, settle_track: 'none', to_settle: false }).eq('id', txId);
+        if (acct === 'Joint') { await answerCQ(cq.id, 'Logged to Joint!'); return handleReturnToMenu(chatId, mid, txId); }
+        const { data: tx2 } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
+        const { householdMode } = await loadHouseholdSettings(tx2?.household_id || '');
+        const kb: any[] = [[{ text: 'No Settlement', callback_data: `w_trk_${txId}_none` }]];
+        if (householdMode === 'joint') kb.push([{ text: 'Reimburse from Joint Pool', callback_data: `w_trk_${txId}_joint` }]);
+        if (householdMode !== 'solo')  kb.push([{ text: 'Partner Split', callback_data: `w_trk_${txId}_partner` }]);
+        await editMsgInline(chatId, mid, 'Account: ' + acct + '\n\nSettlement track:', kb);
+        await answerCQ(cq.id);
         return NextResponse.json({ ok: true });
       }
 
-      // ─── WIZARD STEP 4: SETTLEMENT SET -> CONCLUDE AND SHOW MAIN DOCK ───
-      if (dataStr.startsWith('w_fin_')) {
-        const [_, __, txId, settleFlag] = dataStr.split('_');
-        const toSettleValue = settleFlag === 'true';
-
-        await supabase.from('transactions').update({ to_settle: toSettleValue }).eq('id', txId);
-        await answerCallbackQuery(callbackQuery.id, "🎉 Entry Successfully Compiled!");
-        return handleReturnToMenu(chatId, messageId, txId);
+      // Wizard: settlement
+      if (data.startsWith('w_trk_')) {
+        const parts = data.split('_'), track = parts[parts.length - 1], txId = parts.slice(2, -1).join('_');
+        await supabase.from('transactions').update({ settle_track: track, to_settle: track === 'joint', split_mode: 'equal', partner_a_share: 0.5, partner_b_share: 0.5 }).eq('id', txId);
+        await answerCQ(cq.id, 'Entry logged!');
+        return handleReturnToMenu(chatId, mid, txId);
       }
 
-      // --- STANDARD SUB-MENU: SHOW CATEGORY GRID ---
-      if (dataStr.startsWith('s_cat_')) {
-        const txId = dataStr.split('s_cat_')[1];
-        const inlineKeyboard: any[] = [];
-        for (let i = 0; i < QUICK_CATEGORIES.length; i += 2) {
-          inlineKeyboard.push([
-            { text: QUICK_CATEGORIES[i], callback_data: `v_cat_${txId}_${i}` },
-            { text: QUICK_CATEGORIES[i+1], callback_data: `v_cat_${txId}_${i+1}` }
-          ]);
-        }
-        inlineKeyboard.push([{ text: "◀ Return to Menu", callback_data: `menu_${txId}` }]);
-        await editTelegramMessageInline(chatId, messageId, "✏️ <b>Select the replacement category below:</b>", inlineKeyboard);
-        await answerCallbackQuery(callbackQuery.id);
-        return NextResponse.json({ ok: true });
-      }
-
-      // --- STANDARD SUB-MENU: SHOW ACCOUNT SELECTION WITH DYNAMIC NAMES ---
-      if (dataStr.startsWith('s_acc_')) {
-        const txId = dataStr.split('s_acc_')[1];
+      // Sub-menu: quick categories
+      if (data.startsWith('s_cat_') && !data.startsWith('s_cat2_')) {
+        const txId = data.split('s_cat_')[1];
         const { data: txRow } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
-        
-        let nameA = "Partner A";
-        let nameB = "Partner B";
-        if (txRow?.household_id) {
-          const { data: settingsRow } = await supabase.from('household_settings').select('settings_data').eq('household_id', txRow.household_id).single();
-          if (settingsRow?.settings_data) {
-            const settings = typeof settingsRow.settings_data === 'string' ? JSON.parse(settingsRow.settings_data) : settingsRow.settings_data;
-            nameA = settings.partnerAName || settings.partner_a_name || nameA;
-            nameB = settings.partnerBName || settings.partner_b_name || nameB;
-          }
+        const { quickCats, expenseCats } = await loadHouseholdSettings(txRow?.household_id || '');
+        const kb: any[] = [];
+        for (let i = 0; i < quickCats.length; i += 2) {
+          kb.push([{ text: quickCats[i], callback_data: `v_cat_${txId}_${i}` }, { text: quickCats[i+1] ?? '--', callback_data: `v_cat_${txId}_${i+1}` }]);
         }
+        if (expenseCats.length > 8) kb.push([{ text: 'Full list (all categories) ->', callback_data: `s_cat2_${txId}_0` }]);
+        kb.push([{ text: 'Back', callback_data: `menu_${txId}` }]);
+        await editMsgInline(chatId, mid, 'Quick picks:', kb);
+        await answerCQ(cq.id);
+        return NextResponse.json({ ok: true });
+      }
 
-        const inlineKeyboard = [
-          [
-            { text: `👤 ${nameA}`, callback_data: `v_acc_${txId}_PartnerA` },
-            { text: `👤 ${nameB}`, callback_data: `v_acc_${txId}_PartnerB` }
-          ],
-          [{ text: "💳 Joint Account", callback_data: `v_acc_${txId}_Joint` }],
-          [{ text: "◀ Return to Menu", callback_data: `menu_${txId}` }]
+      // Sub-menu: paginated full category list
+      if (data.startsWith('s_cat2_')) {
+        const parts = data.split('_'), page = parseInt(parts[parts.length - 1], 10), txId = parts.slice(2, -1).join('_');
+        const { data: txRow } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
+        const { expenseCats } = await loadHouseholdSettings(txRow?.household_id || '');
+        const PAGE = 8, start = page * PAGE, pageCats = expenseCats.slice(start, start + PAGE), total = Math.ceil(expenseCats.length / PAGE);
+        const kb: any[] = [];
+        for (let i = 0; i < pageCats.length; i += 2) {
+          const gA = start + i, gB = start + i + 1;
+          const row: any[] = [{ text: pageCats[i], callback_data: `v_cat_${txId}_${gA}` }];
+          if (pageCats[i+1]) row.push({ text: pageCats[i+1], callback_data: `v_cat_${txId}_${gB}` });
+          kb.push(row);
+        }
+        const nav: any[] = [];
+        if (page > 0)          nav.push({ text: 'Prev', callback_data: `s_cat2_${txId}_${page-1}` });
+        if (page < total - 1)  nav.push({ text: 'Next', callback_data: `s_cat2_${txId}_${page+1}` });
+        if (nav.length) kb.push(nav);
+        kb.push([{ text: 'Quick picks', callback_data: `s_cat_${txId}` }, { text: 'Back to menu', callback_data: `menu_${txId}` }]);
+        await editMsgInline(chatId, mid, 'All categories -- page ' + (page+1) + ' of ' + total + ':', kb);
+        await answerCQ(cq.id);
+        return NextResponse.json({ ok: true });
+      }
+
+      // Sub-menu: account
+      if (data.startsWith('s_acc_')) {
+        const txId = data.split('s_acc_')[1];
+        const { data: txRow } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
+        const { nameA, nameB, householdMode } = await loadHouseholdSettings(txRow?.household_id || '');
+        const isSolo = householdMode === 'solo', isJoint = householdMode === 'joint';
+        const kb: any[] = [
+          [{ text: nameA, callback_data: `v_acc_${txId}_PartnerA` }, ...(!isSolo ? [{ text: nameB, callback_data: `v_acc_${txId}_PartnerB` }] : [])],
+          ...(isJoint ? [[{ text: 'Joint Account', callback_data: `v_acc_${txId}_Joint` }]] : []),
+          [{ text: 'Back', callback_data: `menu_${txId}` }],
         ];
-        
-        await editTelegramMessageInline(chatId, messageId, "🏧 <b>Select the correct target funding account:</b>", inlineKeyboard);
-        await answerCallbackQuery(callbackQuery.id);
+        await editMsgInline(chatId, mid, 'Choose account:', kb);
+        await answerCQ(cq.id);
         return NextResponse.json({ ok: true });
       }
 
-      // --- STANDARD ACTION: PROMPT USER FOR NOTE TEXT ---
-      if (dataStr.startsWith('s_not_')) {
-        const txId = dataStr.split('s_not_')[1];
-        const promptMsg = `📝 <b>Editing Note for transaction reference:</b>\n<code>${txId}</code>\n\nPlease reply directly to this message block with your new custom note content.`;
-        await sendTelegramForceReply(chatId, promptMsg);
-        await answerCallbackQuery(callbackQuery.id);
+      // Sub-menu: note
+      if (data.startsWith('s_not_')) {
+        const txId = data.split('s_not_')[1];
+        await sendForceReply(chatId, 'Edit note:\n<code>' + txId + '</code>\n\nReply with the new note.');
+        await answerCQ(cq.id);
         return NextResponse.json({ ok: true });
       }
 
-      // --- STANDARD TOGGLE ACTION: SETTLEMENT STATUS SWITCH ---
-      if (dataStr.startsWith('t_set_')) {
-        const txId = dataStr.split('t_set_')[1];
-        const { data: current } = await supabase.from('transactions').select('to_settle').eq('id', txId).single();
-        if (current) {
-          const nextState = !current.to_settle;
-          await supabase.from('transactions').update({ to_settle: nextState }).eq('id', txId);
-          await answerCallbackQuery(callbackQuery.id, `⚖️ Settlement flipped to: ${nextState ? 'Yes' : 'No'}`);
-        }
-        return handleReturnToMenu(chatId, messageId, txId);
-      }
-
-      // --- STANDARD TOGGLE ACTION: EXPENSE ⇄ INCOME SWITCH ---
-      if (dataStr.startsWith('t_typ_')) {
-        const txId = dataStr.split('t_typ_')[1];
-        const { data: current } = await supabase.from('transactions').select('type').eq('id', txId).single();
-        if (current) {
-          const nextType = current.type === 'expense' ? 'income' : 'expense';
-          await supabase.from('transactions').update({ type: nextType }).eq('id', txId);
-          await answerCallbackQuery(callbackQuery.id, `🔄 Flow type swapped to: ${nextType}`);
-        }
-        return handleReturnToMenu(chatId, messageId, txId);
-      }
-
-      // --- STANDARD VALUE EXECUTION RESOLUTIONS ---
-      if (dataStr.startsWith('v_cat_')) {
-        const [_, __, txId, indexStr] = dataStr.split('_');
-        const targetCategory = QUICK_CATEGORIES[parseInt(indexStr, 10)];
-        await supabase.from('transactions').update({ category: targetCategory }).eq('id', txId);
-        await answerCallbackQuery(callbackQuery.id, `📦 Updated to ${targetCategory}`);
-        return handleReturnToMenu(chatId, messageId, txId);
-      }
-
-      if (dataStr.startsWith('v_acc_')) {
-        const [_, __, txId, rawAccount] = dataStr.split('_');
-        const normalizedAccount = rawAccount === 'PartnerA' ? 'Partner A' : rawAccount === 'PartnerB' ? 'Partner B' : 'Joint';
-        await supabase.from('transactions').update({ account_used: normalizedAccount }).eq('id', txId);
-        await answerCallbackQuery(callbackQuery.id, `🏧 Account mapped: ${normalizedAccount}`);
-        return handleReturnToMenu(chatId, messageId, txId);
-      }
-
-      if (dataStr.startsWith('d_')) {
-        const txId = dataStr.split('d_')[1];
-        await supabase.from('transactions').delete().eq('id', txId);
-        await editTelegramMessageInline(chatId, messageId, "🗑️ <b>Transaction permanently deleted from cloud ledger.</b>", []);
-        await answerCallbackQuery(callbackQuery.id, "Purged.");
+      // Sub-menu: amount
+      if (data.startsWith('s_amt_')) {
+        const txId = data.split('s_amt_')[1];
+        const { data: txRow } = await supabase.from('transactions').select('amount').eq('id', txId).single();
+        await sendForceReply(chatId, 'Edit amount:\n<code>' + txId + '</code>\n\nCurrent: ' + (txRow?.amount ?? '?') + '\n\nReply with corrected amount (e.g. <code>450</code>).');
+        await answerCQ(cq.id);
         return NextResponse.json({ ok: true });
       }
 
-      if (dataStr.startsWith('menu_')) {
-        const txId = dataStr.split('menu_')[1];
-        return handleReturnToMenu(chatId, messageId, txId);
+      // Sub-menu: settlement track
+      if (data.startsWith('s_trk_')) {
+        const txId = data.split('s_trk_')[1];
+        const { data: txRow } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
+        const { householdMode } = await loadHouseholdSettings(txRow?.household_id || '');
+        const kb: any[] = [
+          [{ text: 'No Settlement', callback_data: `v_trk_${txId}_none` }],
+          ...(householdMode === 'joint' ? [[{ text: 'Reimburse from Joint Pool', callback_data: `v_trk_${txId}_joint` }]] : []),
+          ...(householdMode !== 'solo'  ? [[{ text: 'Partner Split',             callback_data: `v_trk_${txId}_partner` }]] : []),
+          [{ text: 'Back', callback_data: `menu_${txId}` }],
+        ];
+        await editMsgInline(chatId, mid, 'Choose settlement track:', kb);
+        await answerCQ(cq.id);
+        return NextResponse.json({ ok: true });
       }
+
+      // Toggle type
+      if (data.startsWith('t_typ_')) {
+        const txId = data.split('t_typ_')[1];
+        const { data: cur } = await supabase.from('transactions').select('type').eq('id', txId).single();
+        if (cur) await supabase.from('transactions').update({ type: cur.type === 'expense' ? 'income' : 'expense' }).eq('id', txId);
+        await answerCQ(cq.id);
+        return handleReturnToMenu(chatId, mid, txId);
+      }
+
+      // Set category (index into expenseCats full list)
+      if (data.startsWith('v_cat_')) {
+        const parts = data.split('_'), idx = parseInt(parts[parts.length - 1], 10), txId = parts.slice(2, -1).join('_');
+        const { data: txRow } = await supabase.from('transactions').select('household_id').eq('id', txId).single();
+        const { expenseCats } = await loadHouseholdSettings(txRow?.household_id || '');
+        const cat = expenseCats[idx] ?? 'Miscellaneous';
+        await supabase.from('transactions').update({ category: cat }).eq('id', txId);
+        await answerCQ(cq.id, cat);
+        return handleReturnToMenu(chatId, mid, txId);
+      }
+
+      // Set account
+      if (data.startsWith('v_acc_')) {
+        const parts = data.split('_'), raw = parts[parts.length - 1], txId = parts.slice(2, -1).join('_');
+        const acc = raw === 'PartnerA' ? 'Partner A' : raw === 'PartnerB' ? 'Partner B' : 'Joint';
+        await supabase.from('transactions').update({ account_used: acc }).eq('id', txId);
+        await answerCQ(cq.id, acc);
+        return handleReturnToMenu(chatId, mid, txId);
+      }
+
+      // Set settlement track
+      if (data.startsWith('v_trk_')) {
+        const parts = data.split('_'), track = parts[parts.length - 1], txId = parts.slice(2, -1).join('_');
+        await supabase.from('transactions').update({ settle_track: track, to_settle: track === 'joint', split_mode: 'equal', partner_a_share: 0.5, partner_b_share: 0.5 }).eq('id', txId);
+        await answerCQ(cq.id, settleTrackLabel(track, track === 'joint'));
+        return handleReturnToMenu(chatId, mid, txId);
+      }
+
+      // Delete
+      if (data.startsWith('d_')) {
+        await supabase.from('transactions').delete().eq('id', data.split('d_')[1]);
+        await editMsgInline(chatId, mid, 'Transaction deleted.', []);
+        await answerCQ(cq.id, 'Deleted.');
+        return NextResponse.json({ ok: true });
+      }
+
+      // Return to menu
+      if (data.startsWith('menu_')) return handleReturnToMenu(chatId, mid, data.split('menu_')[1]);
 
       return NextResponse.json({ ok: true });
     }
 
-    // ────────────────────────────────────────────────────────────────────────
-    // BRANCH B: STANDARD MESSAGES & TEXT REPLY LISTENER HANDLERS
-    // ────────────────────────────────────────────────────────────────────────
+    // ── TEXT MESSAGES ───────────────────────────────────────────────────────
     if (payload.message) {
-      const chatId = payload.message.chat.id;
-      const tgUser = payload.message.from.username || '';
+      const chatId  = payload.message.chat.id;
       const rawText = (payload.message.text || '').trim();
-      
-      // Run our shared database profile validation check
-      const userContext = await validateTelegramUser(tgUser);
-      
-      if (!userContext) {
-        await sendTelegramMessage(chatId, 
-          `❌ <b>Access Denied</b>\n\n` +
-          `The handle <code>@${tgUser}</code> is not linked to any active ledger profiles.\n\n` +
-          `Please log into your web dashboard, go to Settings, and link your handle under the Sync card!`
-        );
+      const ctx     = await validateByTelegram(payload.message.from.username || '');
+
+      if (!ctx) {
+        await sendMsg(chatId, 'Access Denied. Go to Settings to link your Telegram handle.');
         return NextResponse.json({ ok: true });
       }
 
-      // Success! Unpack your multi-tenant parameters instantly from the verified record match
-      const householdId = userContext.householdId;
-      const senderIdentity = userContext.senderIdentity;
+      const { householdId, senderIdentity } = ctx;
+      const { nameA, nameB, householdMode, expenseCats, quickCats } = await loadHouseholdSettings(householdId);
+      const isJoint = householdMode === 'joint', isSolo = householdMode === 'solo', hasPartner = !isSolo;
+      const validCatSet = new Set(expenseCats);
 
-      // --- INTERCEPT INLINE TEXT NOTE EDIT MODIFICATIONS ---
-      if (payload.message.reply_to_message && payload.message.reply_to_message.text) {
-        const replyText = payload.message.reply_to_message.text;
-        if (replyText.includes('Editing Note for transaction reference:')) {
-          const txId = replyText.split('\n')[1]?.trim();
-          if (txId) {
-            await supabase.from('transactions').update({ note: rawText }).eq('id', txId);
-            await sendTelegramMessage(chatId, `📝 <b>Note updated successfully to:</b> "${rawText}"`);
-            return handleReturnToMenu(chatId, payload.message.message_id - 1, txId);
-          }
+      // Note edit reply
+      if (payload.message.reply_to_message?.text?.includes('Edit note:')) {
+        const txId = payload.message.reply_to_message.text.split('\n')[1]?.trim();
+        if (txId) {
+          await supabase.from('transactions').update({ note: rawText }).eq('id', txId);
+          await sendMsg(chatId, 'Note updated: "' + rawText + '"');
+          return handleReturnToMenu(chatId, payload.message.message_id - 1, txId);
         }
       }
 
+      // Amount edit reply
+      if (payload.message.reply_to_message?.text?.includes('Edit amount:')) {
+        const txId = payload.message.reply_to_message.text.split('\n')[1]?.trim();
+        if (txId) {
+          const newAmt = parseFloat(rawText.replace(/[^0-9.]/g, ''));
+          if (isNaN(newAmt) || newAmt <= 0) { await sendMsg(chatId, 'Invalid amount. Send a number like <code>450</code>.'); return NextResponse.json({ ok: true }); }
+          await supabase.from('transactions').update({ amount: newAmt }).eq('id', txId);
+          await sendMsg(chatId, 'Amount updated to: ' + newAmt);
+          return handleReturnToMenu(chatId, payload.message.message_id - 1, txId);
+        }
+      }
+
+      // /recent
+      if (rawText === '/recent') {
+        const { data: recent } = await supabase.from('transactions').select().eq('household_id', householdId).order('created_at', { ascending: false }).limit(3);
+        if (!recent?.length) { await sendMsg(chatId, 'No transactions logged yet.'); return NextResponse.json({ ok: true }); }
+        for (const tx of recent) {
+          const acct = tx.account_used === 'Partner A' ? nameA : tx.account_used === 'Partner B' ? nameB : 'Joint';
+          await sendMsgInline(chatId,
+            tx.amount + ' -- ' + tx.category + '\n' + acct + ' | ' + tx.date + '\n' + (tx.note || '--'),
+            txKeyboard(tx.id, tx.type));
+        }
+        return NextResponse.json({ ok: true });
+      }
+
+      // /summary
+      if (rawText === '/summary') {
+        const thisMonth = new Date().toISOString().slice(0, 7);
+        const { data: txs } = await supabase.from('transactions').select().eq('household_id', householdId).like('date', thisMonth + '%').eq('type', 'expense');
+        if (!txs?.length) { await sendMsg(chatId, 'No expenses in ' + thisMonth + ' yet.'); return NextResponse.json({ ok: true }); }
+        const total = txs.reduce((s: number, t: any) => s + Number(t.amount), 0);
+        const byCat: Record<string, number> = {};
+        txs.forEach((t: any) => { byCat[t.category] = (byCat[t.category] || 0) + Number(t.amount); });
+        const top3  = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        const lines = top3.map(([cat, amt], i) => (i === 0 ? '1. ' : i === 1 ? '2. ' : '3. ') + cat + ': ' + Math.round(amt as number).toLocaleString()).join('\n');
+        await sendMsg(chatId,
+          '<b>Month summary -- ' + thisMonth + '</b>\n\n' +
+          'Total spent: ' + Math.round(total).toLocaleString() + '\n\n' +
+          'Top categories:\n' + lines + '\n\n' +
+          txs.length + ' transactions logged');
+        return NextResponse.json({ ok: true });
+      }
+
+      // /start
       if (rawText.startsWith('/start')) {
-        await sendTelegramMessage(chatId, "👋 Welcome! Send a plain number (e.g., <code>500</code>) to trigger the interactive Wizard, or send a natural text description sentence to log automatically via AI.");
+        await sendMsg(chatId,
+          '<b>Welcome to ChillarFlow!</b>\n\n' +
+          'How to log:\n' +
+          '- 450 Zomato -> personal expense\n' +
+          '- 450 Zomato ' + nameA + ' -> ' + nameA + "'s account\n" +
+          '- 450 Zomato to settle -> ' + (isJoint ? 'Joint pool reimburses you' : 'logged as personal') + '\n' +
+          (hasPartner ? '- 450 Zomato settle with ' + nameB + ' -> ' + nameB + ' owes you\n' : '') +
+          '\nSend a plain number (e.g. 500) for the interactive wizard.\n\n' +
+          'Commands:\n' +
+          '- /recent -- view & edit last 3 transactions\n' +
+          '- /summary -- this month spending snapshot\n' +
+          '- /usage -- check your AI parse usage\n' +
+          '- /upgrade -- upgrade to Pro plan');
         return NextResponse.json({ ok: true });
       }
 
-      const geminiKey = process.env.GEMINI_API_KEY;
+      // /usage command
+      if (rawText === '/usage') {
+        const { plan, count, remaining, month } = await getUsageSummary(householdId);
+        if (plan === 'pro') {
+          await sendMsg(chatId,
+            '<b>Your Plan: PRO</b>\n\nUnlimited AI expense logging. Thank you for supporting ChillarFlow!');
+        } else {
+          const bar = Array.from({ length: 10 }, (_, i) => i < Math.round((count / FREE_MONTHLY_LIMIT) * 10) ? '\u25a0' : '\u25a1').join('');
+          const usageMsg = '<b>Your Plan: Free</b>\n\n' +
+            'AI parses this month (' + month + '):\n' +
+            bar + ' ' + count + ' / ' + FREE_MONTHLY_LIMIT + '\n\n' +
+            (remaining > 0
+              ? remaining + ' AI parses remaining this month.\n\nSend /upgrade to unlock unlimited.'
+              : 'Limit reached! Send /upgrade for unlimited access, or use the number wizard (send just a number) which is always free.');
+          await sendMsg(chatId, usageMsg);
+        }
+        return NextResponse.json({ ok: true });
+      }
 
-      // ─── 💥 PATH 1: THE ZERO-COST INTERACTIVE WIZARD TRIGGER ───
-      const cleanNumericAmount = Number(rawText);
-      if (!isNaN(cleanNumericAmount) && cleanNumericAmount > 0) {
-        const secureUuidFallback = crypto.randomUUID();
+      // /upgrade command
+      if (rawText === '/upgrade') {
+        const upgradeMsg =
+          '<b>Upgrade to ChillarFlow Pro</b>\n\n' +
+          'Free plan: ' + FREE_MONTHLY_LIMIT + ' AI expense parses per month\n' +
+          'Pro plan: Unlimited AI parses\n\n' +
+          '<b>How to upgrade:</b>\n' +
+          '1. Contact us to arrange payment\n' +
+          '2. Once confirmed, your account is upgraded instantly\n' +
+          '3. The interactive number wizard is always free regardless of plan\n\n' +
+          'Reply to this message or reach us via the app Settings to get started.';
+        await sendMsg(chatId, upgradeMsg);
+        return NextResponse.json({ ok: true });
+      }
 
-        const skeletonPayload = {
-          id: secureUuidFallback,
-          household_id: householdId, // Bound strictly to dynamic context
+      // Numeric wizard
+      const numericAmount = Number(rawText);
+      if (!isNaN(numericAmount) && numericAmount > 0) {
+        const txId = crypto.randomUUID();
+        await supabase.from('transactions').insert([{
+          id: txId, household_id: householdId,
           date: new Date().toISOString().slice(0, 10),
-          amount: cleanNumericAmount,
-          category: 'Miscellaneous', 
-          type: 'expense',
-          account_used: 'Joint',     
-          added_by: senderIdentity,
-          note: 'Quick Wizard Log',
-          to_settle: false,
-          settled: false
-        };
-
-        await supabase.from('transactions').insert([skeletonPayload]);
-
-        const categoryKeyboard: any[] = [];
-        for (let i = 0; i < MASTER_PREDICTIONS.length; i += 2) {
-          categoryKeyboard.push([
-            { text: MASTER_PREDICTIONS[i], callback_data: `w_cat_${secureUuidFallback}_${i}` },
-            { text: MASTER_PREDICTIONS[i+1], callback_data: `w_cat_${secureUuidFallback}_${i+1}` }
-          ]);
+          amount: numericAmount, category: 'Miscellaneous', type: 'expense',
+          account_used: senderIdentity, added_by: senderIdentity,
+          note: 'Quick Wizard Log', to_settle: false, settled: false,
+          settle_track: 'none', split_mode: 'equal', partner_a_share: 0.5, partner_b_share: 0.5,
+        }]);
+        const wizCats = expenseCats.slice(0, 10);
+        const kb: any[] = [];
+        for (let i = 0; i < wizCats.length; i += 2) {
+          const row: any[] = [{ text: wizCats[i], callback_data: `w_cat_${txId}_${i}` }];
+          if (wizCats[i+1]) row.push({ text: wizCats[i+1], callback_data: `w_cat_${txId}_${i+1}` });
+          kb.push(row);
         }
-
-        const greetingHeader = `🔢 <b>Amount Logged:</b> ₹${cleanNumericAmount}\n\n📦 <b>Select a category below to compile entry data:</b>`;
-        await sendTelegramMessageInline(chatId, greetingHeader, categoryKeyboard);
+        if (expenseCats.length > 10) kb.push([{ text: 'More categories ->', callback_data: `s_cat2_${txId}_1` }]);
+        await sendMsgInline(chatId, 'Amount: ' + numericAmount + '\n\nSelect a category:', kb);
         return NextResponse.json({ ok: true });
       }
 
-      // ─── 🤖 PATH 2: MULTI-ROW DYNAMIC TENANT NATURAL LANGUAGE PARSER ───
-      let nameA = "Partner A";
-      let nameB = "Partner B";
-      
-      if (householdId) {
-        const { data: settingsRow } = await supabase
-          .from('household_settings')
-          .select('settings_data')
-          .eq('household_id', householdId)
-          .single();
-          
-        if (settingsRow?.settings_data) {
-          const settings = typeof settingsRow.settings_data === 'string' 
-            ? JSON.parse(settingsRow.settings_data) 
-            : settingsRow.settings_data;
-          
-          nameA = settings.partnerAName || settings.partner_a_name || nameA;
-          nameB = settings.partnerBName || settings.partner_b_name || nameB;
-        }
+      // Natural language AI parsing — gated by plan/usage
+      const { allowed, plan: usagePlan, count: usageCount, remaining } = await canUseAI(householdId);
+      if (!allowed) {
+        const bar = Array.from({ length: 10 }, () => '■').join('');
+        const limitMsg =
+          '<b>Free plan limit reached (' + FREE_MONTHLY_LIMIT + ' AI parses/month)</b>\n\n' +
+          bar + ' ' + usageCount + ' / ' + FREE_MONTHLY_LIMIT + '\n\n' +
+          'The interactive wizard (send just a number) is always free.\n\n' +
+          'Send /upgrade to unlock unlimited AI logging.';
+        await sendMsg(chatId, limitMsg);
+        return NextResponse.json({ ok: true });
       }
 
-      // 2. Build the system configuration prompt injecting dynamic session variables
-      const systemPrompt = `You are an expert personal finance clerk parsing ledger lines. 
-      Analyze the text input and extract EVERY individual transaction item mentioned. 
-      Map the entries into a valid JSON array of objects.
-      
-      VALID SYSTEM CATEGORIES & EXPLICIT PROCESSING RULES:
-      - "Alcohol"              (Wine shops, Living Liquidz, pub/bar drinks, beer, whiskey, gin, vodka, specific alcohol logs)
-      - "Dining Out"          (Restaurants, cafes, dine-in, fine dining, coffee shops, food at JP, JP food, physically eating out at a venue)
-      - "Education"           (Course fees, certifications, books, training programs, upskilling materials)
-      - "Entertainment"       (Movie tickets, Movie names, BookMyShow, gaming arcades, bowling alleys, concerts, events, fun outings)
-      - "Groceries"           (Offline local kirana stores, Metro, Fruits, Grocery, physical vegetable/fruit markets, cash grocery purchases)
-      - "Healthcare"          (Pharmacies, Medical, medical stores like Apollo, doctor, checkups, lab tests, dental treatments, medicines)
-      - "Gifting"              (Buying gifts for friends, family members, relatives; shagun/cash envelopes for weddings or birthdays)
-      - "Housing"              (Monthly house rent, society maintenance bills, Home loan EMI)
-      - "Insurance"           (Health insurance premiums, car/bike motor insurance renewals, term life insurance policies)
-      - "Investments"          (Mutual fund allocations, monthly SIPs, Smallcase, Zerodha, Gold coin, US stocks, IND Money, NJ E-wealth, SIP, direct stocks buying, gold purchases, PPF deposits, Index funds)
-      - "Miscellaneous"       (Unexpected or unclassifiable payments, ATM cash withdrawals, random one-off pocket cash items)
-      - "Offline Shopping"    (Physical retail checkout counters, apparel or footwear bought at a mall/store, lifestyle physical shopping)
-      - "Online Shopping"     (Amazon, Flipkart, Myntra, Ajio, Tata CLiQ, non-grocery online courier packages, retail websites)
-      - "Personal Care"       (Salon visits, haircuts, beauty parlour sessions, grooming products, spa, cosmetics, skincare items)
-      - "Personal Transportation" (Petrol, Bike EMI, Helmet, car or motorcycle service/repairs, toll payments, fastag recharges, parking fees)
-      - "Savings"              (Manual transfers to long-term cash reserves, emergency savings funds, specific sinking fund transfers)
-      - "Subscriptions"       (Netflix, Amazon Prime, Google API, Spotify, iCloud storage, YouTube Premium, gym memberships, recurring software apps/services)
-      - "Health & Fitness"    (Protein powder, gym supplements, Yoga classes, workout fitness gear, tracking straps, organic health food products)
-      - "Taxes"               (Income tax filings, property tax payments, municipal or government duty filings)
-      - "Technology"          (Software license keys, digital tools, cloud hosting packages, gadgets, computer/mobile electronic accessories)
-      - "Travel"              (Flight tickets, hotel bookings, Airbnb stays, IRCTC train tickets, vacation bookings, luggage travel luggage bags)
-      - "Utilities"           (Mobile recharges like Jio/Airtel/VI, home broadband Wi-Fi bills, electricity bills, piped gas, Laundry, Maid salary, Cook Salary)
-      - "Online Food Orders"  (Zomato, Swiggy food, EatClub, Domino's, pizza/burger drops, cloud kitchen orders)
-      - "Household Items"     (Household items, Kitchen items, Cleaning liquids, laundry/washing detergents, garbage bags, trash cans, mop replacements, house decor, bedsheets, Amazon orders)
-      - "Cab Services"         (Uber rides, Ola bookings, Rapido, InDrive, auto, rickshaw, cab)
-      - "Hosting Day"          (Ordering bulk food/alcohol/snacks specifically when friends, family, or guests are visiting the house for a social gathering)
-      - "Online Groceries"    (Zepto orders, Blinkit orders, Swiggy Instamart delivery, BigBasket, daily milk/produce apps)
-      - "Interest Earned"     (Bank savings account quarterly interest payouts, fixed deposit (FD) interest pay-ins)
-      - "Spouse Gifting"      (Special anniversary gestures, flowers, birthday surprises, or customized items explicitly bought as a gift for your partner)
-      - "Family payments"      (Sending money home to parents, financial support transfers to family members or siblings, names can include "mom", "dad", "mama", "sohan", "Kari mom", "Kari dad")
-      
-      ACCOUNT SELECTION & IDENTITY RULES:
-      - Map to "Partner A" if text mentions or explicitly implies ${nameA}.
-      - Map to "Partner B" if text mentions or explicitly implies ${nameB}.
-      - Map to "Joint" if text says joint/joint account/wallet.
-      - Default to "${senderIdentity}" if no distinct profile entity matching can be inferred from the text.
+      const lower = rawText.toLowerCase();
+      if (isSolo && (lower.includes('to settle') || lower.includes('settle with'))) {
+        await sendMsg(chatId, 'Solo mode does not support settlements. Just send: amount description');
+        return NextResponse.json({ ok: true });
+      }
+      if (!isJoint && lower.includes('to settle')) {
+        await sendMsg(chatId, 'No joint pool in ' + householdMode + ' mode. Use: amount description settle with ' + nameB);
+        return NextResponse.json({ ok: true });
+      }
 
-      ⚠️ LIVE USER SESSION CONTEXT:
-      - The person physically writing this chat message right now is: ${senderIdentity}.
-      - ADDED_BY FIELD: Always populate the "added_by" tracking field exactly as "${senderIdentity}".
-      - SETTLEMENT MAPPING: "to_settle" is true if the text contains "to settle", "tosettle", "to be settled", "split", or "half". Otherwise false.
-      - If "to_settle" is true, it explicitly means that ${senderIdentity} paid for this entire item out-of-pocket and the OTHER partner owes them their split share. Mark "account_used" as "${senderIdentity}".
+      const systemPrompt =
+        'You are a personal finance clerk extracting transactions from a message.\n' +
+        'Extract EVERY transaction mentioned and return a JSON array.\n\n' +
+        'SETTLEMENT RULES:\n' +
+        'RULE 1 - DEFAULT: settle_track = "none", account = whoever mentioned or "' + senderIdentity + '"\n' +
+        (isJoint ? 'RULE 2 - "to settle" appears: settle_track = "joint", account = "' + senderIdentity + '"\n' : 'RULE 2 - DISABLED (no joint pool)\n') +
+        (hasPartner ? 'RULE 3 - "settle with ' + nameA + '" or "settle with ' + nameB + '": settle_track = "partner", account = "' + senderIdentity + '"\n' : 'RULE 3 - DISABLED (solo mode)\n') +
+        'DO NOT set settle_track to "joint" or "partner" unless the exact phrase is present.\n\n' +
+        'ACCOUNTS: ' + (isSolo ? '"' + senderIdentity + '" only' : '"Partner A" = ' + nameA + ', "Partner B" = ' + nameB + (isJoint ? ', "Joint" = joint account' : '') + '. Default: "' + senderIdentity + '"') + '\n' +
+        'added_by is always "' + senderIdentity + '".\n' +
+        'TYPE: "income" for salary/bonus/refund/interest, else "expense".\n' +
+        'NOTE: merchant or item only. Strip names, settlement phrases, amounts.\n\n' +
+        'THIS HOUSEHOLD\'S CATEGORIES (use ONLY these):\n' + buildCategoryPrompt(expenseCats) + '\n\nIf no category fits, use "Miscellaneous".';
 
-      TYPE: "income" if text contains salary/bonus/credited/refund. Else "expense".
-
-      CRUCIAL CLEANING RULE: The "note" field must contain ONLY the physical item description or store merchant name (e.g., "Savana", "Zepto", "Fuel"). Strikingly remove dynamic tracking names like "${nameA}", "${nameB}", "Joint" or settlement phrases from the final note string entirely. Do not put the category name inside the note, unless there is no other way to do it.`;
-
-      // 3. Define the deterministic strict array object constraints schema blueprint
-      const transactionSchema = {
-        type: "ARRAY",
-        description: "List of extracted financial transaction items from the user input sentence string",
+      const schema = {
+        type: 'ARRAY',
         items: {
-          type: "OBJECT",
+          type: 'OBJECT',
           properties: {
-            amount: { type: "NUMBER", description: "The exact numerical value of the transaction cost" },
-            category: { type: "STRING", description: "The mapped valid expense/income category string name" },
-            note: { type: "STRING", description: "Clean description of the merchant or item only" },
-            type: { type: "STRING", description: "Must be exactly 'expense' or 'income'" },
-            account: { type: "STRING", description: "Must be exactly 'Partner A', 'Partner B', or 'Joint'" },
-            toSettle: { type: "BOOLEAN", description: "Set to true if tracking splits are requested, otherwise false" }
+            amount:       { type: 'NUMBER', description: 'Transaction amount' },
+            category:     { type: 'STRING', description: 'One of the household categories' },
+            note:         { type: 'STRING', description: 'Merchant or item name only' },
+            type:         { type: 'STRING', description: '"expense" or "income"' },
+            account:      { type: 'STRING', description: '"Partner A", "Partner B", or "Joint"' },
+            settle_track: { type: 'STRING', description: '"none", "joint", or "partner"' },
           },
-          required: ["amount", "category", "note", "type", "account", "toSettle"]
-        }
+          required: ['amount', 'category', 'note', 'type', 'account', 'settle_track'],
+        },
       };
 
-      // 4. Dispatch call using native structural constraints enforcement
-      const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUser Input: "${rawText}"` }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: transactionSchema
-          }
-        })
-      });
-      
-      const geminiData = await geminiRes.json();
-      let rawJsonText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      
-      if (rawJsonText.includes('```')) {
-        rawJsonText = rawJsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      } else {
-        rawJsonText = rawJsonText.trim();
-      }
+      const gemRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\nUser Input: "' + rawText + '"' }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: schema } }) }
+      );
+      const gemData = await gemRes.json();
+      let rawJson = (gemData.candidates?.[0]?.content?.parts?.[0]?.text || '').trim().replace(/```json/gi, '').replace(/```/g, '').trim();
+      if (!rawJson) { await sendMsg(chatId, 'Could not parse that message. Try shorter, clearer text.'); return NextResponse.json({ ok: true }); }
+      const parsed = JSON.parse(rawJson);
+      if (!Array.isArray(parsed)) throw new Error('Gemini did not return an array.');
 
-      if (!rawJsonText) {
-        console.error("Gemini returned an empty response text context body string.");
-        await sendTelegramMessage(chatId, "⚠️ AI configuration failed to map this sentence layout clearly. Please use short syntax elements.");
-        return NextResponse.json({ ok: true });
-      }
-      
-      const parsedTransactionsArray = JSON.parse(rawJsonText);
-      
-      if (!Array.isArray(parsedTransactionsArray)) {
-        throw new Error("Gemini compile failure: Output did not resolve to an array matrix.");
-      }
+      // Increment usage counter after a successful AI parse
+      await incrementUsage(householdId);
 
-      // 5. Asynchronous sequential database commit mapping runner loop
-      for (const parsedTx of parsedTransactionsArray) {
-        const secureUuidFallback = crypto.randomUUID();
-        
-        // Normalize returned accounts into generic database-safe column values
-        let dbAccountMapping = 'Joint';
-        if (parsedTx.account === 'Partner A') dbAccountMapping = 'Partner A';
-        if (parsedTx.account === 'Partner B') dbAccountMapping = 'Partner B';
-
-        const insertPayload = {
-          id: secureUuidFallback,
-          household_id: householdId,
+      for (const tx of parsed) {
+        if (!tx.amount || Number(tx.amount) <= 0) continue;
+        const track    = ['none','joint','partner'].includes(tx.settle_track) ? tx.settle_track : 'none';
+        const category = validCatSet.has(tx.category) ? tx.category : 'Miscellaneous';
+        const txId     = crypto.randomUUID();
+        const row      = {
+          id: txId, household_id: householdId,
           date: new Date().toISOString().slice(0, 10),
-          amount: Number(parsedTx.amount || 0),
-          category: parsedTx.category || 'Miscellaneous',
-          type: parsedTx.type || 'expense',
-          account_used: dbAccountMapping,
-          added_by: senderIdentity,
-          note: parsedTx.note || 'Multi-log entry',
-          to_settle: Boolean(parsedTx.toSettle),
-          settled: false,
-          settled_with: null
+          amount: Number(tx.amount), category, type: tx.type || 'expense',
+          account_used: tx.account || senderIdentity, added_by: senderIdentity,
+          note: tx.note || 'AI log', settle_track: track, to_settle: track === 'joint',
+          split_mode: 'equal', partner_a_share: 0.5, partner_b_share: 0.5, settled: false, settled_with: null,
         };
-
-        if (insertPayload.amount <= 0) continue; 
-
-        const { data: dbRows } = await supabase.from('transactions').insert([insertPayload]).select();
-        const realTx = dbRows && dbRows[0] ? dbRows[0] : insertPayload;
-        const activeId = realTx.id;
-
-        let accountDisplay = '💳 Joint Account';
-        if (realTx.account_used === 'Partner A') accountDisplay = `👤 ${nameA}`;
-        if (realTx.account_used === 'Partner B') accountDisplay = `👤 ${nameB}`;
-
-        const responseMsg = `<b>📥 Transaction Item Logged!</b>\n\n💰 <b>Amount:</b> ₹${realTx.amount}\n📦 <b>Category:</b> ${realTx.category}\n🏧 <b>Account:</b> ${accountDisplay}\n⚖️ <b>To Settle:</b> ${realTx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${realTx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${realTx.note}`;
-        
-        const inlineKeyboard = [
-          [
-            { text: "📦 Category", callback_data: `s_cat_${activeId}` },
-            { text: "🏧 Account", callback_data: `s_acc_${activeId}` },
-            { text: "📝 Edit Note", callback_data: `s_not_${activeId}` }
-          ],
-          [
-            { text: realTx.to_settle ? "⚖️ To Settle: Yes" : "⚖️ To Settle: No", callback_data: `t_set_${activeId}` },
-            { text: realTx.type === 'expense' ? "🛑 Type: Expense" : "💸 Type: Income", callback_data: `t_typ_${activeId}` },
-            { text: "🗑️ Delete", callback_data: `d_${activeId}` }
-          ]
-        ];
-
-        await sendTelegramMessageInline(chatId, responseMsg, inlineKeyboard);
+        const { data: dbRows } = await supabase.from('transactions').insert([row]).select();
+        const saved = dbRows?.[0] || row;
+        const acct  = saved.account_used === 'Partner A' ? nameA : saved.account_used === 'Partner B' ? nameB : 'Joint';
+        const msg   =
+          '<b>Transaction Logged!</b>\n\n' +
+          'Amount: ' + saved.amount + '\n' +
+          'Category: ' + saved.category + '\n' +
+          'Account: ' + acct + '\n' +
+          'Settlement: ' + settleTrackLabel(saved.settle_track, saved.to_settle) + '\n' +
+          'Type: ' + (saved.type === 'expense' ? 'Expense' : 'Income') + '\n' +
+          'Note: ' + saved.note;
+        await sendMsgInline(chatId, msg, txKeyboard(saved.id, saved.type));
       }
-
       return NextResponse.json({ ok: true });
     }
 
     return NextResponse.json({ ok: true });
+
   } catch (err: any) {
-    console.error('Core Webhook Route Operations Error Failure:', err);
-    
+    console.error('Webhook error:', err);
     try {
-      const requestPayload = JSON.parse(await request.clone().text()).catch(() => ({}));
-      const chatId = requestPayload?.message?.chat?.id || requestPayload?.callback_query?.message?.chat?.id;
-      
-      if (chatId) {
-        const failureAlert = `❌ <b>Transaction Logging Failed</b>\n\n⚠️ Your entry could not be processed automatically.\n\n🧐 <b>Error Context:</b> <code>${err?.message || 'Unknown Runtime Exception'}</code>\n\n<i>Please check your balance values or re-verify the text formatting structures.</i>`;
-        
-        const token = process.env.TELEGRAM_BOT_TOKEN;
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: chatId, text: failureAlert, parse_mode: 'HTML' }),
-        });
-      }
-    } catch (nestedNotificationError) {
-      console.error('Failed to dispatch error alert callback payload back to Telegram:', nestedNotificationError);
-    }
-
-    return NextResponse.json({ ok: true }); 
+      const p = JSON.parse(await request.clone().text());
+      const chatId = p?.message?.chat?.id || p?.callback_query?.message?.chat?.id;
+      if (chatId) await tgPost('sendMessage', { chat_id: chatId, text: 'Error: ' + (err?.message || 'Unknown'), parse_mode: 'HTML' });
+    } catch { /* ignore */ }
+    return NextResponse.json({ ok: true });
   }
-}
-
-// ────────────────────────────────────────────────────────────────────────
-// TELEGRAM CORE FRAMEWORK API PIPELINES
-// ────────────────────────────────────────────────────────────────────────
-async function handleReturnToMenu(chatId: number, messageId: number, txId: string) {
-  const { data: txRows } = await supabase.from('transactions').select().eq('id', txId);
-  if (txRows && txRows[0]) {
-    const tx = txRows[0];
-    
-    let nameA = "Partner A";
-    let nameB = "Partner B";
-    
-    if (tx.household_id) {
-      const { data: settingsRow } = await supabase.from('household_settings').select('settings_data').eq('household_id', tx.household_id).single();
-      
-      if (settingsRow?.settings_data) {
-        const settings = typeof settingsRow.settings_data === 'string' 
-          ? JSON.parse(settingsRow.settings_data) 
-          : settingsRow.settings_data;
-        
-        nameA = settings.partnerAName || settings.partner_a_name || nameA;
-        nameB = settings.partnerBName || settings.partner_b_name || nameB;
-      }
-    }
-
-    let accountDisplay = '💳 Joint Account';
-    if (tx.account_used === 'Partner A') accountDisplay = `👤 ${nameA}`;
-    if (tx.account_used === 'Partner B') accountDisplay = `👤 ${nameB}`;
-
-    const baseBanner = `<b>📥 Transaction Successfully Recorded!</b>\n\n💰 <b>Amount:</b> ₹${tx.amount}\n📦 <b>Category:</b> ${tx.category}\n🏧 <b>Account:</b> ${accountDisplay}\n⚖️ <b>To Settle:</b> ${tx.to_settle ? '⚠️ Yes' : '✅ No'}\n🔄 <b>Flow Type:</b> ${tx.type === 'expense' ? '🛑 Expense' : '💸 Income'}\n📝 <b>Note:</b> ${tx.note}`;
-    
-    const inlineKeyboard = [
-      [
-        { text: "📦 Category", callback_data: `s_cat_${txId}` },
-        { text: "🏧 Account", callback_data: `s_acc_${txId}` },
-        { text: "📝 Edit Note", callback_data: `s_not_${txId}` }
-      ],
-      [
-        { text: tx.to_settle ? "⚖️ To Settle: Yes" : "⚖️ To Settle: No", callback_data: `t_set_${txId}` },
-        { text: tx.type === 'expense' ? "🛑 Type: Expense" : "💸 Type: Income", callback_data: `t_typ_${txId}` },
-        { text: "🗑️ Delete", callback_data: `d_${txId}` }
-      ]
-    ];
-    await editTelegramMessageInline(chatId, messageId, baseBanner, inlineKeyboard);
-  }
-  return NextResponse.json({ ok: true });
-}
-
-async function sendTelegramMessage(chatId: number, text: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML' }),
-  });
-}
-
-async function sendTelegramMessageInline(chatId: number, text: string, keyboard: any[]) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } }),
-  });
-}
-
-async function editTelegramMessageInline(chatId: number, messageId: number, text: string, keyboard: any[]) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, message_id: messageId, text: text, parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } }),
-  });
-}
-
-async function sendTelegramForceReply(chatId: number, text: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML', reply_markup: { force_reply: true, selective: true } }),
-  });
-}
-
-async function answerCallbackQuery(callbackQueryId: string, alertText?: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ callback_query_id: callbackQueryId, text: alertText || "", show_alert: false }),
-  });
 }
