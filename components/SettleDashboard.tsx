@@ -25,7 +25,8 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
   const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
 
   // ── Joint settle state (existing) ─────────────────────────────────────────
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected]     = useState<Set<string>>(new Set()); // Joint selections
+  const [p2pSelected, setP2pSelected] = useState<Set<string>>(new Set()); // Direct partner selections
 
   const pending  = data.expenses.filter((e) => e.toSettle && !e.settled && e.account !== 'Joint');
   const pendingA = pending.filter((e) => e.account.includes(names.a) || e.account.includes('Partner A'));
@@ -257,69 +258,76 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
         <StatCard label={`${names.b} — Pending`} value={fmt(totalB)} color={C.blue}   sub={`${pendingB.length} transactions`} />
       </div>
 
-      {/* ── Partner-to-partner track ─────────────────────────────────────────── */}
+      {/* ── Direct Partner Track Balance — with multi-select ────────────────── */}
       <Card>
-        {/* Card header with Settle All button */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <SectionTitle style={{ margin: 0 }}>🤝 Direct Partner Track Balance</SectionTitle>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
-              Transactions where one partner owes the other directly
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {/* Net balance pill */}
-            <div style={{ padding: '6px 12px', borderRadius: 0, fontSize: 13, fontWeight: 700, background: p2pNetBalance === 0 ? `${C.border}40` : `${C.amber}22`, color: p2pNetBalance === 0 ? C.muted : C.amber, border: `1px solid ${p2pNetBalance === 0 ? C.border : C.amber}44` }}>
-              {p2pNetBalance === 0 && '🏆 Fully Settled'}
-              {p2pNetBalance > 0 && `${names.b} owes ${names.a} ${fmt(Math.abs(p2pNetBalance))}`}
-              {p2pNetBalance < 0 && `${names.a} owes ${names.b} ${fmt(Math.abs(p2pNetBalance))}`}
-            </div>
-            {/* Settle All button — only when there are items to settle */}
-            {pendingPartnerItems.length > 0 && (
-              <Btn
-                variant="primary"
-                style={{ fontSize: 12, padding: '6px 14px', whiteSpace: 'nowrap' as const }}
-                onClick={() => openWizard(pendingPartnerItems)}
-              >
-                ⚡ Settle All ({pendingPartnerItems.length})
-              </Btn>
-            )}
-          </div>
+        <div style={{ marginBottom: 14 }}>
+          <SectionTitle style={{ margin: '0 0 4px' }}>🤝 Direct Partner Track Balance</SectionTitle>
+          <div style={{ fontSize: 12, color: C.muted }}>Transactions where one partner owes the other directly</div>
         </div>
 
-        {/* Item list */}
+        {/* Net balance + action buttons */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ padding: '8px 14px', borderRadius: 99, fontSize: 13, fontWeight: 700,
+            background: p2pNetBalance === 0 ? `${C.border}40` : `${C.accent}18`,
+            color: p2pNetBalance === 0 ? C.muted : C.accent,
+            border: `1px solid ${p2pNetBalance === 0 ? C.border : C.accent}44` }}>
+            {p2pNetBalance === 0 && '🏆 Fully Settled'}
+            {p2pNetBalance > 0 && `${names.b} owes ${names.a} ${fmt(Math.abs(p2pNetBalance))}`}
+            {p2pNetBalance < 0 && `${names.a} owes ${names.b} ${fmt(Math.abs(p2pNetBalance))}`}
+          </div>
+          {pendingPartnerItems.length > 0 && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              {p2pSelected.size > 0 && (
+                <Btn variant="primary" style={{ fontSize: 12 }} onClick={() => openWizard(pendingPartnerItems.filter((i: any) => p2pSelected.has(i.id)))}>
+                  ⚡ Settle Selected ({p2pSelected.size}) — {fmt(pendingPartnerItems.filter((i: any) => p2pSelected.has(i.id)).reduce((s: number, i: any) => s + Number(i.amountOwed), 0))}
+                </Btn>
+              )}
+              <Btn variant="ghost" style={{ fontSize: 12 }} onClick={() => openWizard(pendingPartnerItems)}>
+                ⚡ Settle All ({pendingPartnerItems.length})
+              </Btn>
+            </div>
+          )}
+        </div>
+
         {pendingPartnerItems.length === 0 ? (
-          <div style={{ padding: '24px 12px', textAlign: 'center', color: C.muted, fontSize: 13, background: `${C.bg}40`, borderRadius: 0, border: `1px dashed ${C.border}` }}>
+          <div style={{ padding: '24px 12px', textAlign: 'center', color: C.muted, fontSize: 13, background: `${C.bg}40`, borderRadius: 12, border: `1px dashed ${C.border}` }}>
             Everything is clear! 🏆
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {pendingPartnerItems.map((item: any) => {
               const paidByA = item.account === names.a || item.account === 'Partner A';
+              const isP2pSel = p2pSelected.has(item.id);
               return (
-                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `${C.bg}60`, padding: '10px 14px', borderRadius: 0, border: `1px solid ${C.border}44` }}>
+                <div key={item.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, background: isP2pSel ? `${C.accent}10` : `${C.bg}60`,
+                    padding: '12px 14px', borderRadius: 12,
+                    border: `1px solid ${isP2pSel ? C.accent + '44' : C.border + '44'}`,
+                    transition: 'all 0.15s', cursor: 'pointer' }}
+                  onClick={() => setP2pSelected(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); return n; })}>
+                  {/* Checkbox */}
+                  <input type="checkbox" checked={isP2pSel}
+                    onChange={() => {}} onClick={(e) => e.stopPropagation()}
+                    style={{ cursor: 'pointer', accentColor: C.accent, width: 16, height: 16, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: C.text1 }}>{item.category}</span>
-                      <span style={{ fontSize: 11, background: `${C.border}60`, color: C.text2, padding: '2px 6px', borderRadius: 0 }}>{item.breakdownText}</span>
+                      <span style={{ fontSize: 11, background: `${C.border}60`, color: C.text2, padding: '2px 8px', borderRadius: 99 }}>{item.breakdownText}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
-                      {item.date} • paid by {paidByA ? names.a : names.b}
+                    <div style={{ fontSize: 11, color: C.muted }}>
+                      {item.date} · paid by {paidByA ? names.a : names.b}
                       {item.note ? ` — "${item.note}"` : ''}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, marginLeft: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: C.amber }}>{fmt(Number(item.amountOwed))}</div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: C.accent }}>{fmt(Number(item.amountOwed))}</div>
                       <div style={{ fontSize: 10, color: C.muted }}>{item.debtorName} owes</div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => openWizard([item])}
-                      style={{ background: `${C.amber}15`, border: `1px solid ${C.amber}44`, color: C.amber, padding: '6px 10px', borderRadius: 0, fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' as const }}
-                    >
+                    <Btn variant="primary" size="sm"
+                      onClick={(e) => { e.stopPropagation(); openWizard([item]); }}>
                       Settle ⚡
-                    </button>
+                    </Btn>
                   </div>
                 </div>
               );
