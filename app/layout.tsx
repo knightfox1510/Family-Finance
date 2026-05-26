@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'FamilyFinance',
+  title: 'ChillarFlow',
   description: 'Household finance tracker for couples and families',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'FamilyFinance',
+    title: 'ChillarFlow',
   },
   other: {
     'mobile-web-app-capable': 'yes',
@@ -32,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                var t = localStorage.getItem('ff_theme') || 'dark-navy';
+                var t = localStorage.getItem('cf_theme') || 'dark-navy';
                 document.documentElement.setAttribute('data-theme', t);
               } catch(e) {}
             `,
