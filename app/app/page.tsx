@@ -304,7 +304,7 @@ export default function App() {
     <div
       style={{
         background: C.bg, minHeight: '100vh',
-        fontFamily: "'DM Sans','Segoe UI',system-ui,sans-serif",
+        fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,sans-serif",
         color: C.textW,
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
@@ -404,30 +404,51 @@ export default function App() {
       {/* MAIN CONTENT AREA */}
       <div style={{ flex: 1, position: 'relative', height: isMobile ? 'calc(100vh - 70px)' : '100vh', overflowY: 'auto' }}>
 
-        {/* Mobile top header */}
+        {/* Mobile top header — CRED style */}
         {isMobile && (
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '16px 20px', borderBottom: `1px solid ${C.border}`,
-            background: C.surface, position: 'sticky', top: 0, zIndex: 50,
+            padding: '12px 16px',
+            paddingTop: 'max(12px, env(safe-area-inset-top))',
+            borderBottom: `1px solid ${C.border}`,
+            background: C.bg, position: 'sticky', top: 0, zIndex: 50,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 22 }}>💰</span>
-              <span style={{ color: C.amber, fontWeight: 900, fontSize: 16 }}>ChillarFlow</span>
-            </div>
+            {/* Avatar + greeting */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={() => setPrivacyMode((p) => !p)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: '50%',
+                background: C.accentBg, border: `2px solid ${C.accent}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 15, fontWeight: 800, color: C.accent, flexShrink: 0,
+              }}>
+                {(data?.settings?.partnerAName?.[0] ?? 'C').toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: C.text3, fontWeight: 500, lineHeight: 1, marginBottom: 1 }}>hello,</div>
+                <div style={{ fontSize: 15, color: C.textW, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.02em' }}>
+                  {data?.settings?.partnerAName ?? 'ChillarFlow'}
+                </div>
+              </div>
+            </div>
+            {/* Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => setPrivacyMode((p) => !p)}
+                style={{ background: C.surface2, border: 'none', cursor: 'pointer',
+                  width: 36, height: 36, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
                 {privacyMode ? '🙈' : '👁️'}
               </button>
-              <button onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/'; })} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, borderRadius: 6, padding: '2px 8px', fontSize: 11, cursor: 'pointer' }}>
-                Log Out
+              <button onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/'; })}
+                style={{ background: C.surface2, border: 'none', color: C.text2,
+                  padding: '7px 12px', borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                Out
               </button>
             </div>
           </div>
         )}
 
         {/* Page content */}
-        <div style={{ maxWidth: 1000, margin: '0 auto', padding: isMobile ? '20px 20px 100px' : '40px 40px 100px' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto', padding: isMobile ? '16px 16px 100px' : '40px 40px 100px' }}>
 
           {/* Header row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 12 }}>
@@ -526,15 +547,16 @@ export default function App() {
             onClick={() => { setPrevView(view); setView('add'); }}
             style={{
               position: 'fixed',
-              bottom: isMobile ? 90 : 40,
-              right: isMobile ? 20 : 40,
-              width: 64, height: 64, borderRadius: '50%',
-              background: `linear-gradient(135deg, ${C.amber}, #d97706)`,
-              color: C.bg, border: 'none', cursor: 'pointer',
+              bottom: isMobile ? 84 : 40,
+              right: isMobile ? 16 : 40,
+              width: 56, height: 56, borderRadius: '50%',
+              background: C.accent,
+              color: '#0a0a0a', border: 'none', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 32,
-              boxShadow: '0 8px 24px rgba(245,158,11,0.4)',
+              fontSize: 28, fontWeight: 300,
+              boxShadow: '0 4px 20px rgba(240,180,41,0.4)',
               zIndex: 1000,
+              transition: 'transform 0.15s, box-shadow 0.15s',
             }}
           >
             +
@@ -544,28 +566,45 @@ export default function App() {
 
       {/* MOBILE BOTTOM NAV */}
       {isMobile && (
-        <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0, height: 70,
-          background: C.surface, borderTop: `1px solid ${C.border}`,
-          display: 'flex', overflowX: 'auto', padding: '0 10px',
-          alignItems: 'center', gap: 10, zIndex: 900,
+        <nav style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0,
+          background: C.surface,
+          borderTop: `1px solid ${C.border}`,
+          display: 'flex',
+          paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+          paddingTop: 4,
+          zIndex: 900,
+          boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
         }}>
-          {nav.filter((n) => n.id !== 'add').map((n) => (
+          {nav.filter((n) => n.id !== 'add').slice(0, 5).map((n) => (
             <button
               key={n.id}
               onClick={() => setView(n.id)}
               style={{
-                background: view === n.id ? C.amber + '11' : 'transparent',
-                border: 'none', color: view === n.id ? C.amber : C.text2,
-                borderRadius: 10, padding: '8px', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 64,
+                flex: 1, background: 'transparent', border: 'none',
+                cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', gap: 3, padding: '8px 2px 4px',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
-              <span style={{ fontSize: 20 }}>{n.icon}</span>
-              <span style={{ fontSize: 10, fontWeight: view === n.id ? 700 : 500, whiteSpace: 'nowrap' }}>{n.label}</span>
+              <div style={{
+                width: 36, height: 36, borderRadius: 12,
+                background: view === n.id ? C.accentBg : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'background 0.15s',
+                fontSize: 20,
+              }}>
+                {n.icon}
+              </div>
+              <span style={{
+                fontSize: 9, fontWeight: 600,
+                letterSpacing: '0.04em', textTransform: 'uppercase',
+                color: view === n.id ? C.accent : C.text3,
+                transition: 'color 0.15s',
+              }}>{n.label}</span>
             </button>
           ))}
-        </div>
+        </nav>
       )}
 
       {/* Toast notifications */}
