@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { AppData, Settings as SettingsType, HouseholdMode } from '@/types';
-import { Card, Btn, Inp, Label, SectionTitle, Toggle, PlanBadge, UsageMeter, ThemePicker } from '@/components/ui';
+import { Card, Btn, Inp, Label, SectionTitle, Toggle, PlanBadge, UsageMeter, ThemePicker, Collapsible } from '@/components/ui';
 import { C, HOUSEHOLD_MODE_META } from '@/constants';
 import { hasPartnerB } from '@/lib/householdModes';
 import { supabase } from '@/lib/supabaseClient';
@@ -127,6 +127,93 @@ const SWITCH_INFO: Record<string, Record<string, SwitchInfo>> = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+// ─── Inline sub-components ───────────────────────────────────────────────────
+
+function InviteLinkButton({ householdId }: { householdId: string }) {
+  const [link, setLink] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+
+  const generate = async () => {
+    setLoading(true);
+    try {
+      const r = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: householdId }),
+      });
+      const d = await r.json();
+      if (d.inviteUrl) setLink(d.inviteUrl);
+    } finally { setLoading(false); }
+  };
+
+  const copy = () => {
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (link) return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input readOnly value={link} style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.text2, borderRadius: 0, padding: '10px 12px', fontSize: 13, outline: 'none' }} />
+        <button onClick={copy} style={{ background: copied ? C.green : C.amber, color: C.bg, border: 'none', borderRadius: 0, padding: '10px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', minHeight: 44, flexShrink: 0 }}>
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+      <p style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>Link expires in 7 days. Generate a new one anytime.</p>
+    </div>
+  );
+
+  return (
+    <button onClick={generate} disabled={loading} style={{ background: C.teal, color: C.bg, border: 'none', borderRadius: 0, padding: '11px 20px', fontWeight: 700, fontSize: 14, cursor: 'pointer', minHeight: 44 }}>
+      {loading ? 'Generating...' : 'Generate invite link'}
+    </button>
+  );
+}
+
+function ReferralCard({ householdId }: { householdId: string }) {
+  const [data, setData] = React.useState<{ code: string; shareUrl: string; referredCount: number; bonusParses: number } | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!householdId) return;
+    fetch(`/api/referral?userId=${householdId}`)
+      .then((r) => r.json())
+      .then(setData)
+      .catch(() => {});
+  }, [householdId]);
+
+  if (!data) return <div style={{ color: C.muted, fontSize: 13 }}>Loading...</div>;
+
+  const copy = () => {
+    navigator.clipboard.writeText(data.shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <input readOnly value={data.shareUrl} style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.text2, borderRadius: 0, padding: '10px 12px', fontSize: 13, outline: 'none' }} />
+        <button onClick={copy} style={{ background: copied ? C.green : C.amber, color: C.bg, border: 'none', borderRadius: 0, padding: '10px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', flexShrink: 0, minHeight: 44 }}>
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '10px 16px', textAlign: 'center', flex: 1 }}>
+          <div style={{ color: C.textW, fontWeight: 800, fontSize: 20 }}>{data.referredCount}</div>
+          <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>friends referred</div>
+        </div>
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '10px 16px', textAlign: 'center', flex: 1 }}>
+          <div style={{ color: C.amber, fontWeight: 800, fontSize: 20 }}>+{data.bonusParses}</div>
+          <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>bonus parses earned</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Settings({ data, householdId, onSave, onExport, onImport, onJoinHousehold, theme = 'dark-navy', onThemeChange, planInfo }: Props) {
 
   const [s, setS]                 = useState<SettingsType>(() => JSON.parse(JSON.stringify(data.settings)));
@@ -185,6 +272,8 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   const currentCloudRole        = data.currentUserRole ?? 'Partner A';
   const telegramHandle          = (s.telegramUsername ?? '').trim();
   const telegramLinked          = telegramHandle.length > 0;
+  const waNumber                = (s.whatsappNumber ?? '').replace(/\D/g, '');
+  const waLinked                = waNumber.length >= 10;
 
   // ── Save with downgrade protection ────────────────────────────────────────
 
@@ -210,7 +299,17 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
       expenseCategories: settings.expenseCategories.includes('Miscellaneous')
         ? settings.expenseCategories
         : [...settings.expenseCategories, 'Miscellaneous'],
+      whatsappNumber: settings.whatsappNumber ?? '',
     };
+    // Also save whatsapp_number to profiles table
+    if ('whatsappNumber' in guarded) {
+      import('@/lib/supabaseClient').then(({ supabase }) => {
+        supabase.from('profiles')
+          .update({ whatsapp_number: guarded.whatsappNumber || null })
+          .eq('household_id', householdId)
+          .then(() => {});
+      });
+    }
     onSave(guarded);
     setFlash(true);
     setTimeout(() => setFlash(false), 2000);
@@ -298,7 +397,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   };
 
   const catPillStyle: React.CSSProperties = {
-    background: C.bg, border: `1px solid ${C.border}`, borderRadius: 7,
+    background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0,
     padding: '4px 10px', fontSize: 13, color: C.text1,
     display: 'flex', alignItems: 'center', gap: 6,
   };
@@ -316,7 +415,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         const changesLabel = isUpgrade ? 'What gets unlocked:' : 'What becomes hidden in the UI (never deleted):';
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ background: C.surface, border: `1px solid ${accentColor}44`, borderRadius: 14, padding: 28, maxWidth: 480, width: '100%' }}>
+            <div style={{ background: C.surface, border: `1px solid ${accentColor}44`, borderRadius: 0, padding: 28, maxWidth: 480, width: '100%' }}>
 
               {/* Header */}
               <div style={{ fontSize: 17, fontWeight: 800, color: accentColor, marginBottom: 4 }}>
@@ -337,7 +436,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               </ul>
 
               {/* Note */}
-              <div style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}33`, borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: accentColor, lineHeight: 1.6 }}>
+              <div style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}33`, borderRadius: 0, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: accentColor, lineHeight: 1.6 }}>
                 💡 {downgradeModal.note}
               </div>
 
@@ -383,7 +482,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             </span>
           </div>
           {/* Progress bar — always rendered, 0% width when no data yet */}
-          <div style={{ background: C.border, borderRadius: 99, height: 6, overflow: 'hidden' }}>
+          <div style={{ background: C.border, borderRadius: 0, height: 6, overflow: 'hidden' }}>
             <div style={{
               width: planInfo
                 ? planInfo.plan === 'pro' ? '100%' : `${planInfo.pct}%`
@@ -393,7 +492,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                 ? C.teal
                 : !planInfo || planInfo.pct < 70 ? C.green
                 : planInfo.pct < 90 ? C.amber : C.red,
-              borderRadius: 99,
+              borderRadius: 0,
               transition: 'width 0.4s',
             }} />
           </div>
@@ -416,7 +515,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
 
         {/* Upgrade CTA — shown for free plan OR while loading (assume free until known) */}
         {(!planInfo || planInfo.plan === 'free') && (
-          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 10, marginBottom: 0 }}>
+          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 0, marginBottom: 0 }}>
             <div style={{ color: C.textW, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
               ✦ Upgrade to Pro
             </div>
@@ -424,7 +523,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               Free plan: 30 AI parses/month · Pro plan: unlimited. The number wizard is always free.
             </div>
             <Btn variant="primary" style={{ width: '100%' }} onClick={() => {
-              window.open('mailto:support@familyfinance.app?subject=Pro%20Upgrade&body=Household%20ID:%20' + householdId, '_blank');
+              window.open('mailto:team@chillarflow.com?subject=Pro%20Upgrade&body=Household%20ID:%20' + householdId, '_blank');
             }}>
               ✦ Upgrade to Pro — Unlimited AI logging
             </Btn>
@@ -433,9 +532,9 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
 
         {/* Pro active state */}
         {planInfo?.plan === 'pro' && (
-          <div style={{ padding: '10px 14px', background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 10, textAlign: 'center' }}>
+          <div style={{ padding: '10px 14px', background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 0, textAlign: 'center' }}>
             <div className="pro-badge" style={{ fontSize: 15, marginBottom: 4 }}>✦ PRO PLAN ACTIVE</div>
-            <div style={{ color: C.text2, fontSize: 12 }}>Thank you for supporting FamilyFinance!</div>
+            <div style={{ color: C.text2, fontSize: 12 }}>Thank you for supporting ChillarFlow!</div>
           </div>
         )}
       </Card>
@@ -488,7 +587,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                 {isOpen && (
                   <div style={{ background: `${C.amber}08`,
                     border: `2px solid ${active ? C.amber : C.border}`, borderTop: 'none',
-                    borderRadius: '0 0 10px 10px', padding: '12px 16px' }}>
+                    borderRadius: 0, padding: '12px 16px' }}>
                     <div style={{ fontSize: 11, color: C.muted, fontWeight: 600,
                       textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 10 }}>
                       What you get with {meta.label}:
@@ -570,7 +669,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             style={{ background: telegramLinked ? `${C.bg}80` : C.bg,
               border: `1px solid ${telegramLinked ? C.border : C.teal}`,
               color: telegramLinked ? C.text2 : C.textW,
-              borderRadius: 8, padding: '10px 14px', flex: 1,
+              borderRadius: 0, padding: '10px 14px', flex: 1,
               boxSizing: 'border-box' as const, outline: 'none', fontSize: 16,
               opacity: telegramLinked ? 0.7 : 1,
               cursor: telegramLinked ? 'not-allowed' : 'text' }} />
@@ -580,7 +679,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         </div>
 
         {/* Setup guide — collapsible */}
-        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, overflow: 'hidden' }}>
           <button
             onClick={() => setExpandedTg((v) => !v)}
             style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -619,13 +718,58 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               { code: '/usage',                desc: 'Check AI parse usage' },
             ].map(({ code, desc }) => (
               <div key={code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' as const, gap: 6 }}>
-                <code style={{ background: `${C.border}40`, padding: '2px 8px', borderRadius: 4, fontSize: 11, color: C.teal }}>{code}</code>
+                <code style={{ background: `${C.border}40`, padding: '2px 8px', borderRadius: 0, fontSize: 11, color: C.teal }}>{code}</code>
                 <span style={{ fontSize: 11, color: C.muted }}>{desc}</span>
               </div>
             ))}
           </div>
           </div>}
         </div>
+      </Card>
+
+      {/* ── WhatsApp Integration ─────────────────────────────────────────────── */}
+      <Card style={{ border: `1px solid #25D36644` }}>
+        <SectionTitle>WhatsApp Integration</SectionTitle>
+        <p style={{ color: C.text1, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+          {waLinked
+            ? 'Your WhatsApp is connected. Send a message to log expenses instantly.'
+            : 'Link your WhatsApp number to log expenses from WhatsApp.'}
+        </p>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <input
+            type="tel"
+            disabled={waLinked}
+            placeholder="Country code + number, e.g. 919876543210"
+            value={waLinked ? waNumber : (s.whatsappNumber ?? '')}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setS((x) => ({ ...x, whatsappNumber: e.target.value.replace(/\D/g, '') }))
+            }
+            style={{
+              background: waLinked ? `${C.bg}80` : C.bg,
+              border: `1px solid ${waLinked ? C.border : '#25D366'}`,
+              color: waLinked ? C.text2 : C.textW,
+              borderRadius: 0, padding: '10px 14px', flex: 1,
+              boxSizing: 'border-box' as const, outline: 'none', fontSize: 16,
+              opacity: waLinked ? 0.7 : 1,
+              cursor: waLinked ? 'not-allowed' : 'text',
+            }}
+          />
+          {waLinked && (
+            <Btn variant="danger" onClick={() => setS((x) => ({ ...x, whatsappNumber: '' }))}>Unlink</Btn>
+          )}
+        </div>
+
+        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+          <strong style={{ color: C.text1 }}>Format:</strong> Country code + number without spaces or +<br />
+          India example: <code style={{ background: `${C.border}40`, padding: '1px 6px', borderRadius: 0 }}>919876543210</code>
+        </div>
+
+        {!waLinked && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: '#25D36610', border: '1px solid #25D36633', borderRadius: 0, fontSize: 12, color: '#25D366', lineHeight: 1.6 }}>
+            After linking, open WhatsApp and send <strong>hi</strong> to the ChillarFlow number to activate your account.
+          </div>
+        )}
       </Card>
 
       {/* ── Expense Categories ────────────────────────────────────────────── */}
@@ -687,7 +831,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                   setS((x) => ({ ...x, budgets: {} }));
                 }
               }}
-              style={{ background: 'transparent', border: `1px solid ${C.red}44`, color: C.red, borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}
+              style={{ background: 'transparent', border: `1px solid ${C.red}44`, color: C.red, borderRadius: 0, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}
             >
               Reset All
             </button>
@@ -712,7 +856,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                 }}
                 style={{ width: 88, flexShrink: 0, padding: '6px 8px', fontSize: 13,
                   background: C.bg, border: `1px solid ${C.border}`, color: C.textW,
-                  borderRadius: 6, outline: 'none', WebkitAppearance: 'none' as any }}
+                  borderRadius: 0, outline: 'none', WebkitAppearance: 'none' as any }}
               />
             </div>
           ))}
@@ -753,7 +897,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                   if (!('Notification' in window)) return;
                   const permission = await Notification.requestPermission();
                   if (permission === 'granted') {
-                    new Notification('FamilyFinance', { body: 'Notifications working! ✓' });
+                    new Notification('ChillarFlow', { body: 'Notifications working! ✓' });
                   } else {
                     alert('Please allow notifications in your browser settings.');
                   }
@@ -784,14 +928,14 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} style={{ display: 'none' }} />
             <Btn variant="purple" onClick={() => fileRef.current?.click()}>⬆ Import File</Btn>
             {importMsg && (
-              <div style={{ marginTop: 10, padding: '9px 14px', borderRadius: 8, fontSize: 13,
+              <div style={{ marginTop: 10, padding: '9px 14px', borderRadius: 0, fontSize: 13,
                 background: importMsg.type === 'success' ? C.green + '22' : C.red + '22',
                 border: `1px solid ${importMsg.type === 'success' ? C.green : C.red}44`,
                 color: importMsg.type === 'success' ? C.green : C.red }}>
                 {importMsg.text}
               </div>
             )}
-            <div style={{ marginTop: 10, padding: '10px 14px', background: C.bg, borderRadius: 8, fontSize: 12, color: C.muted }}>
+            <div style={{ marginTop: 10, padding: '10px 14px', background: C.bg, borderRadius: 0, fontSize: 12, color: C.muted }}>
               <strong style={{ color: C.text1 }}>Expected Expenses sheet columns:</strong><br />
               ID, Date (YYYY-MM-DD), Type (expense/income), Category, Amount, Account, Added By, Note, To Settle (Yes/No), Settled (Yes/No), Settled For
             </div>
@@ -808,6 +952,24 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
           </div>
         </CollapsibleCard>
       )}
+
+      {/* ── Invite Partner via link ─────────────────────────────────────────── */}
+      <Card>
+        <SectionTitle>Invite Partner</SectionTitle>
+        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+          Generate a one-click invite link your partner can use to join without copy-pasting your household ID.
+        </p>
+        <InviteLinkButton householdId={householdId} />
+      </Card>
+
+      {/* ── Referral program ─────────────────────────────────────────────────── */}
+      <Card>
+        <SectionTitle>Refer a Friend</SectionTitle>
+        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
+          Share ChillarFlow and you both get 30 extra AI parses when they sign up.
+        </p>
+        <ReferralCard householdId={householdId} />
+      </Card>
 
       {/* ── Join Partner's Household ────────────────────────────────── */}
       <Card>
@@ -826,6 +988,32 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
           Your household ID:{' '}
           <code style={{ color: C.teal, fontSize: 11, userSelect: 'all' as const }}>{householdId}</code>
         </p>
+      </Card>
+
+      {/* ── Invite link ───────────────────────────────────────────────────────── */}
+      <Card>
+        <SectionTitle>Share Invite Link</SectionTitle>
+        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
+          Share this link with your partner — they click it, sign up, and join your household automatically. No code copy-pasting needed.
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <code style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.teal, borderRadius: 0, padding: '10px 14px', flex: 1, fontSize: 11, wordBreak: 'break-all' as const, lineHeight: 1.6 }}>
+            {'chillarflow.com/join?code=' + householdId}
+          </code>
+          <Btn variant="ghost" onClick={() => navigator.clipboard.writeText('https://chillarflow.com/join?code=' + householdId)}>
+            Copy
+          </Btn>
+        </div>
+        <Btn variant="primary" style={{ width: '100%' }} onClick={() => {
+          const link = 'https://chillarflow.com/join?code=' + householdId;
+          if (typeof navigator !== 'undefined' && navigator.share) {
+            navigator.share({ title: 'Join my ChillarFlow household', text: 'Track finances together on ChillarFlow', url: link });
+          } else {
+            navigator.clipboard.writeText(link);
+          }
+        }}>
+          🔗 Share invite link via WhatsApp / SMS
+        </Btn>
       </Card>
 
       {/* ── Save ──────────────────────────────────────────────────────────── */}
