@@ -1,4 +1,3 @@
-
 // ─── app/api/webhook/whatsapp/route.ts ────────────────────────────────────────
 // WhatsApp Cloud API webhook for ChillarFlow
 //
@@ -30,9 +29,8 @@ import {
   saveTransaction,
   formatTxSummary,
   settleTrackLabel,
-  FREE_MONTHLY_LIMIT,
 } from '@/lib/botUtils';
-import { canUseAI, incrementUsage, getUsageSummary } from '@/lib/planUtils';
+import { canUseAI, incrementUsage, getUsageSummary, FREE_MONTHLY_LIMIT } from '@/lib/planUtils';
 
 export const maxDuration = 60;
 
