@@ -65,9 +65,9 @@ export function IncomeTracker({ data, fmt }: Props) {
 
       {/* Metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        <StatCard label="Total Net Inflow" value={fmt(totalIncome)} accent={C.green} icon="🏦" sub="Accumulated for selection" />
-        <StatCard label={`${names.a}'s Income`} value={fmt(incomeA)} accent={C.purple} icon="👨‍💻" sub={`${totalIncome > 0 ? ((incomeA/totalIncome)*100).toFixed(0) : 0}% of total`} />
-        <StatCard label={`${names.b}'s Income`} value={fmt(incomeB)} accent={C.blue} icon="👩‍💻" sub={`${totalIncome > 0 ? ((incomeB/totalIncome)*100).toFixed(0) : 0}% of total`} />
+        <StatCard label="Total Net Inflow" value={fmt(totalIncome)} color={C.green} sub="Accumulated for selection" />
+        <StatCard label={`${names.a}'s Income`} value={fmt(incomeA)} color={C.purple} sub={`${totalIncome > 0 ? ((incomeA/totalIncome)*100).toFixed(0) : 0}% of total`} />
+        <StatCard label={`${names.b}'s Income`} value={fmt(incomeB)} color={C.blue} sub={`${totalIncome > 0 ? ((incomeB/totalIncome)*100).toFixed(0) : 0}% of total`} />
       </div>
 
       {/* Trend chart */}
