@@ -868,20 +868,24 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
       <Card>
         <SectionTitle>Push Notifications</SectionTitle>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Toggle checked={s.notifications.enabled}
-            onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, enabled: v } }))}
-            label="Enable push notifications (browser permission required)" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <span style={{ fontSize: 13, color: C.text1 }}>Enable push notifications (browser permission required)</span>
+            <Toggle on={s.notifications.enabled} onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, enabled: v } }))} />
+          </div>
           {s.notifications.enabled && (
             <>
-              <Toggle checked={s.notifications.newExpense}
-                onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, newExpense: v } }))}
-                label="Notify when partner adds an expense" />
-              <Toggle checked={s.notifications.settlement}
-                onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, settlement: v } }))}
-                label="Notify on settlement actions" />
-              <Toggle checked={s.notifications.budgetAlert}
-                onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetAlert: v } }))}
-                label="Alert when approaching a budget limit" />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontSize: 13, color: C.text1 }}>Notify when partner adds an expense</span>
+                <Toggle on={s.notifications.newExpense} onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, newExpense: v } }))} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontSize: 13, color: C.text1 }}>Notify on settlement actions</span>
+                <Toggle on={s.notifications.settlement} onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, settlement: v } }))} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <span style={{ fontSize: 13, color: C.text1 }}>Alert when approaching a budget limit</span>
+                <Toggle on={s.notifications.budgetAlert} onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetAlert: v } }))} />
+              </div>
               {s.notifications.budgetAlert && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Label>Alert at</Label>
