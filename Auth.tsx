@@ -285,7 +285,7 @@ export default function Auth() {
 
       {/* Back to landing page */}
       <div style={{ textAlign: 'center', marginTop: 20 }}>
-        <a href="/" style={{ color: C.muted, fontSize: 13, textDecoration: 'none' }}>
+        <a href="/" style={{ color: C.text1, fontSize: 13, textDecoration: 'none' }}>
           ← Back to chillarflow.com
         </a>
       </div>
