@@ -1,155 +1,504 @@
-/* ─── globals.css ─────────────────────────────────────────────────────────────
-   Global resets, iOS-specific fixes, theme tokens, and premium effects.
+/* ─── ChillarFlow NeoPOP Design System ───────────────────────────────────────
+   globals.css — single source of truth for all design tokens
    Import in app/layout.tsx: import './globals.css'
 */
 
-/* ── Box sizing ────────────────────────────────────────────────────────────── */
+/* ── Google Fonts — Inter ─────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* ── Reset ────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
-
-/* ── iOS tap highlight removal ─────────────────────────────────────────────── */
 * { -webkit-tap-highlight-color: transparent; }
-
-/* ── Body defaults ─────────────────────────────────────────────────────────── */
-html, body {
-  margin: 0; padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+html, body { margin: 0; padding: 0; overflow-x: hidden; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
 }
-
-/* ── iOS input / select reset ───────────────────────────────────────────────── */
 input, select, textarea, button {
   -webkit-appearance: none;
   appearance: none;
   font-family: inherit;
 }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="date"] { min-height: 44px; }
 
-/* ── iOS safe area helpers ─────────────────────────────────────────────────── */
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+/* ── Safe areas (iOS notch + home indicator) ─────────────────────────────── */
 .safe-top    { padding-top:    env(safe-area-inset-top, 0px); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.scroll-container { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
-/* ── Smooth momentum scroll ─────────────────────────────────────────────────── */
-.scroll-container {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+/* ══════════════════════════════════════════════════════════════════════════
+   THEME TOKENS — three themes, all using the same CSS custom properties
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── 01. Obsidian (default — CRED-inspired deep dark) ───────────────────── */
+:root, [data-theme="obsidian"] {
+  --bg:         #09090b;
+  --bg2:        #0c0c0f;
+  --surface:    #18181b;
+  --surface2:   #27272a;
+  --surface3:   #3f3f46;
+  --border:     #3f3f46;
+  --border2:    #52525b;
+  --muted:      #52525b;
+  --text3:      #71717a;
+  --text2:      #a1a1aa;
+  --text1:      #d4d4d8;
+  --textW:      #fafafa;
+
+  /* Accent — amber gold */
+  --accent:     #f59e0b;
+  --accent2:    #fbbf24;
+  --accent-bg:  rgba(245, 158, 11, 0.10);
+  --accent-glow:rgba(245, 158, 11, 0.15);
+
+  /* Semantic colours */
+  --green:      #22c55e;
+  --green-bg:   rgba(34, 197, 94, 0.10);
+  --red:        #ef4444;
+  --red-bg:     rgba(239, 68, 68, 0.10);
+  --blue:       #3b82f6;
+  --blue-bg:    rgba(59, 130, 246, 0.10);
+  --teal:       #14b8a6;
+  --teal-bg:    rgba(20, 184, 166, 0.10);
+  --purple:     #a78bfa;
+  --purple-bg:  rgba(167, 139, 250, 0.10);
+  --orange:     #f97316;
+  --orange-bg:  rgba(249, 115, 22, 0.10);
+
+  /* NeoPOP shadow — hard drop shadow, no blur */
+  --neo-shadow:       3px 3px 0px #000000;
+  --neo-shadow-sm:    2px 2px 0px #000000;
+  --neo-shadow-lg:    4px 4px 0px #000000;
+  --neo-shadow-press: 1px 1px 0px #000000;
+  --neo-border:       1px solid var(--border);
+
+  /* Scrollbar */
+  --scrollbar-thumb: #3f3f46;
 }
 
-/* ── Theme: dark-navy (default) ─────────────────────────────────────────────── */
-[data-theme="dark-navy"], :root {
-  --bg:        #0b0f1a;
-  --surface:   #131928;
-  --surface2:  #1a2235;
-  --border:    #1e2840;
-  --muted:     #3d4f6e;
-  --text2:     #6b82a8;
-  --text1:     #a8b8d4;
-  --textW:     #e8eeff;
-  --amber:     #f59e0b;
-  --amber2:    #fbbf24;
-  --green:     #10b981;
-  --red:       #ef4444;
-  --purple:    #8b5cf6;
-  --blue:      #3b82f6;
-  --teal:      #06b6d4;
-  --pro-gold:  #f59e0b;
-  --card-glow: rgba(245,158,11,0.04);
+/* ── 02. Pearl (light) ───────────────────────────────────────────────────── */
+[data-theme="pearl"] {
+  --bg:         #fafafa;
+  --bg2:        #f4f4f5;
+  --surface:    #ffffff;
+  --surface2:   #f4f4f5;
+  --surface3:   #e4e4e7;
+  --border:     #e4e4e7;
+  --border2:    #d4d4d8;
+  --muted:      #d4d4d8;
+  --text3:      #a1a1aa;
+  --text2:      #71717a;
+  --text1:      #3f3f46;
+  --textW:      #09090b;
+
+  --accent:     #d97706;
+  --accent2:    #f59e0b;
+  --accent-bg:  rgba(217, 119, 6, 0.08);
+  --accent-glow:rgba(217, 119, 6, 0.12);
+
+  --green:      #16a34a;
+  --green-bg:   rgba(22, 163, 74, 0.08);
+  --red:        #dc2626;
+  --red-bg:     rgba(220, 38, 38, 0.08);
+  --blue:       #2563eb;
+  --blue-bg:    rgba(37, 99, 235, 0.08);
+  --teal:       #0d9488;
+  --teal-bg:    rgba(13, 148, 136, 0.08);
+  --purple:     #7c3aed;
+  --purple-bg:  rgba(124, 58, 237, 0.08);
+  --orange:     #ea580c;
+  --orange-bg:  rgba(234, 88, 12, 0.08);
+
+  --neo-shadow:       3px 3px 0px #09090b;
+  --neo-shadow-sm:    2px 2px 0px #09090b;
+  --neo-shadow-lg:    4px 4px 0px #09090b;
+  --neo-shadow-press: 1px 1px 0px #09090b;
+  --neo-border:       1px solid var(--border);
+
+  --scrollbar-thumb: #d4d4d8;
 }
 
-/* ── Theme: dark-slate ──────────────────────────────────────────────────────── */
-[data-theme="dark-slate"] {
-  --bg:        #0f1117;
-  --surface:   #1a1d27;
-  --surface2:  #21253a;
-  --border:    #2a2f45;
-  --muted:     #4a5270;
-  --text2:     #7b86a8;
-  --text1:     #b0bcd4;
-  --textW:     #e4eaff;
-  --amber:     #e9a23b;
-  --amber2:    #f5bc5c;
-  --green:     #22c55e;
-  --red:       #f87171;
-  --purple:    #a78bfa;
-  --blue:      #60a5fa;
-  --teal:      #22d3ee;
-  --pro-gold:  #e9a23b;
-  --card-glow: rgba(233,162,59,0.04);
+/* ── 03. Emerald (dark green) ────────────────────────────────────────────── */
+[data-theme="emerald"] {
+  --bg:         #030a06;
+  --bg2:        #051a0c;
+  --surface:    #071a0e;
+  --surface2:   #0a2614;
+  --surface3:   #0f401f;
+  --border:     #0f401f;
+  --border2:    #1a6b3c;
+  --muted:      #1a6b3c;
+  --text3:      #2d9e5f;
+  --text2:      #4ade80;
+  --text1:      #86efac;
+  --textW:      #f0fdf4;
+
+  --accent:     #22c55e;
+  --accent2:    #4ade80;
+  --accent-bg:  rgba(34, 197, 94, 0.10);
+  --accent-glow:rgba(34, 197, 94, 0.15);
+
+  --green:      #22c55e;
+  --green-bg:   rgba(34, 197, 94, 0.10);
+  --red:        #f87171;
+  --red-bg:     rgba(248, 113, 113, 0.10);
+  --blue:       #60a5fa;
+  --blue-bg:    rgba(96, 165, 250, 0.10);
+  --teal:       #2dd4bf;
+  --teal-bg:    rgba(45, 212, 191, 0.10);
+  --purple:     #c084fc;
+  --purple-bg:  rgba(192, 132, 252, 0.10);
+  --orange:     #fb923c;
+  --orange-bg:  rgba(251, 146, 60, 0.10);
+
+  --neo-shadow:       3px 3px 0px #000000;
+  --neo-shadow-sm:    2px 2px 0px #000000;
+  --neo-shadow-lg:    4px 4px 0px #000000;
+  --neo-shadow-press: 1px 1px 0px #000000;
+  --neo-border:       1px solid var(--border);
+
+  --scrollbar-thumb: #0f401f;
 }
 
-/* ── Theme: dark-green ──────────────────────────────────────────────────────── */
-[data-theme="dark-green"] {
-  --bg:        #080f0e;
-  --surface:   #0d1a17;
-  --surface2:  #132420;
-  --border:    #1a3028;
-  --muted:     #2e5244;
-  --text2:     #5a8a78;
-  --text1:     #96c4b2;
-  --textW:     #d4f0e8;
-  --amber:     #34d399;
-  --amber2:    #6ee7b7;
-  --green:     #10b981;
-  --red:       #f87171;
-  --purple:    #818cf8;
-  --blue:      #38bdf8;
-  --teal:      #2dd4bf;
-  --pro-gold:  #fbbf24;
-  --card-glow: rgba(52,211,153,0.05);
-}
+/* ══════════════════════════════════════════════════════════════════════════
+   NEOPOP COMPONENTS — utility classes used throughout the app
+   ════════════════════════════════════════════════════════════════════════ */
 
-/* ── Theme: light ───────────────────────────────────────────────────────────── */
-[data-theme="light"] {
-  --bg:        #f4f6fb;
-  --surface:   #ffffff;
-  --surface2:  #eef0f8;
-  --border:    #dde1ef;
-  --muted:     #b0b8d4;
-  --text2:     #6b7a9e;
-  --text1:     #3d4f72;
-  --textW:     #1a2340;
-  --amber:     #d97706;
-  --amber2:    #f59e0b;
-  --green:     #059669;
-  --red:       #dc2626;
-  --purple:    #7c3aed;
-  --blue:      #2563eb;
-  --teal:      #0891b2;
-  --pro-gold:  #d97706;
-  --card-glow: rgba(217,119,6,0.06);
-}
-[data-theme="light"] body { color: var(--textW); background: var(--bg); }
-
-/* ── Glass card ─────────────────────────────────────────────────────────────── */
-.glass-card {
+/* ── NeoPOP Card — no border-radius, hard shadow ─────────────────────────── */
+.neo-card {
   background: var(--surface);
+  border: var(--neo-border);
+  border-radius: 0;
+  box-shadow: var(--neo-shadow);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  position: relative;
+}
+.neo-card:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: var(--neo-shadow-lg);
+}
+.neo-card-sm {
+  background: var(--surface);
+  border: var(--neo-border);
+  border-radius: 0;
+  box-shadow: var(--neo-shadow-sm);
+}
+
+/* ── NeoPOP Button — hard shadow, pressed animation ─────────────────────── */
+.neo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--accent);
+  color: #09090b;
+  border: 1px solid #09090b;
+  border-radius: 0;
+  box-shadow: var(--neo-shadow);
+  padding: 12px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  min-height: 44px;
+  -webkit-appearance: none;
+  appearance: none;
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.neo-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: var(--neo-shadow-press);
+}
+.neo-btn-ghost {
+  background: var(--surface);
+  color: var(--textW);
+  border: 1px solid var(--border2);
+  box-shadow: var(--neo-shadow-sm);
+}
+.neo-btn-ghost:active { transform: translate(2px, 2px); box-shadow: var(--neo-shadow-press); }
+.neo-btn-danger { background: var(--red); color: #fff; border-color: #000; box-shadow: var(--neo-shadow); }
+.neo-btn-danger:active { transform: translate(2px, 2px); box-shadow: var(--neo-shadow-press); }
+
+/* ── NeoPOP Input ─────────────────────────────────────────────────────────── */
+.neo-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 0;
+  box-shadow: var(--neo-shadow-sm);
+  color: var(--textW);
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-height: 48px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.neo-input::placeholder { color: var(--text3); font-weight: 400; }
+.neo-input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--neo-shadow-sm), 0 0 0 3px var(--accent-glow);
+}
+
+/* ── NeoPOP Badge / Tag ───────────────────────────────────────────────────── */
+.neo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 0;
+}
+
+/* ── NeoPOP Metric tile ──────────────────────────────────────────────────── */
+.neo-metric {
+  background: var(--surface);
+  border: var(--neo-border);
+  box-shadow: var(--neo-shadow-sm);
+  padding: 14px 16px;
+}
+.neo-metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 8px;
+}
+.neo-metric-value {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--textW);
+  line-height: 1;
+}
+
+/* ── NeoPOP Progress bar ──────────────────────────────────────────────────── */
+.neo-progress {
+  height: 6px;
+  background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow:
-    0 1px 0 0 rgba(255,255,255,0.04) inset,
-    0 4px 24px rgba(0,0,0,0.24),
-    0 0 0 1px rgba(255,255,255,0.02) inset;
-  transition: box-shadow 0.25s, transform 0.2s;
+  position: relative;
+  overflow: hidden;
 }
-.glass-card:hover {
-  box-shadow:
-    0 1px 0 0 rgba(255,255,255,0.06) inset,
-    0 8px 32px rgba(0,0,0,0.32),
-    0 0 0 1px rgba(255,255,255,0.04) inset,
-    var(--card-glow) 0 0 40px;
-  transform: translateY(-1px);
+.neo-progress-fill {
+  height: 100%;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ── Button press ───────────────────────────────────────────────────────────── */
-.btn-press:active { transform: scale(0.97); }
+/* ── NeoPOP Toggle ────────────────────────────────────────────────────────── */
+.neo-toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.neo-toggle.on { background: var(--accent); border-color: var(--accent); }
+.neo-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: var(--textW);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 1px 1px 0px rgba(0,0,0,0.3);
+}
+.neo-toggle.on .neo-toggle-thumb { transform: translateX(20px); }
 
-/* ── Pro shimmer badge ──────────────────────────────────────────────────────── */
+/* ── NeoPOP Section header ────────────────────────────────────────────────── */
+.neo-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.neo-section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Horizontal scroll tray (story bar) ──────────────────────────────────── */
+.neo-tray {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.neo-tray::-webkit-scrollbar { display: none; }
+.neo-tray-card {
+  flex-shrink: 0;
+  background: var(--surface);
+  border: var(--neo-border);
+  box-shadow: var(--neo-shadow-sm);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  min-width: 90px;
+}
+.neo-tray-card:active { transform: translate(2px, 2px); box-shadow: none; }
+
+/* ── Bottom navigation ───────────────────────────────────────────────────── */
+.neo-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
+  display: flex;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  padding-top: 4px;
+}
+.neo-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px 4px;
+  cursor: pointer;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+.neo-nav-item:active { opacity: 0.7; }
+.neo-nav-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text3);
+  transition: color 0.15s;
+}
+.neo-nav-item.active .neo-nav-label { color: var(--accent); }
+.neo-nav-pip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.neo-nav-item.active .neo-nav-pip { opacity: 1; }
+
+/* ── Top header ──────────────────────────────────────────────────────────── */
+.neo-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+
+/* ── Page scaffold ───────────────────────────────────────────────────────── */
+.neo-page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--textW);
+  padding-bottom: 80px; /* space for bottom nav */
+}
+.neo-content {
+  padding: 0 16px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHY
+   ═════════════════════════════════════════════════════════════════════════ */
+.t-display  { font-size: clamp(28px, 8vw, 48px); font-weight: 900; letter-spacing: -0.04em; line-height: 1.0; color: var(--textW); }
+.t-h1       { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; color: var(--textW); }
+.t-h2       { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; color: var(--textW); }
+.t-h3       { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--textW); }
+.t-body     { font-size: 14px; font-weight: 400; line-height: 1.6; color: var(--text2); }
+.t-small    { font-size: 12px; font-weight: 400; color: var(--text2); }
+.t-caption  { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); }
+.t-mono     { font-family: 'Courier New', monospace; font-size: 13px; }
+.t-accent   { color: var(--accent); }
+.t-green    { color: var(--green); }
+.t-red      { color: var(--red); }
+.t-muted    { color: var(--text3); }
+.t-number   { font-size: 28px; font-weight: 800; letter-spacing: -0.04em; color: var(--textW); line-height: 1; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* Count-up animation trigger */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-count { animation: countUp 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+/* Fade up */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fadeUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+/* Slide in from right */
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-right { animation: slideRight 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+/* Stagger children */
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 60ms; }
+.stagger > *:nth-child(3) { animation-delay: 120ms; }
+.stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(5) { animation-delay: 240ms; }
+.stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+/* Pro shimmer */
 @keyframes shimmer {
   0%   { background-position: -200% center; }
   100% { background-position:  200% center; }
 }
-.pro-badge {
-  background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b, #fde68a, #f59e0b);
+.pro-shimmer {
+  background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent), #fde68a, var(--accent));
   background-size: 200% auto;
   animation: shimmer 3s linear infinite;
   -webkit-background-clip: text;
@@ -158,27 +507,43 @@ input, select, textarea, button {
   font-weight: 800;
 }
 
-/* ── Fade-up animation ──────────────────────────────────────────────────────── */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+/* Pulse on notification badge */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
 }
-.fade-up { animation: fadeUp 0.3s ease forwards; }
+.pulse { animation: pulse 2s ease-in-out infinite; }
 
-/* ── Bottom nav safe area ───────────────────────────────────────────────────── */
-.bottom-nav {
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITIES
+   ═════════════════════════════════════════════════════════════════════════ */
+.divider { height: 1px; background: var(--border); margin: 0; }
+.divider-v { width: 1px; background: var(--border); align-self: stretch; }
+.gap-4  { gap: 4px; }
+.gap-8  { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.gap-24 { gap: 24px; }
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.flex-1 { flex: 1; }
+.w-full { width: 100%; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 
-/* ── Number inputs — hide spinners ──────────────────────────────────────────── */
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
-input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+/* ── Grid layouts ─────────────────────────────────────────────────────────── */
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 
-/* ── Date inputs — 44px minimum tap target (iOS HIG) ───────────────────────── */
-input[type="date"] { min-height: 44px; }
-
-/* ── Thin scrollbar ─────────────────────────────────────────────────────────── */
+/* ── Thin scrollbar ───────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
+
+/* ── No-flash theme script target ────────────────────────────────────────── */
+html { background: #09090b; } /* prevents white flash before JS loads */
