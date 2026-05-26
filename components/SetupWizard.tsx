@@ -34,7 +34,7 @@ function ProgressDots({ step }: { step: Step }) {
   return (
     <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 32 }}>
       {STEPS.map((_, i) => (
-        <div key={i} style={{ width: i === idx ? 20 : 6, height: 6, background: i <= idx ? accent : border, transition: 'all 0.3s' }} />
+        <div key={i} style={{ width: i === idx ? 20 : 6, height: 6, borderRadius: 99, background: i <= idx ? accent : border, transition: 'all 0.3s' }} />
       ))}
     </div>
   );
@@ -46,7 +46,7 @@ function Field({ label, value, onChange, placeholder, type = 'text' }: { label: 
     <div>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: text3, marginBottom: 8 }}>{label}</div>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-        style={{ width: '100%', background: bg2, border: `1px solid ${border2}`, boxShadow: '2px 2px 0px #000', color: textW, padding: '13px 14px', fontSize: 16, fontFamily: "'Inter', sans-serif", outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
+        style={{ width: '100%', background: bg2, border: `1px solid ${border2}`, boxShadow: '0 2px 8px rgba(0,0,0,0.25)', color: textW, padding: '13px 14px', fontSize: 16, fontFamily: "'Inter', sans-serif", outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
         onFocus={(e) => e.target.style.borderColor = accent}
         onBlur={(e) => e.target.style.borderColor = border2}
       />
@@ -58,9 +58,9 @@ function Field({ label, value, onChange, placeholder, type = 'text' }: { label: 
 function PrimaryBtn({ onClick, disabled, children, fullWidth }: { onClick: () => void; disabled?: boolean; children: React.ReactNode; fullWidth?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      style={{ width: fullWidth ? '100%' : undefined, background: disabled ? '#52525b' : accent, color: '#09090b', border: '1px solid #000', boxShadow: disabled ? 'none' : '3px 3px 0px #000', padding: '13px 24px', fontSize: 13, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none', transition: 'transform 0.08s, box-shadow 0.08s' }}
-      onMouseDown={(e) => { if (!disabled) { (e.target as HTMLElement).style.transform = 'translate(3px,3px)'; (e.target as HTMLElement).style.boxShadow = 'none'; } }}
-      onMouseUp={(e) => { (e.target as HTMLElement).style.transform = ''; (e.target as HTMLElement).style.boxShadow = '3px 3px 0px #000'; }}
+      style={{ width: fullWidth ? '100%' : undefined, background: disabled ? '#52525b' : accent, color: '#09090b', border: 'none', borderRadius: 99, boxShadow: disabled ? 'none' : '0 4px 16px rgba(240,180,41,0.3)', padding: '14px 28px', fontSize: 13, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none', transition: 'transform 0.08s, box-shadow 0.08s' }}
+      onMouseDown={(e) => { if (!disabled) { (e.target as HTMLElement).style.transform = 'scale(0.96)'; (e.target as HTMLElement).style.boxShadow = 'none'; } }}
+      onMouseUp={(e) => { (e.target as HTMLElement).style.transform = ''; (e.target as HTMLElement).style.boxShadow = '0 4px 16px rgba(240,180,41,0.3)'; }}
     >{children}</button>
   );
 }
@@ -68,7 +68,7 @@ function PrimaryBtn({ onClick, disabled, children, fullWidth }: { onClick: () =>
 function GhostBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick}
-      style={{ background: 'transparent', border: `1px solid ${border2}`, color: text1, padding: '12px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none' }}>
+      style={{ background: 'transparent', border: `1px solid ${border2}`, borderRadius: 99, color: text1, padding: '12px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none' }}>
       {children}
     </button>
   );
@@ -88,7 +88,7 @@ export function SetupWizard({ onComplete }: Props) {
   const modes: HouseholdMode[] = ['joint', 'separate', 'solo'];
 
   const shell: React.CSSProperties = { minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', fontFamily: "'Inter', -apple-system, sans-serif" };
-  const card: React.CSSProperties  = { width: '100%', maxWidth: 440, background: surface, border: `1px solid ${border}`, boxShadow: '4px 4px 0px #000', padding: '28px 24px' };
+  const card: React.CSSProperties  = { width: '100%', maxWidth: 440, background: surface, borderRadius: 24, border: `1px solid ${border}`, boxShadow: '0 8px 40px rgba(0,0,0,0.5)', padding: '28px 24px' };
 
   // ── Step 1: Mode ─────────────────────────────────────────────────────────────
   if (step === 'mode') return (
@@ -101,7 +101,7 @@ export function SetupWizard({ onComplete }: Props) {
           <div style={{ fontSize: 14, color: text2 }}>Choose a mode that fits your household setup.</div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 24, border: `1px solid ${border}`, boxShadow: '3px 3px 0px #000' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginBottom: 24, border: `1px solid ${border}`, boxShadow: '0 4px 16px rgba(240,180,41,0.3)' }}>
           {modes.map((m, i) => {
             const meta   = HOUSEHOLD_MODE_META[m];
             const active = mode === m;
@@ -191,7 +191,7 @@ export function SetupWizard({ onComplete }: Props) {
         </div>
 
         {/* Telegram */}
-        <div style={{ border: `1px solid ${border}`, marginBottom: 24 }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${border}`, overflow: 'hidden', marginBottom: 24 }}>
           <div style={{ padding: '14px 16px', borderBottom: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, background: '#229ED9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>✈️</div>
             <div>
@@ -248,7 +248,7 @@ export function SetupWizard({ onComplete }: Props) {
 
         {/* Pricing */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 24 }}>
-          <div style={{ border: `1px solid ${border}`, padding: '14px', boxShadow: '2px 2px 0px #000' }}>
+          <div style={{ border: `1px solid ${border}`, padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: text3, marginBottom: 8 }}>Free</div>
             <div style={{ fontSize: 20, fontWeight: 900, color: textW, marginBottom: 10 }}>₹0</div>
             <div style={{ fontSize: 11, color: text3, lineHeight: 1.6 }}>30 AI parses/month · Number wizard always free · Full dashboard</div>
@@ -283,7 +283,7 @@ export function SetupWizard({ onComplete }: Props) {
         </div>
 
         {/* Quick tips */}
-        <div style={{ border: `1px solid ${border}`, marginBottom: 24 }}>
+        <div style={{ borderRadius: 16, border: `1px solid ${border}`, overflow: 'hidden', marginBottom: 24 }}>
           <div style={{ padding: '12px 16px', borderBottom: `1px solid ${border}` }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: text3 }}>Quick start</div>
           </div>
