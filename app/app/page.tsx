@@ -20,7 +20,7 @@ import Auth from '@/Auth';
 import { loadData } from '@/lib/supabaseHelpers';
 import { SetupWizard } from '@/components/SetupWizard';
 import { useActions } from '@/hooks/useActions';
-import { ToastContainer, useToast } from '@/components/ui';
+import { ToastContainer, useToast, BottomNav, QuickTray, addToast as uiAddToast } from '@/components/ui';
 
 import { C, navForMode } from '@/constants';
 import type { AppData, ViewId, HouseholdMode } from '@/types';
@@ -91,11 +91,11 @@ export default function App() {
   const [privacyMode, setPrivacyMode] = useState(false);
   const [planInfo, setPlanInfo] = useState<{ plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string } | undefined>(undefined);
   // Theme — start with server-safe default, then read localStorage client-side
-  const [theme, setTheme] = useState('dark-navy');
+  const [theme, setTheme] = useState('obsidian');
 
   React.useEffect(() => {
     // Read persisted theme on mount and apply
-    const saved = localStorage.getItem('cf_theme') || 'dark-navy';
+    const saved = localStorage.getItem('cf_theme') || 'obsidian';
     setTheme(saved);
     document.documentElement.setAttribute('data-theme', saved);
   }, []);
@@ -392,7 +392,7 @@ export default function App() {
               {privacyMode ? '🙈' : '👁️'}
             </button>
             <button
-              onClick={() => supabase.auth.signOut()}
+              onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/'; })}
               style={{ flex: 1, width: '100%', background: 'transparent', border: sidebarOpen ? `1px solid ${C.border}` : 'none', color: C.text2, borderRadius: 8, padding: '10px', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}
             >
               {sidebarOpen ? 'Log Out' : '🚪'}
@@ -419,7 +419,7 @@ export default function App() {
               <button onClick={() => setPrivacyMode((p) => !p)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16 }}>
                 {privacyMode ? '🙈' : '👁️'}
               </button>
-              <button onClick={() => supabase.auth.signOut()} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, borderRadius: 6, padding: '2px 8px', fontSize: 11, cursor: 'pointer' }}>
+              <button onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/'; })} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, borderRadius: 6, padding: '2px 8px', fontSize: 11, cursor: 'pointer' }}>
                 Log Out
               </button>
             </div>
