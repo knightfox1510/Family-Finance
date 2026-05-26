@@ -102,7 +102,7 @@ export function IncomeTracker({ data, fmt }: Props) {
               {sortedCats.map(([cat, amt]) => (
                 <div key={cat}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}><span style={{ color: C.text1 }}>{cat}</span><span style={{ fontWeight: 700, color: C.textW }}>{fmt(amt)}</span></div>
-                  <ProgressBar pct={(amt / maxCat) * 100} color={C.green} height={6} />
+                  <ProgressBar value={(amt / maxCat) * 100} color={C.green} height={6} />
                 </div>
               ))}
             </div>
