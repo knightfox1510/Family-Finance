@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient';
 
 const C = {
   bg:      '#0b0f1a',
@@ -281,6 +281,13 @@ export default function Auth() {
             {isSignUp ? 'Already have an account? Sign in.' : 'Need an account? Sign up.'}
           </button>
         </div>
+      </div>
+
+      {/* Back to landing page */}
+      <div style={{ textAlign: 'center', marginTop: 20 }}>
+        <a href="/" style={{ color: C.text1, fontSize: 13, textDecoration: 'none' }}>
+          ← Back to chillarflow.com
+        </a>
       </div>
     </div>
   );
