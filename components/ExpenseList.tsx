@@ -70,8 +70,40 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
   const toggleAll = () => setSelectedIds(selectedIds.size === filtered.length ? new Set() : new Set(filtered.map((e) => e.id)));
   const saveEdit = () => { onUpdate(editingId!, { ...editForm, amount: Number(editForm.amount) }); setEditingId(null); };
 
-  const selStyle: React.CSSProperties = { background: C.bg, border: `1px solid ${C.border}`, color: C.text1, borderRadius: 0, padding: '6px 10px', fontSize: 12, cursor: 'pointer' };
+  const selStyle: React.CSSProperties = { background: C.surface2, border: `1px solid ${C.border}`, color: C.text1, borderRadius: 99, padding: '6px 14px', fontSize: 12, cursor: 'pointer', outline: 'none' };
   const allCats = [...data.settings.expenseCategories, ...data.settings.incomeCategories];
+
+  // Category → icon container colors
+  const catIconStyle = (cat: string, type?: string): { bg: string; color: string; emoji: string } => {
+    if (type === 'income') return { bg: C.greenBg, color: C.green, emoji: '💰' };
+    const map: Record<string, { bg: string; color: string; emoji: string }> = {
+      'Groceries':          { bg: C.greenBg,  color: C.green,  emoji: '🛒' },
+      'Dining Out':         { bg: C.orangeBg, color: C.orange, emoji: '🍽️' },
+      'Coffee & Snacks':    { bg: C.orangeBg, color: C.orange, emoji: '☕' },
+      'Rent / Mortgage':    { bg: C.blueBg,   color: C.blue,   emoji: '🏠' },
+      'Electricity':        { bg: C.tealBg,   color: C.teal,   emoji: '⚡' },
+      'Water & Gas':        { bg: C.tealBg,   color: C.teal,   emoji: '💧' },
+      'Internet':           { bg: C.purpleBg, color: C.purple, emoji: '📡' },
+      'Mobile Plans':       { bg: C.purpleBg, color: C.purple, emoji: '📱' },
+      'Streaming Services': { bg: C.purpleBg, color: C.purple, emoji: '🎬' },
+      'Insurance':          { bg: C.blueBg,   color: C.blue,   emoji: '🛡️' },
+      'Medical / Health':   { bg: C.redBg,    color: C.red,    emoji: '🏥' },
+      'Gym & Fitness':      { bg: C.greenBg,  color: C.green,  emoji: '💪' },
+      'Clothing & Apparel': { bg: C.purpleBg, color: C.purple, emoji: '👗' },
+      'Personal Care':      { bg: C.purpleBg, color: C.purple, emoji: '✨' },
+      'Transport / Fuel':   { bg: C.tealBg,   color: C.teal,   emoji: '🚗' },
+      'Public Transport':   { bg: C.tealBg,   color: C.teal,   emoji: '🚌' },
+      'Flights & Hotels':   { bg: C.blueBg,   color: C.blue,   emoji: '✈️' },
+      'Investment':         { bg: C.tealBg,   color: C.teal,   emoji: '📈' },
+      'Investments':        { bg: C.tealBg,   color: C.teal,   emoji: '📈' },
+      'Entertainment':      { bg: C.purpleBg, color: C.purple, emoji: '🎭' },
+      'Gifts & Celebrations': { bg: C.redBg,  color: C.red,    emoji: '🎁' },
+      'Education':          { bg: C.blueBg,   color: C.blue,   emoji: '📚' },
+      'Kids & School':      { bg: C.blueBg,   color: C.blue,   emoji: '🎒' },
+      'Home Maintenance':   { bg: C.orangeBg, color: C.orange, emoji: '🔧' },
+    };
+    return map[cat] ?? { bg: C.accentBg, color: C.accent, emoji: '💸' };
+  };
 
   const accountBadge = (acc: string) => {
     if (acc === names.a || acc === 'Partner A') return <Badge color="purple">{names.a}</Badge>;
@@ -81,12 +113,12 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Filter bar — stacked rows for mobile clarity */}
+      {/* Filter bar */}
       <Card style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {/* Search */}
         <input
           type="search"
-          placeholder="🔍 Search notes or merchants..."
+          placeholder="Search notes or category…"
           value={searchNote}
           onChange={(e) => setSearchNote(e.target.value)}
           style={{ width: '100%', background: C.surface2, border: 'none', color: C.textW, borderRadius: 99, padding: '10px 16px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
@@ -204,27 +236,38 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
             </div>
           );
 
+          const iconStyle = catIconStyle(e.category, e.type);
           return (
             <div key={e.id}
               style={{
                 background: isSelected ? C.accentBg : C.surface,
-                borderRadius: 14,
+                borderRadius: 16,
                 padding: '14px 16px',
-                boxShadow: isSelected ? `0 0 0 1.5px ${C.accent}` : '0 2px 8px rgba(0,0,0,0.2)',
+                boxShadow: isSelected ? `0 0 0 1.5px ${C.accent}` : '0 2px 12px rgba(0,0,0,0.18)',
                 transition: 'all 0.15s',
                 cursor: 'pointer',
               }}
               onClick={() => toggleSelect(e.id)}
             >
-              {/* Row 1: checkbox + note + amount */}
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                <input type="checkbox" checked={isSelected}
-                  onChange={() => toggleSelect(e.id)}
-                  onClick={(ev) => ev.stopPropagation()}
-                  style={{ cursor: 'pointer', accentColor: C.accent, width: 18, height: 18, marginTop: 2, flexShrink: 0 }}
-                />
+              {/* Row: icon + content + amount */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {/* Category icon container */}
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                  background: isSelected ? C.accent + '30' : iconStyle.bg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 20,
+                  border: isSelected ? `1.5px solid ${C.accent}` : '1.5px solid transparent',
+                  transition: 'all 0.15s', position: 'relative',
+                }}>
+                  {isSelected
+                    ? <input type="checkbox" checked readOnly style={{ cursor: 'pointer', accentColor: C.accent, width: 18, height: 18 }} onClick={(ev) => ev.stopPropagation()} />
+                    : iconStyle.emoji
+                  }
+                </div>
+
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 3 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, color: C.textW, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                       {e.note || e.category}
                       {e.isRecurring && <span style={{ marginLeft: 6, fontSize: 12 }}>🔄</span>}
@@ -233,10 +276,11 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
                       {e.type === 'income' ? '+' : ''}{fmt(e.amount)}
                     </div>
                   </div>
-                  {/* Row 2: date + category + account badge */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {/* Meta row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 11, color: C.text3 }}>{e.date}</span>
-                    <span style={{ fontSize: 11, color: C.text2 }}>{e.category}</span>
+                    <span style={{ fontSize: 11, color: C.text3 }}>·</span>
+                    <span style={{ fontSize: 11, color: C.text2, fontWeight: 500 }}>{e.category}</span>
                     {accountBadge(e.account)}
                     {e.settled && (
                       <Badge color="green">
@@ -250,6 +294,13 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
                   </div>
                 </div>
               </div>
+
+              {/* Hidden checkbox for bulk-select (accessible but icon handles visual) */}
+              <input type="checkbox" checked={isSelected}
+                onChange={() => toggleSelect(e.id)}
+                onClick={(ev) => ev.stopPropagation()}
+                style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
+              />
 
               {/* Actions row — only shown when selected */}
               {isSelected && (
