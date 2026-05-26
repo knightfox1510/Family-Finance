@@ -84,7 +84,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
   const presetBtnStyle = (shared: boolean): React.CSSProperties => ({
     background: shared ? `${C.amber}15` : `${C.border}30`,
     border: `1px solid ${shared ? `${C.amber}44` : C.border}`,
-    color: C.text1, padding: '5px 10px', borderRadius: 16, fontSize: 11,
+    color: C.text1, padding: '5px 10px', borderRadius: 0, fontSize: 11,
     cursor: 'pointer', fontWeight: 500, transition: 'all 0.15s ease-in-out',
   });
 
@@ -160,7 +160,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
 
           {/* Quick presets — shown at the top so they can pre-fill fields below */}
           {!isEditingMode && (jointPresets.length > 0 || personalPresets.length > 0) && (
-            <div style={{ background: `${C.bg}80`, borderRadius: 10, padding: '10px 12px', border: `1px solid ${C.border}` }}>
+            <div style={{ background: `${C.bg}80`, borderRadius: 0, padding: '10px 12px', border: `1px solid ${C.border}` }}>
               {[
                 ...(isJoint ? [{ label: '🏠 Joint presets', presets: jointPresets }] : []),
                 { label: isJoint ? '👤 Your presets' : '⚡ Quick fill', presets: personalPresets },
@@ -218,7 +218,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
           <div><Label>Note (optional)</Label><Inp placeholder="What was this for?" value={form.note} onChange={(e: any) => set('note', e.target.value)} /></div>
 
           {/* Recurring */}
-          <div style={{ background: '#1e284033', padding: 14, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 12, border: `1px solid ${C.border}` }}>
+          <div style={{ background: '#1e284033', padding: 14, borderRadius: 0, display: 'flex', flexDirection: 'column', gap: 12, border: `1px solid ${C.border}` }}>
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
               <span style={{ fontSize: 14, color: C.text1 }}>🔄 Recurring Commitment</span>
               <input type="checkbox" checked={form.isRecurring} onChange={(e) => set('isRecurring', e.target.checked)} style={{ width: 18, height: 18, accentColor: C.amber, cursor: 'pointer' }} />
@@ -238,7 +238,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
 
           {/* Settlement track — hidden in solo mode */}
           {form.type === 'expense' && mode !== 'solo' && (
-            <div style={{ background: '#1e284033', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 14, border: `1px solid ${C.border}` }}>
+            <div style={{ background: '#1e284033', borderRadius: 0, padding: 14, display: 'flex', flexDirection: 'column', gap: 14, border: `1px solid ${C.border}` }}>
               <div>
                 <Label>🎯 Settlement Track</Label>
                 <p style={{ color: C.muted, fontSize: 11, margin: '4px 0 8px', lineHeight: 1.5 }}>
@@ -253,7 +253,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
                   {/* Option 1: No settlement */}
                   <button type="button"
                     onClick={() => { set('settleTrack', 'none'); set('splitMode', 'equal'); }}
-                    style={{ padding: '10px 12px', borderRadius: 8, fontSize: 12, textAlign: 'left',
+                    style={{ padding: '10px 12px', borderRadius: 0, fontSize: 12, textAlign: 'left',
                       fontWeight: form.settleTrack === 'none' ? 700 : 500,
                       background: form.settleTrack === 'none' ? C.amber : `${C.bg}80`,
                       color: form.settleTrack === 'none' ? C.surface : C.text2,
@@ -266,7 +266,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
                   {isJoint && form.account !== 'Joint' && (
                     <button type="button"
                       onClick={() => { set('settleTrack', 'joint'); set('splitMode', 'equal'); }}
-                      style={{ padding: '10px 12px', borderRadius: 8, fontSize: 12, textAlign: 'left',
+                      style={{ padding: '10px 12px', borderRadius: 0, fontSize: 12, textAlign: 'left',
                         fontWeight: form.settleTrack === 'joint' ? 700 : 500,
                         background: form.settleTrack === 'joint' ? C.green : `${C.bg}80`,
                         color: form.settleTrack === 'joint' ? C.surface : C.text2,
@@ -280,7 +280,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
                   {form.account !== 'Joint' && (
                     <button type="button"
                       onClick={() => { set('settleTrack', 'partner'); }}
-                      style={{ padding: '10px 12px', borderRadius: 8, fontSize: 12, textAlign: 'left',
+                      style={{ padding: '10px 12px', borderRadius: 0, fontSize: 12, textAlign: 'left',
                         fontWeight: form.settleTrack === 'partner' ? 700 : 500,
                         background: form.settleTrack === 'partner' ? C.purple : `${C.bg}80`,
                         color: form.settleTrack === 'partner' ? '#fff' : C.text2,
@@ -293,7 +293,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
               </div>
 
               {form.settleTrack === 'partner' && form.account !== 'Joint' && (
-                <div style={{ background: `${C.bg}60`, padding: 12, borderRadius: 8, border: `1px solid ${C.border}60` }}>
+                <div style={{ background: `${C.bg}60`, padding: 12, borderRadius: 0, border: `1px solid ${C.border}60` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <span style={{ fontSize: 13, color: C.text1, fontWeight: 600 }}>Split Mode</span>
                     <select value={form.splitMode} onChange={(e) => {
@@ -302,7 +302,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
                       if (m === 'equal') { set('partnerAShare', 0.5); set('partnerBShare', 0.5); }
                       else if (m === 'percentage') { set('partnerAShare', 50); set('partnerBShare', 50); }
                       else { set('partnerAShare', ''); set('partnerBShare', ''); }
-                    }} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 6, padding: '4px 8px', fontSize: 12 }}>
+                    }} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 0, padding: '4px 8px', fontSize: 12 }}>
                       <option value="equal">50/50 Equal</option>
                       <option value="percentage">Percentages (%)</option>
                       <option value="fixed">Fixed Amounts (₹)</option>
@@ -329,7 +329,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
           )}
 
           {!isOnline && (
-            <div style={{ background: '#f59e0b22', border: '1px solid #f59e0b44', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#f59e0b', textAlign: 'center' }}>
+            <div style={{ background: '#f59e0b22', border: '1px solid #f59e0b44', borderRadius: 0, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#f59e0b', textAlign: 'center' }}>
               ⚠️ You are offline. This expense will be saved locally and synced when you reconnect.
             </div>
           )}
