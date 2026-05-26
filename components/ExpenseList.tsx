@@ -8,7 +8,6 @@ import { C } from '@/constants';
 function today() { return new Date().toISOString().slice(0, 10); }
 function monthKey(d: string) { const dt = new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; }
 function monthLabel(key: string) { if (!key || key === 'All') return 'All Months'; const [y,m]=key.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-IN',{month:'short',year:'numeric'}); }
-// fmt is received as a prop from page.tsx so privacy mode is respected globally
 
 interface Props {
   data: AppData;
@@ -90,7 +89,7 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
           placeholder="🔍 Search notes or merchants..."
           value={searchNote}
           onChange={(e) => setSearchNote(e.target.value)}
-          style={{ width: '100%', background: C.surface2, border: 'none', color: C.textW, borderRadius: 99, padding: '10px 16px', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }}
+          style={{ width: '100%', background: C.surface2, border: 'none', color: C.textW, borderRadius: 99, padding: '10px 16px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
         />
         {/* Row 1: Month + Type */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -258,16 +257,11 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
                   onClick={(ev) => ev.stopPropagation()}>
                   <Btn variant="ghost" size="sm" onClick={() => onTriggerEdit(e)}>✏️ Edit</Btn>
                   <Btn variant="ghost" size="sm" onClick={() => onDuplicate(e)}>📋 Copy</Btn>
-                  {!e.settled && e.type !== 'income' && (
-                    {/* Only show Flag if personal account — Joint expenses are already shared */}
                   {e.account !== 'Joint' && !e.settled && e.type !== 'income' && (
                     <Btn variant="ghost" size="sm" onClick={(ev) => {
                       ev.stopPropagation();
-                      // Ask: joint reimbursement or partner split?
-                      const choice = window.confirm('Reimburse from Joint pool?\n\nOK = Joint Reimbursement\nCancel = Partner Split');
                       onBulkFlagToSettle([e.id]);
                     }}>⚖️ Flag</Btn>
-                  )}
                   )}
                   {e.settled && (
                     <Btn variant="ghost" size="sm" onClick={() => onUnsettle(e.id)}>↩ Unsettle</Btn>
