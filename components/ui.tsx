@@ -375,6 +375,20 @@ export function ToastContainer() {
   );
 }
 
+// ─── Backward-compatibility aliases ───────────────────────────────────────────
+// Some existing components import these names — keep them working.
+export const ProgressBar = Progress;
+
+interface StatCardProps {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+}
+export function StatCard({ label, value, sub, color }: StatCardProps) {
+  return <Metric label={label} value={value} sub={sub} color={color} />;
+}
+
 // ─── useToast hook (backward-compatible shim) ─────────────────────────────────
 // Wraps the standalone addToast function so components using the hook still work.
 export function useToast() {
