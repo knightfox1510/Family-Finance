@@ -8,7 +8,7 @@ import React from 'react';
 import { C } from '@/constants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type Variant = 'primary' | 'ghost' | 'danger' | 'teal' | 'green';
+type Variant = 'primary' | 'ghost' | 'danger' | 'teal' | 'green' | 'success';
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 // NeoPOP card: sharp corners, hard drop shadow, press-to-lift animation
@@ -52,9 +52,10 @@ export function Btn({ variant = 'primary', size = 'md', fullWidth, children, sty
   const sizeMap = { sm: '8px 14px', md: '12px 20px', lg: '14px 28px' };
   const fontMap  = { sm: 11, md: 13, lg: 15 };
   const cls = variant === 'primary' ? 'neo-btn'
-    : variant === 'ghost'  ? 'neo-btn neo-btn-ghost'
-    : variant === 'danger' ? 'neo-btn neo-btn-danger'
-    : variant === 'teal'   ? 'neo-btn' // custom via style
+    : variant === 'ghost'   ? 'neo-btn neo-btn-ghost'
+    : variant === 'danger'  ? 'neo-btn neo-btn-danger'
+    : variant === 'success' ? 'neo-btn'
+    : variant === 'teal'    ? 'neo-btn'
     : 'neo-btn neo-btn-ghost';
   return (
     <button
@@ -63,8 +64,9 @@ export function Btn({ variant = 'primary', size = 'md', fullWidth, children, sty
         padding: sizeMap[size],
         fontSize: fontMap[size],
         width: fullWidth ? '100%' : undefined,
-        ...(variant === 'teal' ? { background: C.teal, borderColor: '#000' } : {}),
-        ...(variant === 'green' ? { background: C.green, borderColor: '#000' } : {}),
+        ...(variant === 'success' ? { background: C.green,  borderColor: '#000' } : {}),
+        ...(variant === 'teal'    ? { background: C.teal,   borderColor: '#000' } : {}),
+        ...(variant === 'green'   ? { background: C.green,  borderColor: '#000' } : {}),
         ...style,
       }}
       {...p}
