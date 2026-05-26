@@ -83,7 +83,7 @@ export function Contributions({ data, onUpdate, fmt }: Props) {
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 8, fontSize: 13, cursor: 'pointer', outline: 'none' }}
+            style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.text1, padding: '6px 12px', borderRadius: 0, fontSize: 13, cursor: 'pointer', outline: 'none' }}
           >
             {monthOptions.map((m) => (
               <option key={m} value={m}>{monthLabel(m)}{m === currentMonth ? ' (Current)' : ''}</option>
@@ -106,7 +106,7 @@ export function Contributions({ data, onUpdate, fmt }: Props) {
           )}
         </div>
 
-        <div style={{ background: C.bg, borderRadius: 10, padding: '11px 14px', marginBottom: 14 }}>
+        <div style={{ background: C.bg, borderRadius: 0, padding: '11px 14px', marginBottom: 14 }}>
           <span style={{ color: C.text2, fontSize: 13 }}>{poolLabel}: </span>
           <span style={{ color: C.green, fontWeight: 800, fontSize: 18 }}>{fmt(pool)}</span>
         </div>
