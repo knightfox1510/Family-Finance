@@ -371,7 +371,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
                 <span style={{ color: C.text1, fontSize: 13 }}>{e.category}</span>
                 <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>{e.date}</span>
                 {e.settledFor && (
-                  <Badge color={C.teal} style={{ marginLeft: 8 }}>
+                  <Badge color="teal">
                     ↩ {e.settledFor === 'Partner A' ? names.a : e.settledFor === 'Partner B' ? names.b : e.settledFor}
                   </Badge>
                 )}
