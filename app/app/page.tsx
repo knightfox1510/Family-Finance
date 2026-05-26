@@ -89,6 +89,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile]       = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
+  const [showMore, setShowMore]       = useState(false);
   const [planInfo, setPlanInfo] = useState<{ plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string } | undefined>(undefined);
   // Theme — start with server-safe default, then read localStorage client-side
   const [theme, setTheme] = useState('obsidian');
@@ -413,8 +414,10 @@ export default function App() {
             borderBottom: `1px solid ${C.border}`,
             background: C.bg, position: 'sticky', top: 0, zIndex: 50,
           }}>
-            {/* Avatar + greeting */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Avatar + greeting — tap to open settings */}
+            <button
+              onClick={() => { setView('settings'); setShowMore(false); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
               <div style={{
                 width: 38, height: 38, borderRadius: '50%',
                 background: C.accentBg, border: `2px solid ${C.accent}`,
@@ -423,13 +426,13 @@ export default function App() {
               }}>
                 {(data?.settings?.partnerAName?.[0] ?? 'C').toUpperCase()}
               </div>
-              <div>
+              <div style={{ textAlign: 'left' }}>
                 <div style={{ fontSize: 10, color: C.text3, fontWeight: 500, lineHeight: 1, marginBottom: 1 }}>hello,</div>
                 <div style={{ fontSize: 15, color: C.textW, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.02em' }}>
                   {data?.settings?.partnerAName ?? 'ChillarFlow'}
                 </div>
               </div>
-            </div>
+            </button>
             {/* Actions */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button onClick={() => setPrivacyMode((p) => !p)}
@@ -566,45 +569,86 @@ export default function App() {
 
       {/* MOBILE BOTTOM NAV */}
       {isMobile && (
-        <nav style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0,
-          background: C.surface,
-          borderTop: `1px solid ${C.border}`,
-          display: 'flex',
-          paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
-          paddingTop: 4,
-          zIndex: 900,
-          boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
-        }}>
-          {nav.filter((n) => n.id !== 'add').slice(0, 5).map((n) => (
-            <button
-              key={n.id}
-              onClick={() => setView(n.id)}
-              style={{
-                flex: 1, background: 'transparent', border: 'none',
-                cursor: 'pointer', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: 3, padding: '8px 2px 4px',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-            >
-              <div style={{
-                width: 36, height: 36, borderRadius: 12,
-                background: view === n.id ? C.accentBg : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'background 0.15s',
-                fontSize: 20,
-              }}>
-                {n.icon}
+        <>
+          {/* More drawer — slides up from bottom */}
+          {showMore && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 950 }}
+              onClick={() => setShowMore(false)}>
+              <div style={{ position: 'absolute', bottom: 72, left: 0, right: 0,
+                background: C.surface, borderTop: `1px solid ${C.border}`,
+                borderRadius: '24px 24px 0 0',
+                boxShadow: '0 -16px 48px rgba(0,0,0,0.5)',
+                padding: '20px 20px 8px',
+              }} onClick={(e) => e.stopPropagation()}>
+                {/* Handle */}
+                <div style={{ width: 40, height: 4, background: C.border, borderRadius: 99, margin: '0 auto 20px' }} />
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.text3, marginBottom: 12 }}>More</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {nav.filter((n) => n.id !== 'add' && !['dashboard','income','expenses','settle','contributions'].includes(n.id)).map((n) => (
+                    <button key={n.id}
+                      onClick={() => { setView(n.id as any); setShowMore(false); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        background: view === n.id ? C.accentBg : C.surface2,
+                        border: view === n.id ? `1px solid ${C.accent}` : 'none',
+                        borderRadius: 14, padding: '14px 16px',
+                        cursor: 'pointer', textAlign: 'left',
+                        WebkitTapHighlightColor: 'transparent',
+                      }}>
+                      <span style={{ fontSize: 22 }}>{n.icon}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: view === n.id ? C.accent : C.textW }}>{n.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ height: 16 }} />
               </div>
-              <span style={{
-                fontSize: 9, fontWeight: 600,
-                letterSpacing: '0.04em', textTransform: 'uppercase',
-                color: view === n.id ? C.accent : C.text3,
-                transition: 'color 0.15s',
-              }}>{n.label}</span>
+            </div>
+          )}
+
+          <nav style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0,
+            background: C.surface,
+            borderTop: `1px solid ${C.border}`,
+            display: 'flex',
+            paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+            paddingTop: 4,
+            zIndex: 900,
+            boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
+          }}>
+            {/* Primary 5 nav items */}
+            {nav.filter((n) => n.id !== 'add' && ['dashboard','income','expenses','settle','contributions'].includes(n.id)).map((n) => (
+              <button key={n.id} onClick={() => { setView(n.id as any); setShowMore(false); }}
+                style={{ flex: 1, background: 'transparent', border: 'none', cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  padding: '8px 2px 4px', WebkitTapHighlightColor: 'transparent' }}>
+                <div style={{ width: 36, height: 36, borderRadius: 12,
+                  background: (view === n.id && !showMore) ? C.accentBg : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'background 0.15s', fontSize: 20 }}>
+                  {n.icon}
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+                  color: (view === n.id && !showMore) ? C.accent : C.text3, transition: 'color 0.15s' }}>
+                  {n.label}
+                </span>
+              </button>
+            ))}
+            {/* More button */}
+            <button onClick={() => setShowMore(!showMore)}
+              style={{ flex: 1, background: 'transparent', border: 'none', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                padding: '8px 2px 4px', WebkitTapHighlightColor: 'transparent' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 12,
+                background: showMore ? C.accentBg : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'background 0.15s', fontSize: 20 }}>
+                ☰
+              </div>
+              <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+                color: showMore ? C.accent : C.text3 }}>More</span>
             </button>
-          ))}
-        </nav>
+          </nav>
+        </>
       )}
 
       {/* Toast notifications */}
