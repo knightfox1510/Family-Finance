@@ -47,8 +47,8 @@ export function LoanTracker({ data, onAdd, onUpdate, onDelete, fmt }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
-        <StatCard label="Total Monthly EMI" value={fmt(totalEMI)} accent={C.teal} icon="📅" sub={`${data.loans.length} active loans`} />
-        <StatCard label="Total Outstanding" value={fmt(totalOutstanding)} accent={C.red} icon="💳" />
+        <StatCard label="Total Monthly EMI" value={fmt(totalEMI)} color={C.teal} sub={`${data.loans.length} active loans`} />
+        <StatCard label="Total Outstanding" value={fmt(totalOutstanding)} color={C.red} />
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
