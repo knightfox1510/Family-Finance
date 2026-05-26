@@ -568,8 +568,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Toast notifications (replaces all alert() calls) */}
-      <ToastContainer toasts={toasts} onDismiss={dismiss} />
+      {/* Toast notifications */}
+      <ToastContainer />
     </div>
   );
 }
