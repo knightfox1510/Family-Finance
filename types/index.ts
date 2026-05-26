@@ -116,7 +116,6 @@ export interface Settings {
   telegramUsername: string;
   whatsappNumber?: string;    // E.164 without +, e.g. "919876543210"
   setupComplete?: boolean;    // true once user has finished the setup wizard
-  whatsappNumber?: string;    // E.164 without +, e.g. "919876543210"
 }
 
 // ---------------------------------------------------------------------------
