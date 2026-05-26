@@ -121,7 +121,7 @@ export function Label({ children, style }: { children: React.ReactNode; style?: 
 
 // ─── Badge / Tag ──────────────────────────────────────────────────────────────
 type BadgeColor = 'accent' | 'green' | 'red' | 'blue' | 'teal' | 'purple' | 'orange' | 'muted';
-export function Badge({ children, color = 'muted' }: { children: React.ReactNode; color?: BadgeColor }) {
+export function Badge({ children, color = 'muted', style }: { children: React.ReactNode; color?: BadgeColor; style?: React.CSSProperties }) {
   const colorMap: Record<BadgeColor, { color: string; borderColor: string }> = {
     accent:  { color: C.accent,  borderColor: C.accent  },
     green:   { color: C.green,   borderColor: C.green   },
@@ -133,7 +133,7 @@ export function Badge({ children, color = 'muted' }: { children: React.ReactNode
     muted:   { color: C.text3,   borderColor: C.border  },
   };
   return (
-    <span className="neo-badge" style={colorMap[color]}>{children}</span>
+    <span className="neo-badge" style={{ ...colorMap[color], ...style }}>{children}</span>
   );
 }
 
