@@ -110,14 +110,32 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="cf-page flex flex-col items-center justify-between" style={{ minHeight: '100dvh', padding: '40px 20px 24px' }}>
+    <div className="cf-page flex flex-col items-center justify-center" style={{ minHeight: '100dvh', padding: '24px 20px' }}>
       
-      {/* Structural Empty spacer to keep balance with central card */}
-      <div style={{ height: 20 }} />
-
       {/* Main Container Core Auth Module Card */}
-      <div className="cf-card animate-fade-up" style={{ width: '100%', maxWidth: 400, padding: '40px 32px', border: '1px solid var(--border)' }}>
+      <div className="cf-card animate-fade-up" style={{ width: '100%', maxWidth: 400, padding: '44px 32px 40px', border: '1px solid var(--border)', position: 'relative' }}>
         
+        {/* ⚡ PREMIUM EXPLICIT EXIT COMPONENT: Positioned cleanly at the upper right corner */}
+        <Link 
+          href="/" 
+          style={{ 
+            position: 'absolute', 
+            top: '20px', 
+            right: '20px', 
+            textDecoration: 'none', 
+            color: 'var(--text3)', 
+            fontSize: '24px', 
+            fontWeight: 300, 
+            lineHeight: 1, 
+            padding: '4px',
+            transition: 'color 0.15s ease'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text1)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text3)'}
+        >
+          &times;
+        </Link>
+
         {/* Brand System Title Header Area */}
         <div className="text-center" style={{ marginBottom: 32 }}>
           <div className="flex justify-between items-center" style={{ justifyContent: 'center', marginBottom: 16 }}>
@@ -215,7 +233,7 @@ export default function AuthPage() {
             </div>
           )}
 
-          {/* Central Submission Execution Command Node Button */}
+          {/* Central Submission Execution Button */}
           <button
             type="submit"
             disabled={loading}
@@ -246,13 +264,7 @@ export default function AuthPage() {
           </button>
         </div>
       </div>
-
-      {/* Return Vector Anchor Footer Link Elements */}
-      <div className="text-center" style={{ marginTop: 32 }}>
-        <Link href="/" className="t-small t-muted" style={{ textDecoration: 'none', fontWeight: 500 }}>
-          ← Cancel and return to chillarflow.com
-        </Link>
-      </div>
+      
     </div>
   );
 }
