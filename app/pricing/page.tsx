@@ -1,5 +1,4 @@
-// app/pricing/page.tsx
-
+// app/pricing/page.tsx — ChillarFlow premium marketing pricing platform
 import Link from 'next/link';
 import { CoinMark } from '@/components/CoinMark';
 
@@ -8,18 +7,26 @@ export const metadata = {
   description: 'Free for individuals. Affordable Pro for power users. No hidden fees.',
 };
 
-const C = {
-  bg: '#0b0f1a', surface: '#131928', border: '#1e2840',
-  amber: '#f59e0b', teal: '#06b6d4', textW: '#e8eeff',
-  text2: '#6b82a8', muted: '#3d4f6e', green: '#10b981', red: '#ef4444',
-};
+const featureSubLinks = [
+  { href: '/features/tracking', label: 'WhatsApp Tracking' },
+  { href: '/features/budgeting', label: 'Leakage Budgeting' },
+  { href: '/features/planning', label: 'Household Planning' },
+];
+
+const navLinks = [
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/about',   label: 'About'   },
+  { href: '/help',    label: 'Help'    },
+];
 
 const plans = [
   {
     name: 'Free',
     price: '₹0',
     period: 'forever',
-    color: C.teal,
+    accentClass: 't-green',
+    borderStyle: '1px solid var(--border)',
+    backgroundStyle: 'var(--surface)',
     features: [
       '30 AI expense parses per month',
       'WhatsApp & Telegram logging',
@@ -35,15 +42,18 @@ const plans = [
       'Unlimited AI parses',
       'Priority support',
     ],
-    cta: 'Start free',
+    cta: 'Start tracking free',
     ctaHref: '/app',
+    btnClass: 'cf-btn-ghost',
     highlight: false,
   },
   {
     name: 'Pro',
     price: '₹299',
     period: 'per month',
-    color: C.amber,
+    accentClass: 't-accent',
+    borderStyle: '2px solid var(--accent)',
+    backgroundStyle: 'var(--accent-bg)',
     features: [
       'Unlimited AI expense parses',
       'WhatsApp & Telegram logging',
@@ -58,8 +68,9 @@ const plans = [
       'Early access to new features',
     ],
     notIncluded: [],
-    cta: 'Upgrade to Pro',
+    cta: 'Upgrade to Pro Account',
     ctaHref: 'mailto:team@chillarflow.com?subject=Pro Upgrade Request',
+    btnClass: 'cf-btn-primary',
     highlight: true,
   },
 ];
@@ -71,117 +82,179 @@ const faqs = [
   },
   {
     q: 'What happens when I hit the free limit?',
-    a: 'You can still log expenses using the number wizard (send any amount like "500" and follow the prompts). Only natural language parsing is paused until the next month or until you upgrade.',
+    a: 'You can still log expenses using the number wizard (send any amount like "500" and follow the step-by-step chat prompts). Only natural language parsing is paused until the next billing cycle resets or until you upgrade.',
   },
   {
     q: 'How do I upgrade to Pro?',
-    a: 'Email us at team@chillarflow.com with your household ID (found in Settings). We\'ll upgrade your account and confirm via email. We\'re working on automated payment — coming soon.',
+    a: 'Email us at team@chillarflow.com with your unique household ID (found in Settings). We\'ll upgrade your account parameters manually and confirm via email. Automated billing pipelines are arriving soon.',
   },
   {
     q: 'Does my partner need a separate subscription?',
-    a: 'No. One Pro subscription covers your entire household — both partners get unlimited AI parses.',
+    a: 'No. One Pro subscription completely covers your entire household ledger vault — both partners get unlimited AI parses simultaneously.',
   },
   {
     q: 'Can I cancel anytime?',
-    a: 'Yes. Pro is month-to-month. Cancel any time and you\'ll revert to the free plan at the end of the billing period.',
+    a: 'Yes. Pro is completely flexible month-to-month. Cancel at any point and your profile reverts smoothly to the free plan tier at the end of the current cycle. Your logged history remains fully intact.',
   },
   {
     q: 'Is my financial data safe?',
-    a: 'Your data is stored in a private Supabase database. We never sell data, show ads, or share anything with third parties. You can export and delete your data at any time from Settings.',
+    a: 'Your logs live completely isolated inside a private, sandboxed, encrypted database vault. We never look at your data, show ads, or track transaction origins for commercial monetization. You retain full export and destruction controls.',
   },
 ];
 
 export default function PricingPage() {
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', color: C.textW }}>
+    <div className="cf-page animate-fade-in" style={{ paddingBottom: 0 }}>
 
-      {/* Nav */}
-      <nav style={{ borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 64 }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <CoinMark size={36} color={C.amber} />
-            <span style={{ fontWeight: 800, fontSize: 18, color: C.textW, letterSpacing: '-0.02em' }}>ChillarFlow</span>
+      {/* ── Nav Header ──────────────────────────────────────────────────────── */}
+      <nav className="cf-header" style={{ position: 'relative', height: 64, padding: '0 24px', zIndex: 1100 }}>
+        <div className="w-full flex justify-between items-center" style={{ maxWidth: 1100, margin: '0 auto' }}>
+          
+          <Link href="/" className="flex items-center" style={{ gap: 10, textDecoration: 'none' }}>
+            <CoinMark size={36} color="var(--accent)" />
+            <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--textW)', letterSpacing: '-0.02em' }}>ChillarFlow</span>
           </Link>
-          <Link href="/app" style={{ background: C.amber, color: C.bg, padding: '8px 20px', borderRadius: 8, fontWeight: 700, fontSize: 14, textDecoration: 'none' }}>Sign In</Link>
+
+          <div className="flex items-center" style={{ gap: 16 }}>
+            {/* Desktop links layout structure */}
+            <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+              <Link href="/features" className="t-body" style={{ textDecoration: 'none', fontWeight: 500 }}>
+                Features
+              </Link>
+              {navLinks.map((l) => (
+                <Link key={l.href} href={l.href} className="t-body" style={{ textDecoration: 'none', fontWeight: 500, color: l.href === '/pricing' ? 'var(--textW)' : 'var(--text2)' }}>
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+
+            <Link href="/app" className="cf-btn cf-btn-primary cf-btn-sm" style={{ fontWeight: 800 }}>
+              Sign In
+            </Link>
+
+            {/* Core Interaction Functional Pipeline Input Switch */}
+            <input type="checkbox" id="menu-toggle" style={{ display: 'none' }} />
+            
+            <label htmlFor="menu-toggle" className="mobile-menu-trigger">
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+            </label>
+
+            <label htmlFor="menu-toggle" className="drawer-overlay"></label>
+
+            {/* Sliding Mobile System Control Drawer Container Box */}
+            <div className="mobile-drawer">
+              <div className="flex justify-between items-center" style={{ marginBottom: 28, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 22, fontWeight: 900, color: 'var(--textW)', letterSpacing: '-0.03em' }}>MENU</span>
+                <label htmlFor="menu-toggle" style={{ color: 'var(--text3)', fontSize: 32, cursor: 'pointer', lineHeight: 0.5, padding: '4px' }}>&times;</label>
+              </div>
+
+              <div className="flex flex-col" style={{ gap: 24, flex: 1, overflowY: 'auto' }}>
+                <div className="flex flex-col" style={{ gap: 12 }}>
+                  <Link href="/features" className="t-h1" style={{ textDecoration: 'none' }}>Features</Link>
+                  <div className="flex flex-col" style={{ gap: 14, paddingLeft: 12, borderLeft: '1.5px solid var(--border)' }}>
+                    {featureSubLinks.map((sub) => (
+                      <Link key={sub.href} href={sub.href} className="t-body" style={{ textDecoration: 'none', fontSize: 14 }}>
+                        {sub.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+                {navLinks.map((l) => (
+                  <Link key={l.href} href={l.href} className="t-h1" style={{ textDecoration: 'none' }}>{l.label}</Link>
+                ))}
+              </div>
+
+              <div className="flex flex-col" style={{ gap: 12, paddingTop: 16, marginTop: 'auto' }}>
+                <Link href="/app" className="cf-btn cf-btn-primary cf-btn-full" style={{ fontWeight: 800 }}>Create Account (Sign Up)</Link>
+                <Link href="/app" className="cf-btn cf-btn-ghost cf-btn-full" style={{ fontWeight: 600, border: '1px solid var(--border2)' }}>Sign In</Link>
+              </div>
+            </div>
+          </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section style={{ padding: '80px 24px 60px', textAlign: 'center' }}>
-        <h1 style={{ fontSize: 48, fontWeight: 800, margin: '0 0 16px', letterSpacing: '-0.02em', color: C.textW }}>Simple, honest pricing</h1>
-        <p style={{ color: C.text2, fontSize: 18, margin: 0 }}>Free for casual use. Pro for power users. No surprises.</p>
+      {/* ── Pricing Hero Summary Section ───────────────────────────────────── */}
+      <section className="cf-content text-center animate-fade-up" style={{ padding: '80px 16px 48px' }}>
+        <h1 className="t-display" style={{ marginBottom: 16, lineHeight: 1.1 }}>
+          Simple, honest metrics.
+        </h1>
+        <p className="t-body" style={{ fontSize: 18, margin: 0, color: 'var(--text2)' }}>
+          Free for casual tracking. High retention velocity tools for power users. No hidden surprises.
+        </p>
       </section>
 
-      {/* Plans */}
-      <section style={{ padding: '0 24px 80px' }}>
-        <div style={{ maxWidth: 800, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
+      {/* ── Plans Card Section Matrix ────────────────────────────────────────── */}
+      <section style={{ padding: '0 16px 80px' }}>
+        <div style={{ maxWidth: 840, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 28 }}>
           {plans.map((p) => (
-            <div key={p.name} style={{
-              background: p.highlight ? `${C.amber}10` : C.surface,
-              border: `2px solid ${p.highlight ? C.amber : C.border}`,
-              borderRadius: 16, padding: '32px 28px',
+            <div key={p.name} className="cf-card" style={{
+              background: p.backgroundStyle,
+              border: p.borderStyle,
+              padding: '40px 32px',
               position: 'relative',
             }}>
               {p.highlight && (
-                <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: C.amber, color: C.bg, fontSize: 11, fontWeight: 800, padding: '4px 16px', borderRadius: 99 }}>
-                  MOST POPULAR
+                <div className="cf-badge" style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#0a0a0a', fontSize: 10, fontWeight: 900, padding: '6px 18px', boxShadow: 'var(--shadow-accent)' }}>
+                  UNLIMITED OPERATIONS
                 </div>
               )}
-              <div style={{ color: p.color, fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{p.name}</div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
-                <span style={{ fontSize: 48, fontWeight: 800 }}>{p.price}</span>
-                <span style={{ color: C.text2, fontSize: 14 }}>/ {p.period}</span>
+              
+              <div className={`t-caption ${p.accentClass}`} style={{ marginBottom: 8, fontWeight: 700 }}>{p.name}</div>
+              
+              <div className="flex items-baseline" style={{ gap: 6, marginBottom: 8 }}>
+                <span className="t-number" style={{ fontSize: 48 }}>{p.price}</span>
+                <span className="t-body" style={{ fontSize: 14, color: 'var(--text2)' }}>/ {p.period}</span>
               </div>
-              <div style={{ height: 1, background: C.border, margin: '24px 0' }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
+              
+              <div className="cf-divider" style={{ margin: '24px 0', opacity: 0.5 }} />
+              
+              <div className="flex flex-col" style={{ gap: 14, marginBottom: 40 }}>
                 {p.features.map((f) => (
-                  <div key={f} style={{ display: 'flex', gap: 10, fontSize: 14, color: C.text2 }}>
-                    <span style={{ color: C.green, flexShrink: 0 }}>✓</span> {f}
+                  <div key={f} className="t-body flex items-start" style={{ gap: 10, fontSize: 14 }}>
+                    <span className="t-green" style={{ fontWeight: 'bold', flexShrink: 0 }}>✓</span> <span>{f}</span>
                   </div>
                 ))}
                 {p.notIncluded.map((f) => (
-                  <div key={f} style={{ display: 'flex', gap: 10, fontSize: 14, color: C.muted }}>
-                    <span style={{ flexShrink: 0 }}>✗</span> {f}
+                  <div key={f} className="t-body flex items-start" style={{ gap: 10, fontSize: 14, color: 'var(--text3)' }}>
+                    <span style={{ flexShrink: 0, fontWeight: 'bold' }}>✗</span> <span>{f}</span>
                   </div>
                 ))}
               </div>
-              <Link href={p.ctaHref} style={{
-                display: 'block', textAlign: 'center',
-                background: p.highlight ? C.amber : 'transparent',
-                color: p.highlight ? C.bg : C.textW,
-                border: `1px solid ${p.highlight ? C.amber : C.border}`,
-                padding: '13px', borderRadius: 10, fontWeight: 700, fontSize: 15, textDecoration: 'none',
-              }}>
+              
+              <Link href={p.ctaHref} className={`cf-btn ${p.btnClass} cf-btn-full`} style={{ fontWeight: 800 }}>
                 {p.cta}
               </Link>
             </div>
           ))}
         </div>
-        <p style={{ textAlign: 'center', color: C.muted, fontSize: 13, marginTop: 24 }}>
-          All prices in INR. GST extra if applicable.
+        <p className="t-small t-muted text-center" style={{ marginTop: 28, letterSpacing: '0.01em' }}>
+          All prices processed in INR. Cloud pipeline infrastructure configurations apply globally.
         </p>
       </section>
 
-      {/* FAQ */}
-      <section style={{ padding: '60px 24px 100px', borderTop: `1px solid ${C.border}` }}>
-        <div style={{ maxWidth: 700, margin: '0 auto' }}>
-          <h2 style={{ fontSize: 32, fontWeight: 800, textAlign: 'center', marginBottom: 48, letterSpacing: '-0.02em', color: C.textW }}>Frequently asked questions</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {/* ── Frequently Asked Questions Accordion Grid ─────────────────────── */}
+      <section style={{ padding: '80px 16px 100px', borderTop: '1px solid var(--border)', background: 'var(--bg2)' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          <h2 className="t-h1 text-center" style={{ fontSize: 32, marginBottom: 48 }}>Frequently asked questions</h2>
+          
+          <div className="flex flex-col">
             {faqs.map((f, i) => (
-              <div key={i} style={{ borderTop: `1px solid ${C.border}`, padding: '24px 0' }}>
-                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>{f.q}</div>
-                <div style={{ color: C.text2, fontSize: 14, lineHeight: 1.7 }}>{f.a}</div>
+              <div key={i} style={{ borderTop: '1px solid var(--border)', padding: '24px 0' }}>
+                <h3 className="t-h2" style={{ marginBottom: 12, fontSize: 16, fontWeight: 700, color: 'var(--textW)' }}>{f.q}</h3>
+                <p className="t-body" style={{ fontSize: 14, lineHeight: 1.65, margin: 0, color: 'var(--text2)' }}>{f.a}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={{ borderTop: `1px solid ${C.border}`, padding: '32px 24px', textAlign: 'center' }}>
-        <div style={{ color: C.muted, fontSize: 13 }}>
-          Questions? Email us at{' '}
-          <a href="mailto:team@chillarflow.com" style={{ color: C.amber }}>team@chillarflow.com</a>
+      {/* ── Operational Contact Footer ────────────────────────────────────────── */}
+      <footer style={{ borderTop: '1px solid var(--border)', padding: '40px 24px', background: 'var(--bg)', textAlign: 'center' }}>
+        <div className="t-small t-muted" style={{ fontSize: 13.5 }}>
+          Have structural questions? Reach secure support anytime at{' '}
+          <a href="mailto:team@chillarflow.com" className="t-accent" style={{ textDecoration: 'none', fontWeight: 600 }}>team@chillarflow.com</a>
         </div>
       </footer>
     </div>
