@@ -111,7 +111,24 @@ export default function AuthPage() {
 
   return (
     /* ⚡ FIXED: Shifted distribution properties to completely center content both ways */
-    <div className="cf-page flex flex-col items-center justify-center" style={{ minHeight: '100dvh', padding: '24px 20px' }}>
+    <div 
+      style={{ 
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100dvh',       /* Dynamic height locks content tightly to screen boundaries */
+        width: '100vw',
+        padding: '24px 20px',      /* Uniform, tight padding on all 4 sides */
+        boxSizing: 'border-box',
+        background: '#0b0f1a',     /* Deep Obsidian fallback background color */
+        position: 'fixed',         /* ⚡ CRITICAL: Locks the container rigid to the mobile device window */
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+      }}
+    >
       
       {/* Main Container Core Auth Module Card */}
       <div className="cf-card animate-fade-up" style={{ width: '100%', maxWidth: 400, padding: '44px 32px 40px', border: '1px solid var(--border)', position: 'relative' }}>
