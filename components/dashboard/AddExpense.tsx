@@ -1,7 +1,7 @@
 'use client';
 import { addToQueue } from '@/lib/offlineQueue';
 import React, { useState, useEffect, useMemo } from 'react';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 import type { AppData, Expense } from '@/types';
 import { Inp, Sel } from '@/components/ui';
 import { C } from '@/constants';
