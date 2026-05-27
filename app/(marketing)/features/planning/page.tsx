@@ -1,5 +1,6 @@
 // app/features/planning/page.tsx — Deep dive planning capabilities
 import Link from 'next/link';
+import { CoinMark } from '@/components/marketing/CoinMark';
 
 export default function PlanningFeaturePage() {
   return (
