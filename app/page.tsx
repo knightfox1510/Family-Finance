@@ -79,7 +79,7 @@ const modes = [
 export default function HomePage() {
   return (
     <div style={{ background: C.bg, minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", sans-serif', color: C.textW }}>
-
+<meta name="facebook-domain-verification" content="oa5jc12kl8z9f18sz2c6n1lwm7apiu" />
       {/* ── Nav ──────────────────────────────────────────────────────────────── */}
       <nav style={{ borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 64 }}>
