@@ -4,7 +4,7 @@ import { CoinMark } from '@/components/CoinMark';
 
 export const metadata = {
   title: 'ChillarFlow — Track every rupee. Effortlessly.',
-  description: 'ChillarFlow helps couples and solo entrepreneurs stop income leakage through WhatsApp and Telegram. No spreadsheets. Just send a message.',
+  description: 'ChillarFlow helps couples and solo entrepreneurs stop income leakage through WhatsApp and Telegram. No spreadsheets. Just send a message!',
 };
 
 // 🎯 Grouped strictly by specific platform toolsets
