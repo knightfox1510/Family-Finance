@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import type { HouseholdMode } from '@/types';
 import { HOUSEHOLD_MODE_META, C } from '@/constants';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 
 type Step = 'mode' | 'names' | 'connect' | 'features' | 'done';
 const STEPS: Step[] = ['mode', 'names', 'connect', 'features', 'done'];
