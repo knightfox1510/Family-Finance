@@ -1,6 +1,6 @@
 // app/shortcuts/page.tsx — ChillarFlow premium Power User Guide platform
 import Link from 'next/link';
-import { CoinMark } from '@/components/CoinMark';
+import { CoinMark } from '@/components/marketing/CoinMark';
 
 export const metadata = {
   title: 'Power User Guide — ChillarFlow',
