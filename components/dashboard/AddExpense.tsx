@@ -3,7 +3,7 @@ import { addToQueue } from '@/lib/offlineQueue';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import type { AppData, Expense } from '@/types';
-import { Inp, Sel } from '@/components/ui';
+import { Inp, Sel } from '@/components/ui/ui';
 import { C } from '@/constants';
 import { accountOptions } from '@/lib/householdModes';
 
