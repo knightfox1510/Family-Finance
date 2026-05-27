@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
-import { CoinMark } from '@/components/CoinMark';
+import { CoinMark } from '@/components/ui/CoinMark';
 
 export default function AuthPage() {
   const [loading, setLoading]   = useState(false);
