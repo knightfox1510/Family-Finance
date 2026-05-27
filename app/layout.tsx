@@ -1,3 +1,13 @@
+export const metadata: Metadata = {
+  title: 'ChillarFlow — Track every rupee. Effortlessly.',
+  description: '...',
+  // ADD THIS:
+  verification: {
+    facebook: 'oa5jc12kl8z9f18sz2c6n1lwm7apiu',
+  },
+  // ... rest of your metadata
+};
+
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
