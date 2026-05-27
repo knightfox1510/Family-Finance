@@ -1,6 +1,6 @@
 // app/page.tsx — ChillarFlow premium marketing landing page
 import Link from 'next/link';
-import { CoinMark } from '@/components/CoinMark';
+import { CoinMark } from '@/components/marketing/CoinMark';
 
 export const metadata = {
   title: 'ChillarFlow — Track every rupee. Effortlessly.',
