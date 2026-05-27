@@ -722,7 +722,7 @@ html { background: #0a0a0a; }
 
 
 /* ==========================================================================
-   CHILLARFLOW PREMIUM RESPONSIVE DIRECTORY DRAWER (SCALABLE ARCHITECTURE)
+   CHILLARFLOW PREMIUM RESPONSIVE DIRECTORY DRAWER (EDGE-PINNING ARCHITECTURE)
    ========================================================================== */
 
 /* Hidden structural interaction switch */
@@ -754,8 +754,8 @@ html { background: #0a0a0a; }
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;
-    height: 100lvh; /* 🔒 Locked height: prevents backdrop flickering on scroll */
+    right: 0;
+    bottom: 0; /* 🔒 Physical edge pinning: completely bypasses layout engine height checks */
     background: #000000;
     opacity: 0;
     visibility: hidden;
@@ -769,20 +769,21 @@ html { background: #0a0a0a; }
     position: fixed;
     top: 0;
     right: 0;
+    bottom: 0; /* 🔒 Physical edge pinning: container is structurally locked to screen boundaries */
     width: 85%;
     max-width: 320px;
-    height: 100lvh; /* 🔒 Locked height: drawer stays mathematically rigid while URL bar moves */
     background: var(--surface);
     border-left: 1px solid var(--border);
     
-    /* CRITICAL LAYOUT VALVE: 
-       We use a combination of standard safe areas + 32px of baseline margin.
-       This pushes the bottom button group high enough to never be obstructed 
-       by the URL bar, completely removing the need for variable resizing.
-    */
+    /* Strict overflow control ensures browser doesn't try to add micro-scroll jitters */
+    overflow-x: hidden;
+    overflow-y: hidden; 
+    
+    /* Padding handles safe notches and explicitly clears the bottom navigation area */
     padding: calc(16px + env(safe-area-inset-top, 0px)) 24px calc(32px + env(safe-area-inset-bottom, 0px));
     box-sizing: border-box;
     flex-direction: column;
+    
     transform: translateX(100%);
     opacity: 0;
     visibility: hidden;
