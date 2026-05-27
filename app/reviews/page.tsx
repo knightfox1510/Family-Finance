@@ -1,24 +1,24 @@
 // app/reviews/page.tsx — ChillarFlow premium testimonials wall platform
 import Link from 'next/link';
-import { useState } from 'react';
 import { CoinMark } from '@/components/CoinMark';
 
 // 🎯 Grouped strictly by specific platform toolsets
 const featureSubLinks = [
-  { href: '/features/tracking', label: 'Chat Log Automation' }, /* ⚡ Was WhatsApp Tracking */
-  { href: '/features/budgeting', label: 'Retention Metrics' },    /* ⚡ Was Leakage Budgeting */
-  { href: '/features/planning', label: 'Household Settlement' }, /* ⚡ Was Household Planning */
+  { href: '/features/tracking', label: 'Chat Log Automation' }, 
+  { href: '/features/budgeting', label: 'Retention Metrics' },    
+  { href: '/features/planning', label: 'Household Settlement' }, 
   { href: '/shortcuts',         label: 'Power User Guide' }, 
+  { href: '/security',          label: '🔒 Data Vault Security' },
 ];
 
-// 🧭 The high-level main directories remain clean and distinct
+// 🧭 The high-level main directories remain clean, distinct, and conversion-focused
 const navLinks = [
+  { href: '/features', label: 'Capabilities' },
   { href: '/pricing',  label: 'Pricing' },
   { href: '/reviews',  label: 'Reviews' }, 
   { href: '/about',    label: 'About'   },
   { href: '/help',     label: 'Help'    },
 ];
-
 
 export const metadata = {
   title: 'User Testimonials & Case Studies — ChillarFlow',
@@ -53,18 +53,78 @@ export default function ReviewsPage() {
   return (
     <div className="cf-page animate-fade-in" style={{ paddingBottom: 0 }}>
       
+      {/* ── Nav Header ──────────────────────────────────────────────────────── */}
       <nav className="cf-header" style={{ position: 'relative', height: 64, padding: '0 24px', zIndex: 1100 }}>
         <div className="w-full flex justify-between items-center" style={{ maxWidth: 1100, margin: '0 auto' }}>
+          
           <Link href="/" className="flex items-center" style={{ gap: 10, textDecoration: 'none' }}>
             <CoinMark size={36} color="var(--accent)" />
             <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--textW)', letterSpacing: '-0.02em' }}>ChillarFlow</span>
           </Link>
-          <Link href="/app" className="cf-btn cf-btn-primary cf-btn-sm" style={{ fontWeight: 800 }}>
-            Sign In
-          </Link>
+
+          <div className="flex items-center" style={{ gap: 16 }}>
+            {/* Desktop Navigation Links Container */}
+            <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+              {navLinks.map((l) => (
+                <Link 
+                  key={l.href} 
+                  href={l.href} 
+                  className="t-body" 
+                  style={{ 
+                    textDecoration: 'none', 
+                    fontWeight: l.href === '/reviews' ? 600 : 500,
+                    color: l.href === '/reviews' ? 'var(--textW)' : undefined 
+                  }}
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+
+            {/* Action Trigger Access Command Node */}
+            <Link href="/app" className="cf-btn cf-btn-primary cf-btn-sm" style={{ fontWeight: 800 }}>Sign In</Link>
+
+            {/* Responsive Mobile Drawer Form Toggle Nodes */}
+            <input type="checkbox" id="menu-toggle" style={{ display: 'none' }} />
+            <label htmlFor="menu-toggle" className="mobile-menu-trigger">
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+            </label>
+
+            <label htmlFor="menu-toggle" className="drawer-overlay"></label>
+            
+            <div className="mobile-drawer">
+              <div className="flex justify-between items-center" style={{ marginBottom: 28, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 22, fontWeight: 900, color: 'var(--textW)', letterSpacing: '-0.03em' }}>MENU</span>
+                <label htmlFor="menu-toggle" style={{ color: 'var(--text3)', fontSize: 32, cursor: 'pointer', lineHeight: 0.5, padding: '4px' }}>&times;</label>
+              </div>
+              
+              <div className="flex flex-col" style={{ gap: 24, flex: 1, overflowY: 'auto' }}>
+                <div className="flex flex-col" style={{ gap: 12 }}>
+                  <Link href="/features" className="t-h1" style={{ textDecoration: 'none' }}>Capabilities</Link>
+                  <div className="flex flex-col" style={{ gap: 14, paddingLeft: 12, borderLeft: '1.5px solid var(--border)' }}>
+                    {featureSubLinks.map((sub) => (
+                      <Link key={sub.href} href={sub.href} className="t-body" style={{ textDecoration: 'none', fontSize: 14 }}>{sub.label}</Link>
+                    ))}
+                  </div>
+                </div>
+                {navLinks.filter(l => l.href !== '/features').map((l) => (
+                  <Link key={l.href} href={l.href} className="t-h1" style={{ textDecoration: 'none' }}>{l.label}</Link>
+                ))}
+              </div>
+
+              <div className="flex flex-col" style={{ gap: 12, paddingTop: 16, marginTop: 'auto' }}>
+                <Link href="/app" className="cf-btn cf-btn-primary cf-btn-full" style={{ fontWeight: 800 }}>Create Account (Sign Up)</Link>
+                <Link href="/app" className="cf-btn cf-btn-ghost cf-btn-full" style={{ fontWeight: 600, border: '1px solid var(--border2)' }}>Sign In</Link>
+              </div>
+            </div>
+
+          </div>
         </div>
       </nav>
 
+      {/* ── Testimonials Hero ───────────────────────────────────────────────── */}
       <section className="cf-content text-center animate-fade-up" style={{ padding: '80px 16px 48px' }}>
         <h1 className="t-display" style={{ marginBottom: 20, lineHeight: 1.1 }}>
           Validated by active<br />household operations.
@@ -74,6 +134,7 @@ export default function ReviewsPage() {
         </p>
       </section>
 
+      {/* ── Reviews Grid Flow Matrix ────────────────────────────────────────── */}
       <section style={{ padding: '20px 16px 80px' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
           {userReviews.map((r, idx) => (
@@ -97,6 +158,7 @@ export default function ReviewsPage() {
         </div>
       </section>
 
+      {/* ── Bottom Section CTA ────────────────────────────────────────────────── */}
       <section className="text-center" style={{ padding: '100px 24px', borderTop: '1px solid var(--border)', background: 'linear-gradient(180deg, var(--bg) 0%, var(--surface) 100%)' }}>
         <div className="cf-content" style={{ maxWidth: 540 }}>
           <h2 className="t-display" style={{ fontSize: 36, marginBottom: 16 }}>Ready to align your shared metrics?</h2>
