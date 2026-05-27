@@ -463,6 +463,24 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         );
       })()}
 
+      {/* ── Profile card ─────────────────────────────────────────────────── */}
+      <div style={{ background: C.surface, borderRadius: 20, padding: 20, display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.accent, color: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 900, flexShrink: 0 }}>
+          {(s.partnerAName || 'U').charAt(0).toUpperCase()}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.textW, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+            {s.partnerAName || 'You'}{partnerB && s.partnerBName ? ` & ${s.partnerBName}` : ''}
+          </div>
+          <div style={{ fontSize: 12, color: C.text2, marginTop: 2 }}>
+            {HOUSEHOLD_MODE_META[s.householdMode]?.label ?? 'Household'} · {householdId.slice(0, 8)}…
+          </div>
+        </div>
+        {planInfo?.plan === 'pro' && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', color: C.accent, border: `1px solid ${C.accent}`, flexShrink: 0 }}>✦ PRO</span>
+        )}
+      </div>
+
       {/* ── Plan & Usage ──────────────────────────────────────────────────── */}
       <Card style={{ border: planInfo?.plan === 'pro' ? '1px solid rgba(245,158,11,0.4)' : undefined }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>

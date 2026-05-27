@@ -1,7 +1,6 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import type { AppData } from '@/types';
-import { Card, SectionTitle, StatCard, ProgressBar, Metric } from '@/components/ui';
 import { C, INVESTMENT_CATS } from '@/constants';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
