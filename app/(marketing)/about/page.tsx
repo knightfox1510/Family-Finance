@@ -1,6 +1,6 @@
 // app/about/page.tsx — ChillarFlow premium marketing story platform
 import Link from 'next/link';
-import { CoinMark } from '@/components/CoinMark';
+import { CoinMark } from '@/components/marketing/CoinMark';
 
 export const metadata = {
   title: 'About — ChillarFlow',
