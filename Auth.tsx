@@ -110,12 +110,13 @@ export default function AuthPage() {
   };
 
   return (
+    /* ⚡ FIXED: Shifted distribution properties to completely center content both ways */
     <div className="cf-page flex flex-col items-center justify-center" style={{ minHeight: '100dvh', padding: '24px 20px' }}>
       
       {/* Main Container Core Auth Module Card */}
       <div className="cf-card animate-fade-up" style={{ width: '100%', maxWidth: 400, padding: '44px 32px 40px', border: '1px solid var(--border)', position: 'relative' }}>
         
-        {/* ⚡ PREMIUM EXPLICIT EXIT COMPONENT: Positioned cleanly at the upper right corner */}
+        {/* Premium Explicit Exit Component */}
         <Link 
           href="/" 
           style={{ 
