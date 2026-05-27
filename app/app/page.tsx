@@ -23,6 +23,7 @@ import { useActions } from '@/hooks/useActions';
 import { ToastContainer, BottomNav, QuickTray, addToast } from '@/components/ui';
 
 import { C, navForMode } from '@/constants';
+import { Icon } from '@/components/Icon';
 import type { AppData, ViewId, HouseholdMode } from '@/types';
 
 // ─── View imports ─────────────────────────────────────────────────────────────
@@ -284,7 +285,7 @@ export default function App() {
         background: C.bg, minHeight: '100vh', display: 'flex',
         alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16,
       }}>
-        <div style={{ fontSize: 40 }}>💰</div>
+        <Icon name="wallet" size={40} color={C.amber} />
         <div style={{ color: C.amber, fontSize: 17, fontWeight: 700 }}>Loading ChillarFlow…</div>
       </div>
     );
@@ -302,25 +303,25 @@ export default function App() {
 
   // Mobile bottom nav: 5 primary slots + More drawer
   const primaryNavItems = [
-    { id: 'dashboard', label: 'Home',     icon: '🏠' },
-    { id: 'expenses',  label: 'Expenses', icon: '📋' },
-    { id: 'add',       label: 'Add',      icon: '+' },
+    { id: 'dashboard', label: 'Home',     icon: 'home' },
+    { id: 'expenses',  label: 'Expenses', icon: 'list' },
+    { id: 'add',       label: 'Add',      icon: 'plus' },
     isSolo
-      ? { id: 'goals',  label: 'Goals',  icon: '🎯' }
-      : { id: 'settle', label: 'Settle', icon: '🔄' },
-    { id: 'more', label: 'More', icon: '☰' },
+      ? { id: 'goals',  label: 'Goals',  icon: 'target' }
+      : { id: 'settle', label: 'Settle', icon: 'refresh' },
+    { id: 'more', label: 'More', icon: 'more' },
   ];
 
   const moreNavItems = [
-    { id: 'income',    label: 'Income',    icon: '💰' },
-    ...(isJointMode ? [{ id: 'contributions', label: 'Contrib', icon: '🏦' }] : []),
+    { id: 'income',    label: 'Income',   icon: 'trendUp' },
+    ...(isJointMode ? [{ id: 'contributions', label: 'Contrib', icon: 'wallet' }] : []),
     ...(isSolo
-      ? [{ id: 'settle', label: 'Settle', icon: '🔄' }]
-      : [{ id: 'goals',  label: 'Goals',  icon: '🎯' }]
+      ? [{ id: 'settle', label: 'Settle', icon: 'refresh' }]
+      : [{ id: 'goals',  label: 'Goals',  icon: 'target' }]
     ),
-    { id: 'loans',    label: 'EMI',       icon: '🏧' },
-    { id: 'insights', label: 'Insights',  icon: '✨' },
-    { id: 'settings', label: 'Settings',  icon: '⚙️' },
+    { id: 'loans',    label: 'EMI',      icon: 'bank' },
+    { id: 'insights', label: 'Insights', icon: 'sparkles' },
+    { id: 'settings', label: 'Settings', icon: 'settings' },
   ];
 
   const fmt$ = (n: number) => fmt(n, data.settings.currency, privacyMode);
@@ -357,7 +358,7 @@ export default function App() {
           }}>
             {sidebarOpen && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 150 }}>
-                <span style={{ fontSize: 26 }}>💰</span>
+                <Icon name="wallet" size={26} color={C.amber} />
                 <span style={{ color: C.amber, fontWeight: 900, fontSize: 18, letterSpacing: -0.5 }}>
                   ChillarFlow
                 </span>
@@ -391,7 +392,7 @@ export default function App() {
                   gap: 12, transition: 'all .2s', textAlign: 'left',
                 }}
               >
-                <span style={{ fontSize: 18 }}>{n.icon}</span>
+                <Icon name={n.icon} size={18} color={view === n.id ? C.amber : C.text2} />
                 {sidebarOpen && <span style={{ whiteSpace: 'nowrap' }}>{n.label}</span>}
               </button>
             ))}
@@ -407,21 +408,22 @@ export default function App() {
 
       {/* Footer: email + privacy + logout */}
           <div style={{ padding: '0 20px 6px', fontSize: 11, color: C.text2, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {sidebarOpen ? `👤 ${session.user.email}` : ''}
+            {sidebarOpen ? session.user.email : ''}
           </div>
           <div style={{ padding: '12px 20px 20px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center', flexDirection: sidebarOpen ? 'row' : 'column' }}>
             <button
               onClick={() => setPrivacyMode((p) => !p)}
               title={privacyMode ? 'Reveal data' : 'Mask data'}
-              style={{ background: 'transparent', border: `1px solid ${C.border}`, color: privacyMode ? C.amber : C.text2, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 16 }}
+              style={{ background: 'transparent', border: `1px solid ${C.border}`, color: privacyMode ? C.amber : C.text2, borderRadius: 8, padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
-              {privacyMode ? '🙈' : '👁️'}
+              <Icon name={privacyMode ? 'eyeOff' : 'eye'} size={16} color={privacyMode ? C.amber : C.text2} />
             </button>
             <button
               onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/'; })}
-              style={{ flex: 1, width: '100%', background: 'transparent', border: sidebarOpen ? `1px solid ${C.border}` : 'none', color: C.text2, borderRadius: 8, padding: '10px', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}
+              style={{ flex: 1, width: '100%', background: 'transparent', border: sidebarOpen ? `1px solid ${C.border}` : 'none', color: C.text2, borderRadius: 8, padding: '10px', fontSize: 14, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
             >
-              {sidebarOpen ? 'Log Out' : '🚪'}
+              <Icon name="logOut" size={15} color={C.text2} />
+              {sidebarOpen && 'Log Out'}
             </button>
           </div>
         </aside>
@@ -466,15 +468,15 @@ export default function App() {
                 <button onClick={handleManualRefresh} disabled={isRefreshing}
                   style={{ background: C.surface2, border: 'none', cursor: isRefreshing ? 'not-allowed' : 'pointer',
                     width: 36, height: 36, borderRadius: '50%', opacity: isRefreshing ? 0.5 : 1,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-                  {isRefreshing ? '⏳' : '🔄'}
+                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name={isRefreshing ? 'clock' : 'refresh'} size={16} color={C.text2} />
                 </button>
               )}
               <button onClick={() => setPrivacyMode((p) => !p)}
                 style={{ background: C.surface2, border: 'none', cursor: 'pointer',
                   width: 36, height: 36, borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-                {privacyMode ? '🙈' : '👁️'}
+                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name={privacyMode ? 'eyeOff' : 'eye'} size={16} color={privacyMode ? C.amber : C.text2} />
               </button>
             </div>
           </div>
@@ -502,7 +504,8 @@ export default function App() {
                     opacity: isRefreshing ? 0.6 : 1,
                   }}
                 >
-                  {isRefreshing ? '⏳ Syncing…' : '🔄 Refresh'}
+                  <Icon name={isRefreshing ? 'clock' : 'refresh'} size={14} color={isRefreshing ? C.text2 : C.text1} />
+                  {isRefreshing ? 'Syncing…' : 'Refresh'}
                 </button>
               )}
             </div>
@@ -625,7 +628,9 @@ export default function App() {
                         cursor: 'pointer', textAlign: 'left',
                         WebkitTapHighlightColor: 'transparent',
                       }}>
-                      <span style={{ fontSize: 22 }}>{n.icon}</span>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: view === n.id ? `${C.accent}22` : C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Icon name={n.icon} size={18} color={view === n.id ? C.accent : C.text2} />
+                      </div>
                       <span style={{ fontSize: 13, fontWeight: 600, color: view === n.id ? C.accent : C.textW }}>{n.label}</span>
                     </button>
                   ))}
@@ -683,8 +688,8 @@ export default function App() {
                       width: 36, height: 36, borderRadius: 12,
                       background: showMore ? C.accentBg : 'transparent',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      transition: 'background 0.15s', fontSize: 20,
-                    }}>☰</div>
+                      transition: 'background 0.15s',
+                    }}><Icon name="more" size={20} color={showMore ? C.accent : C.text3} /></div>
                     <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: showMore ? C.accent : C.text3 }}>More</span>
                   </button>
                 );
@@ -702,9 +707,9 @@ export default function App() {
                     width: 36, height: 36, borderRadius: 12,
                     background: isActive ? C.accentBg : 'transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'background 0.15s', fontSize: 20,
+                    transition: 'background 0.15s',
                   }}>
-                    {n.icon}
+                    <Icon name={n.icon} size={20} color={isActive ? C.accent : C.text3} />
                   </div>
                   <span style={{
                     fontSize: 9, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',

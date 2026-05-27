@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { AppData, Settings as SettingsType, HouseholdMode } from '@/types';
-import { Card, Btn, Inp, Label, SectionTitle, Toggle, PlanBadge, UsageMeter, ThemePicker, Collapsible } from '@/components/ui';
+import { ThemePicker } from '@/components/ui';
 import { Icon } from '@/components/Icon';
 import { C, HOUSEHOLD_MODE_META } from '@/constants';
 import { hasPartnerB } from '@/lib/householdModes';
@@ -28,7 +28,6 @@ interface SwitchInfo {
   type: 'upgrade' | 'downgrade';
   title: string;
   subtitle: string;
-  // What becomes visible (upgrades) or hidden (downgrades)
   changes: string[];
   note: string;
   offerNewHousehold: boolean;
@@ -126,7 +125,27 @@ const SWITCH_INFO: Record<string, Record<string, SwitchInfo>> = {
   },
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Mode icon map ────────────────────────────────────────────────────────────
+
+const MODE_ICONS: Record<string, string> = { joint: 'users', separate: 'user', solo: 'user' };
+
+// ─── Inline Toggle ────────────────────────────────────────────────────────────
+
+function InlineToggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div onClick={() => onChange(!on)} style={{
+      width: 44, height: 26, borderRadius: 99, cursor: 'pointer', flexShrink: 0,
+      background: on ? C.accent : C.surface2, position: 'relative', transition: 'background 0.2s',
+      border: `1px solid ${on ? C.accent : C.border2}`,
+    }}>
+      <div style={{
+        position: 'absolute', top: 3, left: on ? 'calc(100% - 22px)' : 3,
+        width: 18, height: 18, borderRadius: '50%', background: on ? '#0a0a0a' : C.text3,
+        transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+      }} />
+    </div>
+  );
+}
 
 // ─── Inline sub-components ───────────────────────────────────────────────────
 
@@ -157,17 +176,28 @@ function InviteLinkButton({ householdId }: { householdId: string }) {
   if (link) return (
     <div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input readOnly value={link} style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.text2, borderRadius: 0, padding: '10px 12px', fontSize: 13, outline: 'none' }} />
-        <button onClick={copy} style={{ background: copied ? C.green : C.amber, color: C.bg, border: 'none', borderRadius: 0, padding: '10px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', minHeight: 44, flexShrink: 0 }}>
+        <input readOnly value={link} style={{
+          flex: 1, background: C.surface2, border: '1.5px solid transparent',
+          borderRadius: 12, padding: '10px 13px', color: C.textW,
+          fontFamily: 'inherit', fontSize: 14, outline: 'none', boxSizing: 'border-box',
+        }} />
+        <button onClick={copy} style={{
+          background: copied ? C.green : C.accent, color: '#0a0a0a', border: 'none',
+          borderRadius: 999, padding: '10px 18px', fontWeight: 800, fontSize: 14,
+          cursor: 'pointer', flexShrink: 0,
+        }}>
           {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
-      <p style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>Link expires in 7 days. Generate a new one anytime.</p>
+      <p style={{ color: C.text3, fontSize: 12, marginTop: 8 }}>Link expires in 7 days. Generate a new one anytime.</p>
     </div>
   );
 
   return (
-    <button onClick={generate} disabled={loading} style={{ background: C.teal, color: C.bg, border: 'none', borderRadius: 0, padding: '11px 20px', fontWeight: 700, fontSize: 14, cursor: 'pointer', minHeight: 44 }}>
+    <button onClick={generate} disabled={loading} style={{
+      background: C.accent, color: '#0a0a0a', border: 'none', borderRadius: 999,
+      padding: '14px', fontWeight: 800, fontSize: 14, cursor: 'pointer', width: '100%',
+    }}>
       {loading ? 'Generating...' : 'Generate invite link'}
     </button>
   );
@@ -185,7 +215,7 @@ function ReferralCard({ householdId }: { householdId: string }) {
       .catch(() => {});
   }, [householdId]);
 
-  if (!data) return <div style={{ color: C.muted, fontSize: 13 }}>Loading...</div>;
+  if (!data) return <div style={{ color: C.text3, fontSize: 13 }}>Loading...</div>;
 
   const copy = () => {
     navigator.clipboard.writeText(data.shareUrl);
@@ -196,24 +226,56 @@ function ReferralCard({ householdId }: { householdId: string }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <input readOnly value={data.shareUrl} style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, color: C.text2, borderRadius: 0, padding: '10px 12px', fontSize: 13, outline: 'none' }} />
-        <button onClick={copy} style={{ background: copied ? C.green : C.amber, color: C.bg, border: 'none', borderRadius: 0, padding: '10px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', flexShrink: 0, minHeight: 44 }}>
+        <input readOnly value={data.shareUrl} style={{
+          flex: 1, background: C.surface2, border: '1.5px solid transparent',
+          borderRadius: 12, padding: '10px 13px', color: C.textW,
+          fontFamily: 'inherit', fontSize: 14, outline: 'none', boxSizing: 'border-box',
+        }} />
+        <button onClick={copy} style={{
+          background: copied ? C.green : C.accent, color: '#0a0a0a', border: 'none',
+          borderRadius: 999, padding: '10px 18px', fontWeight: 800, fontSize: 14,
+          cursor: 'pointer', flexShrink: 0,
+        }}>
           {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
-      <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
-        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '10px 16px', textAlign: 'center', flex: 1 }}>
+      <div style={{ display: 'flex', gap: 12, fontSize: 13 }}>
+        <div style={{ background: C.surface2, borderRadius: 12, padding: '10px 16px', textAlign: 'center', flex: 1 }}>
           <div style={{ color: C.textW, fontWeight: 800, fontSize: 20 }}>{data.referredCount}</div>
-          <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>friends referred</div>
+          <div style={{ color: C.text3, fontSize: 11, marginTop: 2 }}>friends referred</div>
         </div>
-        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, padding: '10px 16px', textAlign: 'center', flex: 1 }}>
+        <div style={{ background: C.surface2, borderRadius: 12, padding: '10px 16px', textAlign: 'center', flex: 1 }}>
           <div style={{ color: C.amber, fontWeight: 800, fontSize: 20 }}>+{data.bonusParses}</div>
-          <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>bonus parses earned</div>
+          <div style={{ color: C.text3, fontSize: 11, marginTop: 2 }}>bonus parses earned</div>
         </div>
       </div>
     </div>
   );
 }
+
+// ─── Shared style constants ───────────────────────────────────────────────────
+
+const cardStyle: React.CSSProperties = {
+  background: C.surface, borderRadius: 20, padding: '18px', boxShadow: C.shadowSm,
+};
+
+const inputStyle: React.CSSProperties = {
+  background: C.surface2, border: '1.5px solid transparent', borderRadius: 12,
+  padding: '10px 13px', color: C.textW, fontFamily: 'inherit', fontSize: 14,
+  outline: 'none', boxSizing: 'border-box', width: '100%',
+};
+
+const primaryBtnStyle: React.CSSProperties = {
+  background: C.accent, color: '#0a0a0a', border: 'none', borderRadius: 999,
+  padding: '14px', fontWeight: 800, fontSize: 14, cursor: 'pointer', width: '100%',
+};
+
+const ghostBtnStyle: React.CSSProperties = {
+  background: 'transparent', border: `1px solid ${C.border2}`, color: C.text2,
+  borderRadius: 999, padding: '10px 18px', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function Settings({ data, householdId, onSave, onExport, onImport, onJoinHousehold, theme = 'obsidian', onThemeChange, planInfo }: Props) {
 
@@ -228,38 +290,8 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
 
   // Collapsed section state — all start collapsed for a clean initial view
   const [openSection, setOpenSection] = useState<string | null>(null);
-  const toggleSection = (id: string) => setOpenSection((s) => s === id ? null : id);
+  const toggleSection = (id: string) => setOpenSection((prev) => prev === id ? null : id);
 
-  // Helper: collapsible card wrapper
-  const CollapsibleCard = ({
-    id, title, badge, children, defaultOpen = false,
-  }: { id: string; title: string; badge?: string; children: React.ReactNode; defaultOpen?: boolean }) => {
-    const isOpen = openSection === id || (defaultOpen && openSection === null);
-    return (
-      <Card style={{ padding: 0, overflow: 'hidden' }}>
-        <button
-          onClick={() => toggleSection(id)}
-          style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '16px 20px', background: 'transparent', border: 'none', cursor: 'pointer',
-            textAlign: 'left' as const }}
-        >
-          <div>
-            <span style={{ color: C.textW, fontWeight: 700, fontSize: 14 }}>{title}</span>
-            {badge && !isOpen && (
-              <span style={{ marginLeft: 10, fontSize: 11, color: C.muted, fontWeight: 400 }}>{badge}</span>
-            )}
-          </div>
-          <span style={{ color: C.muted, fontSize: 13, transition: 'transform 0.2s', display: 'inline-block',
-            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
-        </button>
-        {isOpen && (
-          <div style={{ padding: '0 20px 20px', borderTop: `1px solid ${C.border}` }}>
-            {children}
-          </div>
-        )}
-      </Card>
-    );
-  };
   const [downgradeModal, setDowngradeModal]   = useState<SwitchInfo | null>(null);
   const [pendingSettings, setPendingSettings] = useState<SettingsType | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -357,10 +389,10 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
     setNewIncCat('');
   };
 
-  const PROTECTED_CATS = ['Miscellaneous']; // cannot be removed by any user
+  const PROTECTED_CATS = ['Miscellaneous'];
 
   const removeExpCat = (c: string) => {
-    if (PROTECTED_CATS.includes(c)) return; // silently blocked
+    if (PROTECTED_CATS.includes(c)) return;
     setS((x) => ({ ...x, expenseCategories: x.expenseCategories.filter((e) => e !== c) }));
   };
 
@@ -397,26 +429,49 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
     window.location.reload();
   };
 
-  const catPillStyle: React.CSSProperties = {
-    background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0,
-    padding: '4px 10px', fontSize: 13, color: C.text1,
-    display: 'flex', alignItems: 'center', gap: 6,
+  // ── Collapsible section header builder ────────────────────────────────────
+
+  const SectionHeader = ({ id, title, badge }: { id: string; title: string; badge?: string }) => {
+    const isOpen = openSection === id;
+    return (
+      <button
+        onClick={() => toggleSection(id)}
+        style={{
+          width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '16px 18px', background: 'transparent', border: 'none', cursor: 'pointer',
+          textAlign: 'left' as const, borderRadius: isOpen ? '20px 20px 0 0' : 20,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: C.textW, fontWeight: 700, fontSize: 14 }}>{title}</span>
+          {badge && !isOpen && (
+            <span style={{ fontSize: 11, color: C.text3, fontWeight: 400 }}>{badge}</span>
+          )}
+        </div>
+        <div style={{
+          transition: 'transform 0.2s', display: 'inline-flex',
+          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+        }}>
+          <Icon name="chevronDown" size={16} color={C.text3} />
+        </div>
+      </button>
+    );
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, maxWidth: 720 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 720 }}>
 
       {/* ── Mode switch confirmation modal ─────────────────────────────────── */}
       {downgradeModal && (() => {
-        const isUpgrade  = downgradeModal.type === 'upgrade';
+        const isUpgrade   = downgradeModal.type === 'upgrade';
         const accentColor = isUpgrade ? C.green : C.amber;
         const icon        = isUpgrade ? '🚀' : '⚠️';
         const changesLabel = isUpgrade ? 'What gets unlocked:' : 'What becomes hidden in the UI (never deleted):';
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ background: C.surface, border: `1px solid ${accentColor}44`, borderRadius: 0, padding: 28, maxWidth: 480, width: '100%' }}>
+            <div style={{ background: C.surface, border: `1px solid ${accentColor}44`, borderRadius: 20, padding: 28, maxWidth: 480, width: '100%', boxShadow: C.shadowMd }}>
 
               {/* Header */}
               <div style={{ fontSize: 17, fontWeight: 800, color: accentColor, marginBottom: 4 }}>
@@ -427,7 +482,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               </p>
 
               {/* Changes list */}
-              <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
                 {changesLabel}
               </div>
               <ul style={{ margin: '0 0 14px 18px', padding: 0, lineHeight: 2 }}>
@@ -437,36 +492,60 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               </ul>
 
               {/* Note */}
-              <div style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}33`, borderRadius: 0, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: accentColor, lineHeight: 1.6 }}>
+              <div style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}33`, borderRadius: 12, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: accentColor, lineHeight: 1.6 }}>
                 💡 {downgradeModal.note}
               </div>
 
               {/* Actions */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {!isUpgrade && downgradeModal.offerNewHousehold && (
-                  <Btn variant="primary" onClick={handleModalNewHousehold} style={{ width: '100%' }}>
+                  <button
+                    onClick={handleModalNewHousehold}
+                    style={{ ...primaryBtnStyle, background: C.accent }}
+                  >
                     📦 Export my data &amp; start a fresh household
-                  </Btn>
+                  </button>
                 )}
-                <Btn
-                  variant={isUpgrade ? 'primary' : 'ghost'}
+                <button
                   onClick={handleModalProceed}
-                  style={{ width: '100%' }}
+                  style={{
+                    ...primaryBtnStyle,
+                    background: isUpgrade ? C.accent : 'transparent',
+                    border: isUpgrade ? 'none' : `1px solid ${C.border2}`,
+                    color: isUpgrade ? '#0a0a0a' : C.text2,
+                  }}
                 >
-                  {isUpgrade ? `✓ Yes, upgrade to ${downgradeModal.title.split('to ')[1]}` : downgradeModal.offerNewHousehold ? 'Switch anyway (keep this household)' : 'Yes, switch mode'}
-                </Btn>
-                <Btn variant={isUpgrade ? 'ghost' : 'danger'} onClick={handleModalCancel} style={{ width: '100%' }}>
+                  {isUpgrade
+                    ? `✓ Yes, upgrade to ${downgradeModal.title.split('to ')[1]}`
+                    : downgradeModal.offerNewHousehold
+                      ? 'Switch anyway (keep this household)'
+                      : 'Yes, switch mode'}
+                </button>
+                <button
+                  onClick={handleModalCancel}
+                  style={{
+                    ...ghostBtnStyle,
+                    background: isUpgrade ? 'transparent' : 'transparent',
+                    border: `1px solid ${C.red}44`,
+                    color: C.red,
+                    width: '100%',
+                  }}
+                >
                   Cancel — stay on current mode
-                </Btn>
+                </button>
               </div>
             </div>
           </div>
         );
       })()}
 
-      {/* ── Profile card ─────────────────────────────────────────────────── */}
-      <div style={{ background: C.surface, borderRadius: 20, padding: 20, display: 'flex', alignItems: 'center', gap: 14, boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.accent, color: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 900, flexShrink: 0 }}>
+      {/* ── 1. Profile hero card ──────────────────────────────────────────── */}
+      <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{
+          width: 56, height: 56, borderRadius: '50%', background: C.accent, color: '#0a0a0a',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22, fontWeight: 900, flexShrink: 0,
+        }}>
           {(s.partnerAName || 'U').charAt(0).toUpperCase()}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -478,17 +557,46 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
           </div>
         </div>
         {planInfo?.plan === 'pro' && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, letterSpacing: '0.02em', color: C.accent, border: `1px solid ${C.accent}`, flexShrink: 0 }}>✦ PRO</span>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+            borderRadius: 999, fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
+            color: C.accent, border: `1px solid ${C.accent}`, flexShrink: 0,
+          }}>✦ PRO</span>
         )}
       </div>
 
-      {/* ── Plan & Usage ──────────────────────────────────────────────────── */}
-      <Card style={{ border: planInfo?.plan === 'pro' ? '1px solid rgba(245,158,11,0.4)' : undefined }}>
+      {/* ── 2. Logout button ─────────────────────────────────────────────── */}
+      <button
+        onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/'; })}
+        style={{
+          background: 'transparent', border: `1px solid ${C.red}44`, color: C.red,
+          borderRadius: 999, padding: '12px 18px', fontWeight: 700, fontSize: 14,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          gap: 8, fontFamily: 'inherit',
+        }}
+      >
+        <Icon name="arrowRight" size={16} color={C.red} />
+        Log Out
+      </button>
+
+      {/* ── 3. Plan & Usage (not collapsible) ────────────────────────────── */}
+      <div style={{ ...cardStyle, border: planInfo?.plan === 'pro' ? `1px solid ${C.amber}44` : undefined }}>
+        {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <SectionTitle style={{ margin: 0 }}>Your Plan</SectionTitle>
-          <PlanBadge plan={planInfo?.plan ?? 'free'} />
+          <span style={{ color: C.textW, fontWeight: 700, fontSize: 14 }}>Your Plan</span>
+          {/* Plan badge pill */}
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', padding: '4px 12px',
+            borderRadius: 999, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+            background: planInfo?.plan === 'pro' ? `${C.amber}22` : C.surface2,
+            color: planInfo?.plan === 'pro' ? C.amber : C.text3,
+            border: `1px solid ${planInfo?.plan === 'pro' ? C.amber + '66' : C.border}`,
+          }}>
+            {planInfo?.plan === 'pro' ? '✦ PRO' : 'FREE'}
+          </span>
         </div>
-        {/* AI parse usage — always shown, even at 0, even while loading */}
+
+        {/* AI parse usage */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: 12, color: C.text2 }}>AI parses used this month</span>
@@ -500,8 +608,8 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                 : '— / 30'}
             </span>
           </div>
-          {/* Progress bar — always rendered, 0% width when no data yet */}
-          <div style={{ background: C.border, borderRadius: 0, height: 6, overflow: 'hidden' }}>
+          {/* Progress bar */}
+          <div style={{ background: C.surface2, borderRadius: 99, height: 6, overflow: 'hidden' }}>
             <div style={{
               width: planInfo
                 ? planInfo.plan === 'pro' ? '100%' : `${planInfo.pct}%`
@@ -511,7 +619,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                 ? C.teal
                 : !planInfo || planInfo.pct < 70 ? C.green
                 : planInfo.pct < 90 ? C.amber : C.red,
-              borderRadius: 0,
+              borderRadius: 99,
               transition: 'width 0.4s',
             }} />
           </div>
@@ -526,366 +634,480 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             </div>
           )}
           {!planInfo && (
-            <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
+            <div style={{ fontSize: 11, color: C.text3, marginTop: 5 }}>
               Loading usage data…
             </div>
           )}
         </div>
 
-        {/* Upgrade CTA — shown for free plan OR while loading (assume free until known) */}
+        {/* Upgrade CTA — free plan */}
         {(!planInfo || planInfo.plan === 'free') && (
-          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 0, marginBottom: 0 }}>
+          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 12, marginBottom: 0 }}>
             <div style={{ color: C.textW, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
               ✦ Upgrade to Pro
             </div>
             <div style={{ color: C.text2, fontSize: 12, marginBottom: 10, lineHeight: 1.6 }}>
               Free plan: 30 AI parses/month · Pro plan: unlimited. The number wizard is always free.
             </div>
-            <Btn variant="primary" style={{ width: '100%' }} onClick={() => {
-              window.open('mailto:team@chillarflow.com?subject=Pro%20Upgrade&body=Household%20ID:%20' + householdId, '_blank');
-            }}>
+            <button
+              style={{ ...primaryBtnStyle }}
+              onClick={() => {
+                window.open('mailto:team@chillarflow.com?subject=Pro%20Upgrade&body=Household%20ID:%20' + householdId, '_blank');
+              }}
+            >
               ✦ Upgrade to Pro — Unlimited AI logging
-            </Btn>
+            </button>
           </div>
         )}
 
         {/* Pro active state */}
         {planInfo?.plan === 'pro' && (
-          <div style={{ padding: '10px 14px', background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 0, textAlign: 'center' }}>
+          <div style={{ padding: '10px 14px', background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 12, textAlign: 'center' }}>
             <div className="pro-badge" style={{ fontSize: 15, marginBottom: 4 }}>✦ PRO PLAN ACTIVE</div>
             <div style={{ color: C.text2, fontSize: 12 }}>Thank you for supporting ChillarFlow!</div>
           </div>
         )}
-      </Card>
+      </div>
 
-      {/* ── Household Mode ──────────────────────────────────────────── */}
-      <CollapsibleCard id="mode" title="Household Mode" badge={HOUSEHOLD_MODE_META[s.householdMode]?.label ?? ''}>
-        <p style={{ color: C.muted, fontSize: 13, margin: '14px 0', lineHeight: 1.5 }}>
-          Adjusts which features are available. No data is ever deleted when switching modes.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {modes.map((m) => {
-            const meta   = HOUSEHOLD_MODE_META[m];
-            const active = s.householdMode === m;
-            const isOpen = expandedMode === m;
-            return (
-              <div key={m}>
-                {/* Mode row — click to select, chevron to expand */}
-                <div
-                  onClick={() => setS((x) => ({ ...x, householdMode: m }))}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
-                    background: active ? C.amber + '18' : C.bg,
-                    border: `2px solid ${active ? C.amber : C.border}`,
-                    borderRadius: isOpen ? '10px 10px 0 0' : 10,
-                    padding: '12px 14px', transition: 'all 0.2s' }}
-                >
-                  {/* Active indicator dot */}
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
-                    border: `2px solid ${active ? C.amber : C.border}`,
-                    background: active ? C.amber : 'transparent',
-                    transition: 'all 0.2s' }} />
-                  <span style={{ fontSize: 18 }}>{meta.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: C.textW, fontWeight: 700, fontSize: 14 }}>{meta.label}</div>
-                    <div style={{ color: C.text2, fontSize: 12, marginTop: 2, lineHeight: 1.4 }}>{meta.description}</div>
-                  </div>
-                  {/* Chevron toggle */}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setExpandedMode(isOpen ? null : m); }}
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer',
-                      color: isOpen ? C.amber : C.muted, fontSize: 14, padding: '4px 6px',
-                      display: 'flex', alignItems: 'center', flexShrink: 0,
-                      transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.2s, color 0.2s' }}
-                  >
-                    ▾
-                  </button>
-                </div>
-
-                {/* Expandable detail panel — full width, below the row */}
-                {isOpen && (
-                  <div style={{ background: `${C.amber}08`,
-                    border: `2px solid ${active ? C.amber : C.border}`, borderTop: 'none',
-                    borderRadius: 0, padding: '12px 16px' }}>
-                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 600,
-                      textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 10 }}>
-                      What you get with {meta.label}:
+      {/* ── 4. Household Mode (collapsible) ──────────────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <SectionHeader id="mode" title="Household Mode" badge={HOUSEHOLD_MODE_META[s.householdMode]?.label ?? ''} />
+        {openSection === 'mode' && (
+          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+            <p style={{ color: C.text3, fontSize: 13, margin: '14px 0', lineHeight: 1.5 }}>
+              Adjusts which features are available. No data is ever deleted when switching modes.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {modes.map((m) => {
+                const meta   = HOUSEHOLD_MODE_META[m];
+                const active = s.householdMode === m;
+                const isOpen = expandedMode === m;
+                return (
+                  <div key={m}>
+                    {/* Mode row */}
+                    <div
+                      onClick={() => setS((x) => ({ ...x, householdMode: m }))}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer',
+                        background: active ? `${C.accent}18` : C.surface2,
+                        border: `2px solid ${active ? C.accent : C.border}`,
+                        borderRadius: isOpen ? '12px 12px 0 0' : 12,
+                        padding: '12px 14px', transition: 'all 0.2s',
+                      }}
+                    >
+                      {/* Active indicator dot */}
+                      <div style={{
+                        width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                        border: `2px solid ${active ? C.accent : C.border}`,
+                        background: active ? C.accent : 'transparent',
+                        transition: 'all 0.2s',
+                      }} />
+                      {/* Mode icon */}
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                        background: active ? `${C.accent}22` : C.surface,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icon name={MODE_ICONS[m] ?? 'user'} size={16} color={active ? C.accent : C.text3} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ color: C.textW, fontWeight: 700, fontSize: 14 }}>{meta.label}</div>
+                        <div style={{ color: C.text2, fontSize: 12, marginTop: 2, lineHeight: 1.4 }}>{meta.description}</div>
+                      </div>
+                      {/* Chevron toggle */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setExpandedMode(isOpen ? null : m); }}
+                        style={{
+                          background: 'transparent', border: 'none', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', flexShrink: 0, padding: '4px 6px',
+                          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s',
+                        }}
+                      >
+                        <Icon name="chevronDown" size={16} color={isOpen ? C.accent : C.text3} />
+                      </button>
                     </div>
-                    {((meta as any).detail as string[]).map((line: string, i: number) => (
-                      <div key={i} style={{ fontSize: 13, color: C.text2, marginBottom: 8,
-                        lineHeight: 1.5, display: 'flex', gap: 8 }}>
-                        <span style={{ flexShrink: 0 }}>{line.slice(0, 2)}</span>
-                        <span>{line.slice(2)}</span>
+
+                    {/* Expandable detail panel */}
+                    {isOpen && (
+                      <div style={{
+                        background: `${C.accent}08`,
+                        border: `2px solid ${active ? C.accent : C.border}`, borderTop: 'none',
+                        borderRadius: '0 0 12px 12px', padding: '12px 16px',
+                      }}>
+                        <div style={{
+                          fontSize: 11, color: C.text3, fontWeight: 600,
+                          textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 10,
+                        }}>
+                          What you get with {meta.label}:
+                        </div>
+                        {((meta as any).detail as string[]).map((line: string, i: number) => (
+                          <div key={i} style={{ fontSize: 13, color: C.text2, marginBottom: 8, lineHeight: 1.5, display: 'flex', gap: 8 }}>
+                            <span style={{ flexShrink: 0 }}>{line.slice(0, 2)}</span>
+                            <span>{line.slice(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 5. Partner Names (collapsible) ───────────────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <SectionHeader id="partnerNames" title="Partner Names" />
+        {openSection === 'partnerNames' && (
+          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+            <div style={{ paddingTop: 14, display: 'grid', gridTemplateColumns: partnerB ? '1fr 1fr' : '1fr', gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, marginBottom: 6 }}>
+                  {partnerB ? 'Partner A Name' : 'Your Name'}
+                </div>
+                <input
+                  value={s.partnerAName}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, partnerAName: e.target.value }))}
+                  style={inputStyle}
+                />
+              </div>
+              {partnerB && (
+                <div>
+                  <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, marginBottom: 6 }}>Partner B Name</div>
+                  <input
+                    value={s.partnerBName}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, partnerBName: e.target.value }))}
+                    style={inputStyle}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 6. Active Device Profile (collapsible, only if partnerB) ──────── */}
+      {partnerB && (
+        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', border: `1px solid ${C.purple}44` }}>
+          <SectionHeader id="deviceProfile" title="Active Device Profile" />
+          {openSection === 'deviceProfile' && (
+            <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+              <p style={{ color: C.text3, fontSize: 13, margin: '14px 0 6px' }}>
+                Select which partner is using this device. This auto-tags new expenses.
+              </p>
+              <p style={{ color: C.text3, fontSize: 12, margin: '0 0 14px' }}>
+                Currently registered as{' '}
+                <strong style={{ color: C.textW }}>
+                  {currentCloudRole === 'Partner A' ? s.partnerAName : s.partnerBName}
+                </strong>{' '}({currentCloudRole}).
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {(['Partner A', 'Partner B'] as const).map((role) => (
+                  <button
+                    key={role}
+                    onClick={() => switchRole(role)}
+                    style={{
+                      flex: 1,
+                      ...(currentCloudRole === role
+                        ? { ...primaryBtnStyle, width: 'auto' }
+                        : { ...ghostBtnStyle }),
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    }}
+                  >
+                    <Icon name="user" size={14} color={currentCloudRole === role ? '#0a0a0a' : C.text2} />
+                    {role === 'Partner A' ? s.partnerAName : s.partnerBName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── 7. Telegram Integration (collapsible) ────────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', border: `1px solid ${C.teal}44` }}>
+        <SectionHeader id="telegram" title="Telegram Bot Integration" />
+        {openSection === 'telegram' && (
+          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+            <p style={{ color: C.text1, fontSize: 13, margin: '14px 0', lineHeight: 1.5 }}>
+              {telegramLinked
+                ? 'Your Telegram account is connected. Send a message to log expenses instantly.'
+                : 'Link your Telegram username to log expenses from your phone in seconds.'}
+            </p>
+
+            {/* Username input */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input
+                type="text"
+                disabled={telegramLinked}
+                placeholder={telegramLinked ? `@${telegramHandle}` : 'e.g. yourhandle (without @)'}
+                value={telegramLinked ? `@${telegramHandle}` : (s.telegramUsername ?? '')}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setS((x) => ({ ...x, telegramUsername: e.target.value.replace(/@/g, '').trim() }))}
+                style={{
+                  ...inputStyle,
+                  opacity: telegramLinked ? 0.7 : 1,
+                  cursor: telegramLinked ? 'not-allowed' : 'text',
+                  flex: 1, width: 'auto',
+                }}
+              />
+              {telegramLinked && (
+                <button
+                  onClick={() => setS((x) => ({ ...x, telegramUsername: '' }))}
+                  style={{
+                    background: 'transparent', border: `1px solid ${C.red}44`, color: C.red,
+                    borderRadius: 999, padding: '10px 18px', fontWeight: 600, fontSize: 14,
+                    cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  Unlink
+                </button>
+              )}
+            </div>
+
+            {/* Setup guide — collapsible */}
+            <div style={{ background: C.surface2, borderRadius: 12, overflow: 'hidden' }}>
+              <button
+                onClick={() => setExpandedTg((v) => !v)}
+                style={{
+                  width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '12px 16px', background: 'transparent', border: 'none', cursor: 'pointer',
+                }}
+              >
+                <span style={{ fontSize: 12, color: C.text3, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
+                  {expandedTg ? 'Hide setup guide' : 'How to set up & logging syntax'}
+                </span>
+                <div style={{ transform: expandedTg ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'inline-flex' }}>
+                  <Icon name="chevronDown" size={14} color={C.text3} />
+                </div>
+              </button>
+              {expandedTg && (
+                <div style={{ padding: '0 16px 14px' }}>
+                  <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 12 }}>
+                    How to set up
+                  </div>
+                  {[
+                    { step: '1', text: 'Open Telegram and start a chat with your bot (link provided by the admin)' },
+                    { step: '2', text: 'Send /start to activate it' },
+                    { step: '3', text: 'Enter your Telegram username above (without @) and save Settings' },
+                    { step: '4', text: 'Start logging! Try: 450 Zomato' },
+                  ].map(({ step, text }) => (
+                    <div key={step} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13, color: C.text2, lineHeight: 1.5 }}>
+                      <span style={{ background: `${C.teal}22`, color: C.teal, borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{step}</span>
+                      <span>{text}</span>
+                    </div>
+                  ))}
+                  <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 10, paddingTop: 12 }}>
+                    <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, marginBottom: 8 }}>Logging syntax</div>
+                    {[
+                      { code: '450 Zomato',           desc: 'Personal expense' },
+                      { code: '450 Zomato to settle', desc: 'Joint pool reimburses you' },
+                      { code: '500',                  desc: 'Interactive wizard' },
+                      { code: '/recent',              desc: 'View & edit last 3 transactions' },
+                      { code: '/summary',             desc: 'This month\'s snapshot' },
+                      { code: '/usage',               desc: 'Check AI parse usage' },
+                    ].map(({ code, desc }) => (
+                      <div key={code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' as const, gap: 6 }}>
+                        <code style={{ background: `${C.border}40`, padding: '2px 8px', borderRadius: 6, fontSize: 11, color: C.teal }}>{code}</code>
+                        <span style={{ fontSize: 11, color: C.text3 }}>{desc}</span>
                       </div>
                     ))}
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </CollapsibleCard>
-
-      {/* ── Partner Names ─────────────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Partner Names</SectionTitle>
-        <div style={{ display: 'grid', gridTemplateColumns: partnerB ? '1fr 1fr' : '1fr', gap: 14 }}>
-          <div>
-            <Label>{partnerB ? 'Partner A Name' : 'Your Name'}</Label>
-            <Inp value={s.partnerAName}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, partnerAName: e.target.value }))} />
-          </div>
-          {partnerB && (
-            <div>
-              <Label>Partner B Name</Label>
-              <Inp value={s.partnerBName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, partnerBName: e.target.value }))} />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </Card>
-
-      {/* ── Active Device Profile ─────────────────────────────────────────── */}
-      {partnerB && (
-        <Card style={{ border: `1px solid ${C.purple}44` }}>
-          <SectionTitle>Active Device Profile</SectionTitle>
-          <p style={{ color: C.muted, fontSize: 13, margin: '0 0 6px' }}>
-            Select which partner is using this device. This auto-tags new expenses.
-          </p>
-          <p style={{ color: C.muted, fontSize: 12, margin: '0 0 12px' }}>
-            Currently registered as{' '}
-            <strong style={{ color: C.textW }}>
-              {currentCloudRole === 'Partner A' ? s.partnerAName : s.partnerBName}
-            </strong>{' '}({currentCloudRole}).
-          </p>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {(['Partner A', 'Partner B'] as const).map((role) => (
-              <Btn key={role} variant={currentCloudRole === role ? 'primary' : 'ghost'}
-                style={{ flex: 1 }} onClick={() => switchRole(role)}>
-                👤 {role === 'Partner A' ? s.partnerAName : s.partnerBName}
-              </Btn>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* ── Telegram Integration ──────────────────────────────────────────── */}
-      <Card style={{ border: `1px solid ${C.teal}44` }}>
-        <SectionTitle>Telegram Bot Integration</SectionTitle>
-        <p style={{ color: C.text1, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
-          {telegramLinked
-            ? 'Your Telegram account is connected. Send a message to log expenses instantly.'
-            : 'Link your Telegram username to log expenses from your phone in seconds.'}
-        </p>
-
-        {/* Username input */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          <input type="text" disabled={telegramLinked}
-            placeholder={telegramLinked ? `@${telegramHandle}` : 'e.g. yourhandle (without @)'}
-            value={telegramLinked ? `@${telegramHandle}` : (s.telegramUsername ?? '')}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setS((x) => ({ ...x, telegramUsername: e.target.value.replace(/@/g, '').trim() }))}
-            style={{ background: telegramLinked ? `${C.bg}80` : C.bg,
-              border: `1px solid ${telegramLinked ? C.border : C.teal}`,
-              color: telegramLinked ? C.text2 : C.textW,
-              borderRadius: 0, padding: '10px 14px', flex: 1,
-              boxSizing: 'border-box' as const, outline: 'none', fontSize: 16,
-              opacity: telegramLinked ? 0.7 : 1,
-              cursor: telegramLinked ? 'not-allowed' : 'text' }} />
-          {telegramLinked && (
-            <Btn variant="danger" onClick={() => setS((x) => ({ ...x, telegramUsername: '' }))}>Unlink</Btn>
-          )}
-        </div>
-
-        {/* Setup guide — collapsible */}
-        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 0, overflow: 'hidden' }}>
-          <button
-            onClick={() => setExpandedTg((v) => !v)}
-            style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '12px 16px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-            <span style={{ fontSize: 12, color: C.muted, fontWeight: 600,
-              textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
-              {expandedTg ? 'Hide setup guide' : 'How to set up & logging syntax'}
-            </span>
-            <span style={{ color: C.muted, fontSize: 14,
-              transform: expandedTg ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: 'transform 0.2s', display: 'inline-block' }}>▾</span>
-          </button>
-          {expandedTg && <div style={{ padding: '0 16px 14px' }}>
-          <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 12 }}>
-            How to set up
-          </div>
-          {[
-            { step: '1', text: 'Open Telegram and start a chat with your bot (link provided by the admin)' },
-            { step: '2', text: 'Send /start to activate it' },
-            { step: '3', text: 'Enter your Telegram username above (without @) and save Settings' },
-            { step: '4', text: 'Start logging! Try: 450 Zomato' },
-          ].map(({ step, text }) => (
-            <div key={step} style={{ display: 'flex', gap: 10, marginBottom: 10, fontSize: 13, color: C.text2, lineHeight: 1.5 }}>
-              <span style={{ background: `${C.teal}22`, color: C.teal, borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{step}</span>
-              <span>{text}</span>
-            </div>
-          ))}
-          <div style={{ borderTop: `1px solid ${C.border}`, marginTop: 10, paddingTop: 12 }}>
-            <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 8 }}>Logging syntax</div>
-            {[
-              { code: '450 Zomato',            desc: 'Personal expense' },
-              { code: '450 Zomato to settle',  desc: 'Joint pool reimburses you' },
-              { code: '500',                   desc: 'Interactive wizard' },
-              { code: '/recent',               desc: 'View & edit last 3 transactions' },
-              { code: '/summary',              desc: 'This month\'s snapshot' },
-              { code: '/usage',                desc: 'Check AI parse usage' },
-            ].map(({ code, desc }) => (
-              <div key={code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' as const, gap: 6 }}>
-                <code style={{ background: `${C.border}40`, padding: '2px 8px', borderRadius: 0, fontSize: 11, color: C.teal }}>{code}</code>
-                <span style={{ fontSize: 11, color: C.muted }}>{desc}</span>
-              </div>
-            ))}
-          </div>
-          </div>}
-        </div>
-      </Card>
-
-      {/* ── WhatsApp Integration ─────────────────────────────────────────────── */}
-      <Card style={{ border: `1px solid #25D36644` }}>
-        <SectionTitle>WhatsApp Integration</SectionTitle>
-        <p style={{ color: C.text1, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
-          {waLinked
-            ? 'Your WhatsApp is connected. Send a message to log expenses instantly.'
-            : 'Link your WhatsApp number to log expenses from WhatsApp.'}
-        </p>
-
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <input
-            type="tel"
-            disabled={waLinked}
-            placeholder="Country code + number, e.g. 919876543210"
-            value={waLinked ? waNumber : (s.whatsappNumber ?? '')}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setS((x) => ({ ...x, whatsappNumber: e.target.value.replace(/\D/g, '') }))
-            }
-            style={{
-              background: waLinked ? `${C.bg}80` : C.bg,
-              border: `1px solid ${waLinked ? C.border : '#25D366'}`,
-              color: waLinked ? C.text2 : C.textW,
-              borderRadius: 0, padding: '10px 14px', flex: 1,
-              boxSizing: 'border-box' as const, outline: 'none', fontSize: 16,
-              opacity: waLinked ? 0.7 : 1,
-              cursor: waLinked ? 'not-allowed' : 'text',
-            }}
-          />
-          {waLinked && (
-            <Btn variant="danger" onClick={() => setS((x) => ({ ...x, whatsappNumber: '' }))}>Unlink</Btn>
-          )}
-        </div>
-
-        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
-          <strong style={{ color: C.text1 }}>Format:</strong> Country code + number without spaces or +<br />
-          India example: <code style={{ background: `${C.border}40`, padding: '1px 6px', borderRadius: 0 }}>919876543210</code>
-        </div>
-
-        {!waLinked && (
-          <div style={{ marginTop: 12, padding: '10px 14px', background: '#25D36610', border: '1px solid #25D36633', borderRadius: 0, fontSize: 12, color: '#25D366', lineHeight: 1.6 }}>
-            After linking, open WhatsApp and send <strong>hi</strong> to the ChillarFlow number to activate your account.
           </div>
         )}
-      </Card>
+      </div>
 
-      {/* ── Expense Categories ────────────────────────────────────────────── */}
-      <CollapsibleCard id="expCats" title="Expense Categories" badge={`${s.expenseCategories.length} categories`}>
-        <div style={{ paddingTop: 14 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
-          {s.expenseCategories.map((c) => (
-            <span key={c} style={{
-              ...catPillStyle,
-              ...(c === 'Miscellaneous' ? { border: `1px solid ${C.teal}44`, background: `${C.teal}0a` } : {}),
-            }}>
-              {c}
-              {c === 'Miscellaneous' ? (
-                <span title="Required — cannot be removed" style={{ color: C.teal, fontSize: 11, cursor: 'default', lineHeight: 1 }}>🔒</span>
-              ) : (
-                <span onClick={() => removeExpCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span>
-              )}
-            </span>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Inp value={newExpCat} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewExpCat(e.target.value)}
-            placeholder="Add category…" onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && addExpCat()}
-            style={{ flex: 1 }} />
-          <Btn variant="ghost" onClick={addExpCat}>Add</Btn>
-        </div>
-        </div>
-      </CollapsibleCard>
+      {/* ── 8. WhatsApp Integration (collapsible) ────────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', border: '1px solid #25D36644' }}>
+        <SectionHeader id="whatsapp" title="WhatsApp Integration" />
+        {openSection === 'whatsapp' && (
+          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+            <p style={{ color: C.text1, fontSize: 13, margin: '14px 0', lineHeight: 1.5 }}>
+              {waLinked
+                ? 'Your WhatsApp is connected. Send a message to log expenses instantly.'
+                : 'Link your WhatsApp number to log expenses from WhatsApp.'}
+            </p>
 
-      {/* ── Income Categories ─────────────────────────────────────────────── */}
-      <CollapsibleCard id="incCats" title="Income Categories" badge={`${s.incomeCategories.length} categories`}>
-        <div style={{ paddingTop: 14 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
-          {s.incomeCategories.map((c) => (
-            <span key={c} style={catPillStyle}>
-              {c}
-              <span onClick={() => removeIncCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span>
-            </span>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Inp value={newIncCat} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewIncCat(e.target.value)}
-            placeholder="Add income category…" onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && addIncCat()}
-            style={{ flex: 1 }} />
-          <Btn variant="ghost" onClick={addIncCat}>Add</Btn>
-        </div>
-        </div>
-      </CollapsibleCard>
-
-      {/* ── Category Budgets ──────────────────────────────────────────────── */}
-      <CollapsibleCard id="budgets" title="Category Budgets" badge={`${Object.values(s.budgets).filter(Boolean).length} limits set`}>
-        <div style={{ paddingTop: 14 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-          <span style={{ fontSize: 12, color: C.muted }}>Monthly limit per category. Overages flagged on dashboard.</span>
-          {Object.keys(s.budgets).some((k) => s.budgets[k] !== undefined) && (
-            <button
-              onClick={() => {
-                if (window.confirm('Remove all budget limits? This cannot be undone.')) {
-                  setS((x) => ({ ...x, budgets: {} }));
-                }
-              }}
-              style={{ background: 'transparent', border: `1px solid ${C.red}44`, color: C.red, borderRadius: 0, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}
-            >
-              Reset All
-            </button>
-          )}
-        </div>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
-          Set a monthly spending limit per category. Overages are flagged on the dashboard.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {s.expenseCategories.map((c) => (
-            <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              <span style={{ color: C.text1, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                {c}
-              </span>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
               <input
-                type="number"
-                placeholder="No limit"
-                value={s.budgets[c] ?? ''}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                  const v = e.target.value;
-                  setS((x) => ({ ...x, budgets: { ...x.budgets, [c]: v ? Number(v) : undefined } }));
+                type="tel"
+                disabled={waLinked}
+                placeholder="Country code + number, e.g. 919876543210"
+                value={waLinked ? waNumber : (s.whatsappNumber ?? '')}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setS((x) => ({ ...x, whatsappNumber: e.target.value.replace(/\D/g, '') }))
+                }
+                style={{
+                  ...inputStyle,
+                  opacity: waLinked ? 0.7 : 1,
+                  cursor: waLinked ? 'not-allowed' : 'text',
+                  flex: 1, width: 'auto',
                 }}
-                style={{ width: 88, flexShrink: 0, padding: '6px 8px', fontSize: 13,
-                  background: C.bg, border: `1px solid ${C.border}`, color: C.textW,
-                  borderRadius: 0, outline: 'none', WebkitAppearance: 'none' as any }}
               />
+              {waLinked && (
+                <button
+                  onClick={() => setS((x) => ({ ...x, whatsappNumber: '' }))}
+                  style={{
+                    background: 'transparent', border: `1px solid ${C.red}44`, color: C.red,
+                    borderRadius: 999, padding: '10px 18px', fontWeight: 600, fontSize: 14,
+                    cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  Unlink
+                </button>
+              )}
             </div>
-          ))}
-        </div>
-        </div>
-      </CollapsibleCard>
 
-      {/* ── Push Notifications ────────────────────────────────────────────── */}
-      <div style={{ background: C.surface, borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.2)' }}>
-        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
+            <div style={{ fontSize: 12, color: C.text3, lineHeight: 1.6 }}>
+              <strong style={{ color: C.text1 }}>Format:</strong> Country code + number without spaces or +<br />
+              India example: <code style={{ background: `${C.border}40`, padding: '1px 6px', borderRadius: 6 }}>919876543210</code>
+            </div>
+
+            {!waLinked && (
+              <div style={{ marginTop: 12, padding: '10px 14px', background: '#25D36610', border: '1px solid #25D36633', borderRadius: 12, fontSize: 12, color: '#25D366', lineHeight: 1.6 }}>
+                After linking, open WhatsApp and send <strong>hi</strong> to the ChillarFlow number to activate your account.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── 9. Expense Categories (collapsible) ──────────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <SectionHeader id="expCats" title="Expense Categories" badge={`${s.expenseCategories.length} categories`} />
+        {openSection === 'expCats' && (
+          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+            <div style={{ paddingTop: 14 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
+                {s.expenseCategories.map((c) => (
+                  <span key={c} style={{
+                    background: c === 'Miscellaneous' ? `${C.teal}0a` : C.surface2,
+                    border: `1px solid ${c === 'Miscellaneous' ? C.teal + '44' : C.border}`,
+                    borderRadius: 99, padding: '4px 10px', fontSize: 13, color: C.text1,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    {c}
+                    {c === 'Miscellaneous' ? (
+                      <span title="Required — cannot be removed" style={{ color: C.teal, fontSize: 11, cursor: 'default', lineHeight: 1 }}>🔒</span>
+                    ) : (
+                      <span onClick={() => removeExpCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={newExpCat}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewExpCat(e.target.value)}
+                  placeholder="Add category…"
+                  onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && addExpCat()}
+                  style={{ ...inputStyle, flex: 1, width: 'auto' }}
+                />
+                <button onClick={addExpCat} style={ghostBtnStyle}>Add</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 10. Income Categories (collapsible) ───────────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <SectionHeader id="incCats" title="Income Categories" badge={`${s.incomeCategories.length} categories`} />
+        {openSection === 'incCats' && (
+          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+            <div style={{ paddingTop: 14 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
+                {s.incomeCategories.map((c) => (
+                  <span key={c} style={{
+                    background: C.surface2, border: `1px solid ${C.border}`,
+                    borderRadius: 99, padding: '4px 10px', fontSize: 13, color: C.text1,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    {c}
+                    <span onClick={() => removeIncCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span>
+                  </span>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={newIncCat}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewIncCat(e.target.value)}
+                  placeholder="Add income category…"
+                  onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && addIncCat()}
+                  style={{ ...inputStyle, flex: 1, width: 'auto' }}
+                />
+                <button onClick={addIncCat} style={ghostBtnStyle}>Add</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 11. Category Budgets (collapsible) ───────────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <SectionHeader id="budgets" title="Category Budgets" badge={`${Object.values(s.budgets).filter(Boolean).length} limits set`} />
+        {openSection === 'budgets' && (
+          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+            <div style={{ paddingTop: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: C.text3 }}>Monthly limit per category. Overages flagged on dashboard.</span>
+                {Object.keys(s.budgets).some((k) => s.budgets[k] !== undefined) && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Remove all budget limits? This cannot be undone.')) {
+                        setS((x) => ({ ...x, budgets: {} }));
+                      }
+                    }}
+                    style={{
+                      background: 'transparent', border: `1px solid ${C.red}44`, color: C.red,
+                      borderRadius: 999, padding: '4px 10px', fontSize: 11, cursor: 'pointer',
+                      fontWeight: 600, flexShrink: 0,
+                    }}
+                  >
+                    Reset All
+                  </button>
+                )}
+              </div>
+              <p style={{ color: C.text3, fontSize: 13, margin: '0 0 14px' }}>
+                Set a monthly spending limit per category. Overages are flagged on the dashboard.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {s.expenseCategories.map((c) => (
+                  <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <span style={{ color: C.text1, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                      {c}
+                    </span>
+                    <input
+                      type="number"
+                      placeholder="No limit"
+                      value={s.budgets[c] ?? ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        const v = e.target.value;
+                        setS((x) => ({ ...x, budgets: { ...x.budgets, [c]: v ? Number(v) : undefined } }));
+                      }}
+                      style={{
+                        width: 88, flexShrink: 0, padding: '6px 8px', fontSize: 13,
+                        background: C.surface2, border: `1px solid ${C.border}`, color: C.textW,
+                        borderRadius: 12, outline: 'none', WebkitAppearance: 'none' as any,
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── 12. Notifications (not collapsible) ──────────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}` }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.text3 }}>Notifications</div>
         </div>
         {([
@@ -893,157 +1115,228 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
           { icon: 'alert', title: 'Budget alerts', sub: 'At 80% of monthly budget', on: s.notifications.budgetAlert, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetAlert: v } })) },
           { icon: 'refresh', title: 'Settlement reminders', sub: 'When partner adds or settles', on: s.notifications.settlement, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, settlement: v } })) },
           { icon: 'wallet', title: 'Partner expense alerts', sub: 'Notify when partner logs an expense', on: s.notifications.newExpense, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, newExpense: v } })) },
-        ]).map((row, i) => (
+        ] as { icon: string; title: string; sub: string; on: boolean; onChange: (v: boolean) => void }[]).map((row, i) => (
           <React.Fragment key={row.title}>
-            {i > 0 && <div style={{ height: 1, background: C.border, margin: '0 16px' }} />}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
-              <div style={{ width: 36, height: 36, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {i > 0 && <div style={{ height: 1, background: C.border, margin: '0 18px' }} />}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px' }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 12, background: C.surface2,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
                 <Icon name={row.icon} size={18} color={C.text2} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: C.textW }}>{row.title}</div>
                 {row.sub && <div style={{ fontSize: 11, color: C.text2, marginTop: 2 }}>{row.sub}</div>}
               </div>
-              <Toggle on={row.on} onChange={row.onChange} />
+              <InlineToggle on={row.on} onChange={row.onChange} />
             </div>
           </React.Fragment>
         ))}
         {s.notifications.budgetAlert && (
-          <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ padding: '12px 18px', borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 13, color: C.text2 }}>Alert at</span>
-            <input type="number" value={s.notifications.budgetThreshold}
+            <input
+              type="number"
+              value={s.notifications.budgetThreshold}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetThreshold: Number(e.target.value) } }))}
-              style={{ width: 70, background: C.surface2, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none' }} />
+              style={{ width: 70, background: C.surface2, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
+            />
             <span style={{ fontSize: 13, color: C.text2 }}>% of budget used</span>
           </div>
         )}
         {s.notifications.enabled && (
-          <div style={{ padding: '0 16px 14px', borderTop: `1px solid ${C.border}` }}>
-            <button style={{ marginTop: 10, background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, borderRadius: 99, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          <div style={{ padding: '0 18px 14px', borderTop: `1px solid ${C.border}` }}>
+            <button
+              style={{
+                marginTop: 10, background: 'transparent', border: `1px solid ${C.border}`,
+                color: C.text2, borderRadius: 99, padding: '8px 16px', fontSize: 12,
+                fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              }}
               onClick={async () => {
                 if (!('Notification' in window)) return;
                 const permission = await Notification.requestPermission();
                 if (permission === 'granted') { new Notification('ChillarFlow', { body: 'Notifications working! ✓' }); }
                 else { alert('Please allow notifications in your browser settings.'); }
-              }}>
+              }}
+            >
               Test Notification
             </button>
           </div>
         )}
       </div>
 
-      {/* ── Data Management ───────────────────────────────────────────────── */}
-      <CollapsibleCard id="dataMgmt" title="Data Management">
-        <div style={{ paddingTop: 14 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Export to Excel</div>
-            <div style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>
-              Download all data as an .xlsx file with sheets for expenses, contributions, goals, and loans.
-            </div>
-            <Btn variant="success" onClick={onExport}>⬇ Export to Excel</Btn>
-          </div>
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
-            <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Import from Excel</div>
-            <div style={{ color: C.muted, fontSize: 13, marginBottom: 10 }}>
-              Import from a matching .xlsx or .csv file. Existing data is merged, not replaced.
-            </div>
-            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} style={{ display: 'none' }} />
-            <Btn variant="ghost" onClick={() => fileRef.current?.click()}>⬆ Import File</Btn>
-            {importMsg && (
-              <div style={{ marginTop: 10, padding: '9px 14px', borderRadius: 0, fontSize: 13,
-                background: importMsg.type === 'success' ? C.green + '22' : C.red + '22',
-                border: `1px solid ${importMsg.type === 'success' ? C.green : C.red}44`,
-                color: importMsg.type === 'success' ? C.green : C.red }}>
-                {importMsg.text}
+      {/* ── 13. Data Management (collapsible) ────────────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <SectionHeader id="dataMgmt" title="Data Management" />
+        {openSection === 'dataMgmt' && (
+          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+            <div style={{ paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Export to Excel</div>
+                <div style={{ color: C.text3, fontSize: 13, marginBottom: 10 }}>
+                  Download all data as an .xlsx file with sheets for expenses, contributions, goals, and loans.
+                </div>
+                <button
+                  onClick={onExport}
+                  style={{ ...ghostBtnStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  ⬇ Export to Excel
+                </button>
               </div>
-            )}
-            <div style={{ marginTop: 10, padding: '10px 14px', background: C.bg, borderRadius: 0, fontSize: 12, color: C.muted }}>
-              <strong style={{ color: C.text1 }}>Expected Expenses sheet columns:</strong><br />
-              ID, Date (YYYY-MM-DD), Type (expense/income), Category, Amount, Account, Added By, Note, To Settle (Yes/No), Settled (Yes/No), Settled For
+              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
+                <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Import from Excel</div>
+                <div style={{ color: C.text3, fontSize: 13, marginBottom: 10 }}>
+                  Import from a matching .xlsx or .csv file. Existing data is merged, not replaced.
+                </div>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} style={{ display: 'none' }} />
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  style={{ ...ghostBtnStyle, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  ⬆ Import File
+                </button>
+                {importMsg && (
+                  <div style={{
+                    marginTop: 10, padding: '9px 14px', borderRadius: 12, fontSize: 13,
+                    background: importMsg.type === 'success' ? `${C.green}22` : `${C.red}22`,
+                    border: `1px solid ${importMsg.type === 'success' ? C.green : C.red}44`,
+                    color: importMsg.type === 'success' ? C.green : C.red,
+                  }}>
+                    {importMsg.text}
+                  </div>
+                )}
+                <div style={{ marginTop: 10, padding: '10px 14px', background: C.surface2, borderRadius: 12, fontSize: 12, color: C.text3 }}>
+                  <strong style={{ color: C.text1 }}>Expected Expenses sheet columns:</strong><br />
+                  ID, Date (YYYY-MM-DD), Type (expense/income), Category, Amount, Account, Added By, Note, To Settle (Yes/No), Settled (Yes/No), Settled For
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        </div>
-      </CollapsibleCard>
+        )}
+      </div>
 
-      {/* ── App Theme ───────────────────────────────────────────── */}
+      {/* ── 14. App Theme (collapsible, only if onThemeChange) ───────────── */}
       {onThemeChange && (
-        <CollapsibleCard id="theme" title="App Theme" badge={theme === 'pearl' ? 'Pearl' : theme === 'slate' ? 'Slate' : theme === 'indigo' ? 'Indigo' : theme === 'mono' ? 'Mono' : 'Obsidian'}>
-          <div style={{ paddingTop: 14 }}>
-            <ThemePicker current={theme} onChange={onThemeChange} />
-          </div>
-        </CollapsibleCard>
+        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+          <SectionHeader
+            id="theme"
+            title="App Theme"
+            badge={theme === 'pearl' ? 'Pearl' : theme === 'slate' ? 'Slate' : theme === 'indigo' ? 'Indigo' : theme === 'mono' ? 'Mono' : 'Obsidian'}
+          />
+          {openSection === 'theme' && (
+            <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+              <div style={{ paddingTop: 14 }}>
+                <ThemePicker current={theme} onChange={onThemeChange} />
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
-      {/* ── Invite Partner via link ─────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Invite Partner</SectionTitle>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
-          Generate a one-click invite link your partner can use to join without copy-pasting your household ID.
-        </p>
-        <InviteLinkButton householdId={householdId} />
-      </Card>
+      {/* ── 15. Invite & Join Partner (collapsible) ──────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <SectionHeader id="invite" title="Invite & Join Partner" />
+        {openSection === 'invite' && (
+          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+            <div style={{ paddingTop: 14 }}>
+              {/* Invite link via API */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Invite Partner</div>
+                <p style={{ color: C.text3, fontSize: 13, margin: '0 0 12px', lineHeight: 1.5 }}>
+                  Generate a one-click invite link your partner can use to join without copy-pasting your household ID.
+                </p>
+                <InviteLinkButton householdId={householdId} />
+              </div>
 
-      {/* ── Referral program ─────────────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Refer a Friend</SectionTitle>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px', lineHeight: 1.5 }}>
-          Share ChillarFlow and you both get 30 extra AI parses when they sign up.
-        </p>
-        <ReferralCard householdId={householdId} />
-      </Card>
+              {/* Share static invite link */}
+              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16, marginBottom: 20 }}>
+                <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Share Invite Link</div>
+                <p style={{ color: C.text3, fontSize: 13, margin: '0 0 12px' }}>
+                  Share this link with your partner — they click it, sign up, and join your household automatically.
+                </p>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                  <code style={{
+                    background: C.surface2, borderRadius: 12, padding: '10px 13px', flex: 1,
+                    fontSize: 11, color: C.teal, wordBreak: 'break-all' as const, lineHeight: 1.6,
+                  }}>
+                    {'chillarflow.com/join?code=' + householdId}
+                  </code>
+                  <button
+                    onClick={() => navigator.clipboard.writeText('https://chillarflow.com/join?code=' + householdId)}
+                    style={ghostBtnStyle}
+                  >
+                    Copy
+                  </button>
+                </div>
+                <button
+                  style={primaryBtnStyle}
+                  onClick={() => {
+                    const link = 'https://chillarflow.com/join?code=' + householdId;
+                    if (typeof navigator !== 'undefined' && navigator.share) {
+                      navigator.share({ title: 'Join my ChillarFlow household', text: 'Track finances together on ChillarFlow', url: link });
+                    } else {
+                      navigator.clipboard.writeText(link);
+                    }
+                  }}
+                >
+                  🔗 Share invite link via WhatsApp / SMS
+                </button>
+              </div>
 
-      {/* ── Join Partner's Household ────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Join Partner's Household</SectionTitle>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 12px' }}>
-          Enter your partner's Household ID to share the same data pool.
-        </p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Inp value={joinId} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setJoinId(e.target.value)}
-            placeholder="Household UUID…"
-            onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleJoinHousehold()}
-            style={{ flex: 1 }} />
-          <Btn variant="ghost" onClick={handleJoinHousehold}>Join</Btn>
-        </div>
-        <p style={{ color: C.muted, fontSize: 12, marginTop: 10 }}>
-          Your household ID:{' '}
-          <code style={{ color: C.teal, fontSize: 11, userSelect: 'all' as const }}>{householdId}</code>
-        </p>
-      </Card>
+              {/* Join partner's household */}
+              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
+                <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Join Partner's Household</div>
+                <p style={{ color: C.text3, fontSize: 13, margin: '0 0 12px' }}>
+                  Enter your partner's Household ID to share the same data pool.
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={joinId}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setJoinId(e.target.value)}
+                    placeholder="Household UUID…"
+                    onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleJoinHousehold()}
+                    style={{ ...inputStyle, flex: 1, width: 'auto' }}
+                  />
+                  <button onClick={handleJoinHousehold} style={ghostBtnStyle}>Join</button>
+                </div>
+                <p style={{ color: C.text3, fontSize: 12, marginTop: 10 }}>
+                  Your household ID:{' '}
+                  <code style={{ color: C.teal, fontSize: 11, userSelect: 'all' as const }}>{householdId}</code>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
-      {/* ── Invite link ───────────────────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Share Invite Link</SectionTitle>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 14px' }}>
-          Share this link with your partner — they click it, sign up, and join your household automatically. No code copy-pasting needed.
-        </p>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-          <code style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.teal, borderRadius: 0, padding: '10px 14px', flex: 1, fontSize: 11, wordBreak: 'break-all' as const, lineHeight: 1.6 }}>
-            {'chillarflow.com/join?code=' + householdId}
-          </code>
-          <Btn variant="ghost" onClick={() => navigator.clipboard.writeText('https://chillarflow.com/join?code=' + householdId)}>
-            Copy
-          </Btn>
-        </div>
-        <Btn variant="primary" style={{ width: '100%' }} onClick={() => {
-          const link = 'https://chillarflow.com/join?code=' + householdId;
-          if (typeof navigator !== 'undefined' && navigator.share) {
-            navigator.share({ title: 'Join my ChillarFlow household', text: 'Track finances together on ChillarFlow', url: link });
-          } else {
-            navigator.clipboard.writeText(link);
-          }
-        }}>
-          🔗 Share invite link via WhatsApp / SMS
-        </Btn>
-      </Card>
+      {/* ── 16. Referral Program (collapsible) ───────────────────────────── */}
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <SectionHeader id="referral" title="Referral Program" />
+        {openSection === 'referral' && (
+          <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
+            <p style={{ color: C.text3, fontSize: 13, margin: '14px 0', lineHeight: 1.5 }}>
+              Share ChillarFlow and you both get 30 extra AI parses when they sign up.
+            </p>
+            <ReferralCard householdId={householdId} />
+          </div>
+        )}
+      </div>
 
-      {/* ── Save ──────────────────────────────────────────────────────────── */}
-      <Btn variant={flash ? 'success' : 'primary'} onClick={save}
-        style={{ alignSelf: 'flex-start', padding: '12px 28px', fontSize: 15 }}>
-        {flash ? '✓ Settings Saved!' : 'Save All Settings'}
-      </Btn>
+      {/* ── 17. Save Settings button ─────────────────────────────────────── */}
+      <button
+        onClick={save}
+        style={{
+          ...primaryBtnStyle,
+          background: flash ? C.green : C.accent,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          transition: 'background 0.3s',
+        }}
+      >
+        <Icon name="check" size={16} color="#0a0a0a" />
+        {flash ? 'Settings Saved!' : 'Save All Settings'}
+      </button>
+
     </div>
   );
 }
