@@ -1,14 +1,21 @@
+// app/help/page.tsx — ChillarFlow premium help center platform
 'use client';
 
 import Link from 'next/link';
 import { useState } from 'react';
 import { CoinMark } from '@/components/CoinMark';
 
-const C = {
-  bg: '#0b0f1a', surface: '#131928', border: '#1e2840',
-  amber: '#f59e0b', teal: '#06b6d4', textW: '#e8eeff',
-  text2: '#6b82a8', muted: '#3d4f6e',
-};
+const featureSubLinks = [
+  { href: '/features/tracking', label: 'WhatsApp Tracking' },
+  { href: '/features/budgeting', label: 'Leakage Budgeting' },
+  { href: '/features/planning', label: 'Household Planning' },
+];
+
+const navLinks = [
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/about',   label: 'About'   },
+  { href: '/help',    label: 'Help'    },
+];
 
 const categories = [
   {
@@ -39,7 +46,7 @@ const categories = [
     articles: [
       {
         q: 'How do I log an expense from WhatsApp?',
-        a: 'Send a message in plain English to your ChillarFlow bot: "450 Zomato", "grocery 1200 to settle", or "got petrol for 400, dinner 800, both joint". Our AI parses amount, category, and settlement automatically.',
+        a: 'Send a message in plain text format to your ChillarFlow bot: "450 Zomato", "grocery 1200 to settle", or "got petrol for 400, dinner 800, both joint". Our AI parses amount, category, and settlement automatically.',
       },
       {
         q: "What's the difference between AI parsing and the number wizard?",
@@ -103,15 +110,15 @@ const categories = [
     articles: [
       {
         q: 'Where is my financial data stored?',
-        a: "In a private Supabase database with row-level security. Each household's data is isolated. We never read, sell, or share data with third parties.",
+        a: "Inside an isolated, completely separate encrypted cloud ledger vault. Each household's data sandbox is locked behind tight programmatic parameters. We never read, sell, or share anything with third parties.",
       },
       {
         q: 'Does ChillarFlow read my WhatsApp messages?',
-        a: 'Only the ones you send to the ChillarFlow bot. We do not have access to any other chats. Messages are processed by our AI parser, logged as transactions, and discarded.',
+        a: 'Only the ones you send explicitly to the ChillarFlow bot connection. We do not have visual or program access to any other personal chats. Records are securely parsed, converted into a transaction log statement entry, and dropped.',
       },
       {
         q: 'How do I export or delete my data?',
-        a: 'Settings → Data → Export CSV downloads everything. Settings → Data → Delete all data permanently removes it. Both are one-tap operations.',
+        a: 'Settings → Data → Export CSV downloads everything. Settings → Data → Delete all data permanently removes it from our cloud nodes. Both are one-tap structural functions.',
       },
     ],
   },
@@ -127,11 +134,11 @@ const categories = [
       },
       {
         q: 'AI parsed my expense wrong — wrong category or amount.',
-        a: 'Tap the transaction on the Expenses screen and edit the field. The AI learns from corrections — repeated edits to the same kind of message will train it for your household.',
+        a: 'Tap the transaction on the Expenses screen and edit the field. The AI learns from corrections — repeated edits to the same kind of message will train it for your household patterns.',
       },
       {
         q: "I can't see my partner's transactions.",
-        a: "Confirm you're in Joint or Separate mode (not Solo) in Settings → Household. Then make sure your partner has logged in at least once with their own number. Their transactions appear on the Expenses screen tagged with their name.",
+        a: "Confirm you're in Joint or Separate mode (not Solo) in Settings → Household. Then make sure your partner has logged in at least once with their own configuration number. Shared metrics sync on the dashboard layout screen.",
       },
     ],
   },
@@ -141,89 +148,119 @@ export default function HelpPage() {
   const [open, setOpen] = useState<string | null>(null);
 
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, sans-serif', color: C.textW }}>
+    <div className="cf-page animate-fade-in" style={{ paddingBottom: 0 }}>
 
-      {/* Nav */}
-      <nav style={{ borderBottom: `1px solid ${C.border}`, padding: '0 24px', position: 'sticky', top: 0, zIndex: 50, background: C.bg }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 64 }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <CoinMark size={36} color={C.amber} />
-            <span style={{ fontWeight: 800, fontSize: 18, color: C.textW, letterSpacing: '-0.02em' }}>ChillarFlow</span>
+      {/* ── Nav Header ──────────────────────────────────────────────────────── */}
+      <nav className="cf-header" style={{ position: 'relative', height: 64, padding: '0 24px', zIndex: 1100 }}>
+        <div className="w-full flex justify-between items-center" style={{ maxWidth: 1100, margin: '0 auto' }}>
+          
+          <Link href="/" className="flex items-center" style={{ gap: 10, textDecoration: 'none' }}>
+            <CoinMark size={36} color="var(--accent)" />
+            <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--textW)', letterSpacing: '-0.02em' }}>ChillarFlow</span>
           </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
-            {[
-              { href: '/pricing', label: 'Pricing' },
-              { href: '/about', label: 'About' },
-              { href: '/help', label: 'Help' },
-            ].map((l) => (
-              <Link key={l.href} href={l.href} style={{ color: l.href === '/help' ? C.textW : C.text2, fontSize: 14, fontWeight: 500, textDecoration: 'none' }}>
-                {l.label}
+
+          <div className="flex items-center" style={{ gap: 16 }}>
+            {/* Desktop link directory layout */}
+            <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+              <Link href="/features" className="t-body" style={{ textDecoration: 'none', fontWeight: 500 }}>
+                Features
               </Link>
-            ))}
-            <Link href="/app" style={{ background: C.amber, color: C.bg, padding: '8px 20px', borderRadius: 8, fontWeight: 700, fontSize: 14, textDecoration: 'none' }}>
+              {navLinks.map((l) => (
+                <Link key={l.href} href={l.href} className="t-body" style={{ textDecoration: 'none', fontWeight: 500, color: l.href === '/help' ? 'var(--textW)' : 'var(--text2)' }}>
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+
+            <Link href="/app" className="cf-btn cf-btn-primary cf-btn-sm" style={{ fontWeight: 800 }}>
               Sign In
             </Link>
+
+            {/* Checkbox state logic driver switcher */}
+            <input type="checkbox" id="menu-toggle" style={{ display: 'none' }} />
+            
+            <label htmlFor="menu-toggle" className="mobile-menu-trigger">
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+            </label>
+
+            <label htmlFor="menu-toggle" className="drawer-overlay"></label>
+
+            {/* Mobile panel drawer slider element box */}
+            <div className="mobile-drawer">
+              <div className="flex justify-between items-center" style={{ marginBottom: 28, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 22, fontWeight: 900, color: 'var(--textW)', letterSpacing: '-0.03em' }}>MENU</span>
+                <label htmlFor="menu-toggle" style={{ color: 'var(--text3)', fontSize: 32, cursor: 'pointer', lineHeight: 0.5, padding: '4px' }}>&times;</label>
+              </div>
+
+              <div className="flex flex-col" style={{ gap: 24, flex: 1, overflowY: 'auto' }}>
+                <div className="flex flex-col" style={{ gap: 12 }}>
+                  <Link href="/features" className="t-h1" style={{ textDecoration: 'none' }}>Features</Link>
+                  <div className="flex flex-col" style={{ gap: 14, paddingLeft: 12, borderLeft: '1.5px solid var(--border)' }}>
+                    {featureSubLinks.map((sub) => (
+                      <Link key={sub.href} href={sub.href} className="t-body" style={{ textDecoration: 'none', fontSize: 14 }}>
+                        {sub.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+                {navLinks.map((l) => (
+                  <Link key={l.href} href={l.href} className="t-h1" style={{ textDecoration: 'none' }}>{l.label}</Link>
+                ))}
+              </div>
+
+              <div className="flex flex-col" style={{ gap: 12, paddingTop: 16, marginTop: 'auto' }}>
+                <Link href="/app" className="cf-btn cf-btn-primary cf-btn-full" style={{ fontWeight: 800 }}>Create Account (Sign Up)</Link>
+                <Link href="/app" className="cf-btn cf-btn-ghost cf-btn-full" style={{ fontWeight: 600, border: '1px solid var(--border2)' }}>Sign In</Link>
+              </div>
+            </div>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section style={{ padding: '80px 24px 40px', textAlign: 'center' }}>
-        <div style={{ fontSize: 13, color: C.amber, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>
-          Help centre
+      {/* ── Help Search Hero ────────────────────────────────────────────────── */}
+      <section className="cf-content text-center animate-fade-up" style={{ padding: '80px 16px 40px' }}>
+        <div className="t-caption t-accent" style={{ marginBottom: 16, fontWeight: 700 }}>
+          Help centre directory
         </div>
-        <h1 style={{ fontSize: 'clamp(32px, 6vw, 48px)', fontWeight: 800, margin: '0 0 20px', color: C.textW, letterSpacing: '-0.02em', lineHeight: 1.1 }}>
+        <h1 className="t-display" style={{ marginBottom: 20, lineHeight: 1.1 }}>
           How can we help?
         </h1>
-        <p style={{ color: C.text2, fontSize: 17, margin: '0 auto 36px', maxWidth: 520, lineHeight: 1.6 }}>
-          Answers to the questions we hear most. Can't find what you need?{' '}
-          <Link href="/about" style={{ color: C.amber }}>Email us</Link> — we reply within 24 hours.
+        <p className="t-body" style={{ fontSize: 17, margin: '0 auto 36px', maxWidth: 520 }}>
+          Answers to operational questions. Can't find what you need?{' '}
+          <Link href="mailto:team@chillarflow.com" className="t-accent" style={{ textDecoration: 'none', fontWeight: 600 }}>Email us</Link> — we reply within 24 hours.
         </p>
 
-        {/* Search bar (visual) */}
-        <div style={{
-          maxWidth: 520, margin: '0 auto',
-          background: C.surface, border: `1px solid ${C.border}`,
-          borderRadius: 12, padding: '14px 18px',
-          display: 'flex', alignItems: 'center', gap: 12,
-          fontSize: 15, color: C.muted,
-        }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.text2} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {/* Visual search capsule structured to use token design utilities */}
+        <div className="cf-input flex items-center" style={{ maxWidth: 520, margin: '0 auto', gap: 12, cursor: 'text', border: '1px solid var(--border)' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
           </svg>
-          <span>Search articles — settlement, WhatsApp, Pro plan…</span>
+          <span style={{ color: 'var(--text3)', fontSize: 14, fontWeight: 400 }}>Search articles — settlement, WhatsApp, tracking updates…</span>
         </div>
       </section>
 
-      {/* Category grid */}
-      <section style={{ padding: '40px 24px 60px' }}>
+      {/* ── Category Matrix Directory Grid ──────────────────────────────────── */}
+      <section style={{ padding: '40px 16px 60px' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
           {categories.map((c) => (
             <a
               key={c.id}
               href={`#${c.id}`}
+              className="cf-card"
               style={{
-                background: C.surface, border: `1px solid ${C.border}`,
-                borderRadius: 14, padding: '24px 22px',
-                display: 'flex', flexDirection: 'column', gap: 12,
-                cursor: 'pointer', textDecoration: 'none',
-                transition: 'border-color .15s, transform .15s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = C.amber + '66';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = C.border;
-                e.currentTarget.style.transform = 'translateY(0)';
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 14,
+                textDecoration: 'none'
               }}
             >
-              <div style={{ fontSize: 28 }}>{c.icon}</div>
-              <div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: C.textW, marginBottom: 4 }}>{c.title}</div>
-                <div style={{ fontSize: 13, color: C.text2 }}>{c.sub}</div>
+              <div style={{ fontSize: 32 }}>{c.icon}</div>
+              <div style={{ flex: 1 }}>
+                <div className="t-h2" style={{ marginBottom: 6 }}>{c.title}</div>
+                <div className="t-body" style={{ fontSize: 13, lineHeight: 1.4 }}>{c.sub}</div>
               </div>
-              <div style={{ fontSize: 12, color: C.amber, fontWeight: 600, marginTop: 4 }}>
+              <div className="t-accent" style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, marginTop: 8 }}>
                 {c.articles.length} article{c.articles.length === 1 ? '' : 's'} →
               </div>
             </a>
@@ -231,46 +268,47 @@ export default function HelpPage() {
         </div>
       </section>
 
-      {/* Articles per category — accordion */}
+      {/* ── Category Accordion Streams ──────────────────────────────────────── */}
       {categories.map((c) => (
-        <section key={c.id} id={c.id} style={{ padding: '40px 24px', borderTop: `1px solid ${C.border}` }}>
+        <section key={c.id} id={c.id} style={{ padding: '60px 16px', borderTop: '1px solid var(--border)' }}>
           <div style={{ maxWidth: 720, margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28 }}>
-              <div style={{ fontSize: 32 }}>{c.icon}</div>
+            
+            <div className="flex items-center" style={{ gap: 16, marginBottom: 32 }}>
+              <div style={{ fontSize: 36 }}>{c.icon}</div>
               <div>
-                <h2 style={{ fontSize: 26, fontWeight: 800, margin: 0, color: C.textW, letterSpacing: '-0.02em' }}>{c.title}</h2>
-                <div style={{ fontSize: 13, color: C.text2, marginTop: 4 }}>{c.sub}</div>
+                <h2 className="t-h1" style={{ fontSize: 26, margin: 0 }}>{c.title}</h2>
+                <div className="t-body" style={{ fontSize: 13, marginTop: 4 }}>{c.sub}</div>
               </div>
             </div>
-            <div>
+
+            <div className="flex flex-col" style={{ borderBottom: '1px solid var(--border)' }}>
               {c.articles.map((article, ai) => {
                 const articleId = `${c.id}-${ai}`;
                 const isOpen = open === articleId;
                 return (
-                  <div key={ai} style={{ borderTop: `1px solid ${C.border}` }}>
+                  <div key={ai} style={{ borderTop: '1px solid var(--border)' }}>
                     <button
                       onClick={() => setOpen(isOpen ? null : articleId)}
                       style={{
-                        width: '100%', textAlign: 'left',
-                        background: 'transparent', border: 'none',
-                        padding: '20px 0',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16,
-                        cursor: 'pointer', fontFamily: 'inherit',
+                        width: '100%', textAlign: 'left', background: 'transparent', border: 'none',
+                        padding: '22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                        gap: 16, cursor: 'pointer', fontFamily: 'inherit'
                       }}
                     >
-                      <span style={{ fontSize: 15, fontWeight: 600, color: C.textW, lineHeight: 1.5 }}>{article.q}</span>
+                      <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--textW)', lineHeight: 1.4 }}>{article.q}</span>
                       <span style={{
                         flexShrink: 0, width: 24, height: 24, borderRadius: '50%',
-                        background: isOpen ? C.amber + '22' : 'transparent',
-                        color: isOpen ? C.amber : C.text2,
+                        background: isOpen ? 'var(--accent-bg)' : 'transparent',
+                        color: isOpen ? 'var(--accent)' : 'var(--text3)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        transition: 'all .15s',
+                        transition: 'all .18s ease',
                         transform: isOpen ? 'rotate(45deg)' : 'rotate(0deg)',
-                        fontSize: 18, lineHeight: 1, fontWeight: 600,
+                        fontSize: 20, fontWeight: 500, lineHeight: 1
                       }}>+</span>
                     </button>
+                    
                     {isOpen && (
-                      <div style={{ fontSize: 14, color: C.text2, lineHeight: 1.7, paddingBottom: 24, paddingRight: 40 }}>
+                      <div className="t-body" style={{ fontSize: 14.5, lineHeight: 1.65, paddingBottom: 28, paddingRight: 24, color: 'var(--text1)' }}>
                         {article.a}
                       </div>
                     )}
@@ -278,48 +316,45 @@ export default function HelpPage() {
                 );
               })}
             </div>
+
           </div>
         </section>
       ))}
 
-      {/* Still need help CTA */}
-      <section style={{ padding: '80px 24px 100px', borderTop: `1px solid ${C.border}`, textAlign: 'center' }}>
-        <div style={{ maxWidth: 540, margin: '0 auto' }}>
-          <h2 style={{ fontSize: 32, fontWeight: 800, color: C.textW, letterSpacing: '-0.02em', marginBottom: 12 }}>
-            Still need help?
-          </h2>
-          <p style={{ color: C.text2, fontSize: 15, margin: '0 0 32px', lineHeight: 1.6 }}>
-            We're a small team. Email us with your household ID (Settings → About) and we'll get back personally within 24 hours.
+      {/* ── Contact Pipeline Bottom CTA ──────────────────────────────────────── */}
+      <section className="text-center" style={{ padding: '100px 24px', borderTop: '1px solid var(--border)', background: 'linear-gradient(180deg, var(--bg) 0%, var(--surface) 100%)' }}>
+        <div className="cf-content" style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <h2 className="t-display" style={{ fontSize: 34, marginBottom: 12 }}>Still need help?</h2>
+          <p className="t-body" style={{ fontSize: 15, marginBottom: 36, lineHeight: 1.6 }}>
+            We're a dedicated, lean team. Email us with your household ID (Settings → About) and we'll resolve your query personally within 24 hours.
           </p>
           <a
             href="mailto:team@chillarflow.com"
-            style={{
-              display: 'inline-block',
-              background: C.amber, color: C.bg,
-              padding: '14px 32px', borderRadius: 10,
-              fontWeight: 700, fontSize: 15,
-            }}
+            className="cf-btn cf-btn-primary cf-btn-lg cf-btn-full"
+            style={{ maxWidth: '340px', fontWeight: 800, boxShadow: 'var(--shadow-accent)' }}
           >
             Email team@chillarflow.com
           </a>
-          <div style={{ marginTop: 18, fontSize: 13, color: C.muted }}>
-            For Pro upgrades, billing, or partnerships
+          <div className="t-small t-muted" style={{ marginTop: 16, letterSpacing: '0.02em' }}>
+            For Pro upgrades, billing sandboxes, or account migrations
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={{ borderTop: `1px solid ${C.border}`, padding: '40px 24px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <div style={{ color: C.muted, fontSize: 13 }}>© 2026 ChillarFlow. Made with ♥ in India.</div>
-          <div style={{ display: 'flex', gap: 24 }}>
+      {/* ── Footer ────────────────────────────────────────────────────────────── */}
+      <footer style={{ borderTop: '1px solid var(--border)', padding: '40px 24px', background: 'var(--bg)' }}>
+        <div className="flex justify-between items-center" style={{ maxWidth: 1100, margin: '0 auto', flexWrap: 'wrap', gap: 20 }}>
+          <div className="t-small t-muted">© 2026 ChillarFlow. Secure, isolated financial vaults. Made with ♥ in India.</div>
+          <div className="flex" style={{ gap: 24, flexWrap: 'wrap' }}>
             {[
               { href: '/pricing', label: 'Pricing' },
-              { href: '/about', label: 'About' },
-              { href: '/help', label: 'Help' },
-              { href: 'mailto:team@chillarflow.com', label: 'Contact' },
+              { href: '/about',   label: 'About' },
+              { href: '/help',    label: 'Help' },
+              { href: 'mailto:team@chillarflow.com', label: 'Contact Vault Operations' },
             ].map((l) => (
-              <Link key={l.href} href={l.href} style={{ color: C.muted, fontSize: 13, textDecoration: 'none' }}>{l.label}</Link>
+              <Link key={l.href} href={l.href} className="t-small t-muted" style={{ textDecoration: 'none' }}>
+                {l.label}
+              </Link>
             ))}
           </div>
         </div>
