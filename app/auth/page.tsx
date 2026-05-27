@@ -1,29 +1,16 @@
+// app/auth/page.tsx — ChillarFlow premium unified authentication experience
 'use client';
-// ─── Auth.tsx ─────────────────────────────────────────────────────────────────
-// ChillarFlow NeoPOP sign-in / sign-up screen.
-// Sharp corners, hard shadows, Inter font, physical button press animation.
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
+import { CoinMark } from '@/components/CoinMark';
 
-// Local colour vars (Auth has no session yet so C tokens may not be loaded)
-const bg      = 'var(--bg, #09090b)';
-const surface = 'var(--surface, #18181b)';
-const border  = 'var(--border, #3f3f46)';
-const border2 = 'var(--border2, #52525b)';
-const textW   = 'var(--textW, #fafafa)';
-const text1   = 'var(--text1, #d4d4d8)';
-const text2   = 'var(--text2, #a1a1aa)';
-const text3   = 'var(--text3, #71717a)';
-const accent  = 'var(--accent, #f59e0b)';
-const teal    = 'var(--teal, #14b8a6)';
-const red     = 'var(--red, #ef4444)';
-
-export default function Auth() {
+export default function AuthPage() {
   const [loading, setLoading]   = useState(false);
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false); // default = sign in
   const [error, setError]       = useState<string | null>(null);
   const [mode, setMode]         = useState<'create' | 'join'>('create');
   const [inviteCode, setInviteCode] = useState('');
@@ -32,56 +19,85 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
     try {
       if (isSignUp) {
-        if (mode === 'join' && !inviteCode.trim()) throw new Error('Enter a valid Household Invite Code.');
+        if (mode === 'join' && !inviteCode.trim()) {
+          throw new Error('Please enter a valid Household Invite Code to proceed.');
+        }
 
         const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
         if (authError) throw authError;
+
         const userId = authData.user?.id;
         if (!userId) throw new Error('Authentication failed — please try again.');
 
         let targetHouseholdId = '';
 
         if (mode === 'create') {
-          const newId = crypto.randomUUID();
-          const { error: householdErr } = await supabase.from('households').insert({ id: newId });
-          if (householdErr) console.warn('households insert skipped:', householdErr.message);
-          const { error: settingsError } = await supabase.from('household_settings').insert({
-            household_id: newId,
-            settings_data: {
-              partnerAName: 'Partner A', partnerBName: 'Partner B',
-              householdMode: 'joint',
-              expenseCategories: [
-                'Groceries','Dining Out','Online Food Orders','Online Groceries',
-                'Utilities','Housing','Personal Transportation','Cab Services',
-                'Online Shopping','Offline Shopping','Subscriptions','Entertainment',
-                'Healthcare','Personal Care','Health & Fitness','Investments',
-                'Insurance','Savings','Travel','Education','Gifting',
-                'Spouse Gifting','Family payments','Household Items',
-                'Technology','Alcohol','Hosting Day','Taxes','Miscellaneous',
-              ],
-              incomeCategories: ['Salary','Freelance','Business','Interest Earned','Other Income'],
-              budgets: {}, currency: 'INR', setupComplete: false,
-            },
-          });
+          const newHouseholdId = crypto.randomUUID();
+
+          const { error: householdError } = await supabase
+            .from('households')
+            .insert({ id: newHouseholdId });
+          if (householdError) console.warn('households insert skipped:', householdError.message);
+
+          const { error: settingsError } = await supabase
+            .from('household_settings')
+            .insert({
+              household_id: newHouseholdId,
+              settings_data: {
+                partnerAName:      'Partner A',
+                partnerBName:      'Partner B',
+                householdMode:     'joint',
+                expenseCategories: [
+                  'Groceries', 'Dining Out', 'Online Food Orders', 'Online Groceries',
+                  'Utilities', 'Housing', 'Personal Transportation', 'Cab Services',
+                  'Online Shopping', 'Offline Shopping', 'Subscriptions', 'Entertainment',
+                  'Healthcare', 'Personal Care', 'Health & Fitness', 'Investments',
+                  'Insurance', 'Savings', 'Travel', 'Education', 'Gifting',
+                  'Spouse Gifting', 'Family payments', 'Household Items',
+                  'Technology', 'Alcohol', 'Hosting Day', 'Taxes', 'Miscellaneous',
+                ],
+                incomeCategories: ['Salary', 'Freelance', 'Business', 'Interest Earned', 'Other Income'],
+                budgets:  {},
+                currency: 'INR',
+                setupComplete: false,
+              },
+            });
           if (settingsError) throw settingsError;
-          targetHouseholdId = newId;
+
+          targetHouseholdId = newHouseholdId;
+
         } else {
           const { data: existing, error: verifyError } = await supabase
-            .from('household_settings').select('household_id')
-            .eq('household_id', inviteCode.trim()).single();
-          if (verifyError || !existing) throw new Error('Invalid Household Code. Verify with your partner.');
+            .from('household_settings')
+            .select('household_id')
+            .eq('household_id', inviteCode.trim())
+            .single();
+
+          if (verifyError || !existing) {
+            throw new Error('Invalid Household Code. Please verify with your partner.');
+          }
           targetHouseholdId = inviteCode.trim();
         }
 
         const assignedRole = mode === 'create' ? 'Partner A' : 'Partner B';
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: userId, household_id: targetHouseholdId,
-          email: email.toLowerCase().trim(), display_name: assignedRole,
-        });
+
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id:           userId,
+            household_id: targetHouseholdId,
+            email:        email.toLowerCase().trim(),
+            display_name: assignedRole,
+          });
         if (profileError) throw profileError;
-        if (typeof window !== 'undefined') localStorage.setItem('cf_partner_role', assignedRole);
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('cf_partner_role', assignedRole);
+        }
+
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
@@ -94,113 +110,178 @@ export default function Auth() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', fontFamily: "'Inter', -apple-system, sans-serif" }}>
+    <div 
+      style={{ 
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100dvh',       
+        width: '100vw',
+        padding: '24px 20px',      
+        boxSizing: 'border-box',
+        background: 'var(--bg)',     
+        position: 'fixed',         
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+      }}
+    >
+      
+      {/* Main Container Core Auth Module Card */}
+      <div className="cf-card animate-fade-up" style={{ width: '100%', maxWidth: 400, padding: '44px 32px 40px', border: '1px solid var(--border)', position: 'relative' }}>
+        
+        {/* PREMIUM EXPLICIT EXIT COMPONENT: Positioned cleanly at the upper right corner */}
+        <Link 
+          href="/" 
+          style={{ 
+            position: 'absolute', 
+            top: '20px', 
+            right: '20px', 
+            textDecoration: 'none', 
+            color: 'var(--text3)', 
+            fontSize: '24px', 
+            fontWeight: 300, 
+            lineHeight: 1, 
+            padding: '4px',
+            transition: 'color 0.15s ease'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text1)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text3)'}
+        >
+          &times;
+        </Link>
 
-      {/* Logo mark */}
-      <div style={{ marginBottom: 40, textAlign: 'center' }}>
-        <div style={{ width: 56, height: 56, background: accent, border: `2px solid #000`, boxShadow: '0 8px 40px rgba(0,0,0,0.5)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-          <span style={{ fontSize: 24, fontWeight: 900, color: '#09090b', letterSpacing: '-0.05em' }}>CF</span>
+        {/* Brand System Title Header Area */}
+        <div className="text-center" style={{ marginBottom: 32 }}>
+          <div className="flex justify-between items-center" style={{ justifyContent: 'center', marginBottom: 16 }}>
+            <CoinMark size={48} color="var(--accent)" />
+          </div>
+          <h2 style={{ fontSize: 24, fontWeight: 900, color: 'var(--textW)', letterSpacing: '-0.03em', margin: 0 }}>ChillarFlow</h2>
+          <p className="t-body" style={{ fontSize: 14, marginTop: 6, color: 'var(--text2)' }}>
+            {isSignUp ? 'Create your secure household vault' : 'Welcome back — access your private dashboard'}
+          </p>
         </div>
-        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.04em', color: textW }}>ChillarFlow</div>
-        <div style={{ fontSize: 12, color: text3, marginTop: 4, fontWeight: 500, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-          {isSignUp ? 'Create your household' : 'Welcome back'}
-        </div>
-      </div>
 
-      {/* Card */}
-      <div style={{ width: '100%', maxWidth: 400, background: surface, borderRadius: 24, border: `1px solid ${border}`, boxShadow: '0 8px 40px rgba(0,0,0,0.5)' }}>
-
-        {/* Sign-up mode tabs */}
-        {isSignUp && (
-          <div style={{ display: 'flex', borderBottom: `1px solid ${border}`, borderRadius: '20px 20px 0 0', overflow: 'hidden' }}>
-            {(['create', 'join'] as const).map((m) => (
-              <button key={m} onClick={() => setMode(m)}
-                style={{ flex: 1, padding: '14px', fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', background: 'transparent', border: 'none', cursor: 'pointer', borderBottom: mode === m ? `2px solid ${accent}` : '2px solid transparent', color: mode === m ? accent : text3, transition: 'color 0.15s', WebkitAppearance: 'none' }}>
-                {m === 'create' ? '✦ Create New' : '⊕ Join Partner'}
-              </button>
-            ))}
+        {/* Runtime Operational Error Alert Feedback Block */}
+        {error && (
+          <div className="animate-fade-in" style={{ background: 'var(--red-bg)', color: 'var(--red)', border: '1px solid rgba(255,77,77,0.2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', fontSize: 13, marginBottom: 20, lineHeight: 1.4 }}>
+            ⚠️ {error}
           </div>
         )}
 
-        <div style={{ padding: '28px 24px' }}>
-          {/* Error */}
-          {error && (
-            <div style={{ background: `rgba(239,68,68,0.1)`, border: `1px solid ${red}`, padding: '10px 14px', fontSize: 13, color: red, marginBottom: 20 }}>
-              {error}
+        <form onSubmit={handleAuth} className="flex flex-col" style={{ gap: 20 }}>
+
+          {/* Interactive Dynamic Context Multi-Setup Toggle Block */}
+          {isSignUp && (
+            <div className="cf-card-inset flex flex-col" style={{ padding: 16, gap: 12, border: '1px solid var(--border)' }}>
+              <label className="t-caption" style={{ color: 'var(--text3)' }}>
+                Setup Operations Mode
+              </label>
+              <div className="flex" style={{ gap: 10 }}>
+                <button type="button" onClick={() => setMode('create')} className={`cf-chip flex-1 justify-between ${mode === 'create' ? 'active' : ''}`} style={{ textAlign: 'center', justifyContent: 'center', minHeight: 40 }}>
+                  ✨ Create New
+                </button>
+                <button type="button" onClick={() => setMode('join')} className={`cf-chip flex-1 justify-between ${mode === 'join' ? 'active' : ''}`} style={{ textAlign: 'center', justifyContent: 'center', minHeight: 40 }}>
+                  🔗 Join Partner
+                </button>
+              </div>
             </div>
           )}
 
-          <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Email */}
-            <div>
-              <label htmlFor="email" style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: text3, marginBottom: 8 }}>
-                Email
-              </label>
-              <input id="email" name="email" type="email" autoComplete="email" required value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${border2}`, borderRadius: 12, color: textW, padding: '14px 16px', fontSize: 16, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
-                onFocus={(e) => e.target.style.borderColor = accent}
-                onBlur={(e) => e.target.style.borderColor = border2}
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <label htmlFor="password" style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: text3, marginBottom: 8 }}>
-                Password
-              </label>
-              <input id="password" name="password" type="password" autoComplete={isSignUp ? 'new-password' : 'current-password'} required minLength={6} value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${border2}`, borderRadius: 12, color: textW, padding: '14px 16px', fontSize: 16, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
-                onFocus={(e) => e.target.style.borderColor = accent}
-                onBlur={(e) => e.target.style.borderColor = border2}
-              />
-            </div>
-
-            {/* Invite code (join mode) */}
-            {isSignUp && mode === 'join' && (
-              <div>
-                <label htmlFor="inviteCode" style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: teal, marginBottom: 8 }}>
-                  Household invite code
-                </label>
-                <input id="inviteCode" name="inviteCode" type="text" value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value)}
-                  placeholder="Paste code from your partner's Settings"
-                  required={mode === 'join'}
-                  style={{ width: '100%', background: 'var(--bg2, #0c0c0f)', border: `1px solid ${teal}`, boxShadow: '0 2px 8px rgba(0,0,0,0.3)', color: textW, padding: '12px 14px', fontSize: 14, fontFamily: 'monospace', outline: 'none', boxSizing: 'border-box', WebkitAppearance: 'none' }}
-                />
-                <div style={{ fontSize: 11, color: text3, marginTop: 6 }}>Find this in your partner's Settings → Your Household ID</div>
-              </div>
-            )}
-
-            {/* Submit — NeoPOP press effect */}
-            <button type="submit" disabled={loading}
-              style={{ width: '100%', background: loading ? '#52525b' : accent, color: '#09090b', border: 'none', borderRadius: 99, boxShadow: loading ? 'none' : '0 4px 20px rgba(240,180,41,0.3)', padding: '14px', fontSize: 14, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', WebkitAppearance: 'none', transition: 'transform 0.08s, box-shadow 0.08s', marginTop: 4 }}
-              onMouseDown={(e) => { if (!loading) { (e.target as HTMLElement).style.transform = 'scale(0.97)'; (e.target as HTMLElement).style.boxShadow = 'none'; } }}
-              onMouseUp={(e) => { (e.target as HTMLElement).style.transform = ''; (e.target as HTMLElement).style.boxShadow = '0 4px 20px rgba(240,180,41,0.3)'; }}
-            >
-              {loading ? '— Please wait —'
-                : isSignUp
-                  ? mode === 'join' ? 'Join Household' : 'Create Household'
-                  : 'Sign In'}
-            </button>
-          </form>
-
-          {/* Toggle */}
-          <div style={{ marginTop: 20, paddingTop: 20, borderTop: `1px solid ${border}`, textAlign: 'center' }}>
-            <button onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
-              style={{ background: 'transparent', border: 'none', color: text2, fontSize: 13, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}>
-              {isSignUp ? 'Already have an account? Sign in.' : 'Need an account? Sign up.'}
-            </button>
+          {/* Email Form Field Block */}
+          <div className="flex flex-col" style={{ gap: 6 }}>
+            <label htmlFor="email" className="t-caption" style={{ color: 'var(--text2)' }}>
+              Account Email Address
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              placeholder="name@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="cf-input"
+            />
           </div>
+
+          {/* Password Form Field Block */}
+          <div className="flex flex-col" style={{ gap: 6 }}>
+            <label htmlFor="password" className="t-caption" style={{ color: 'var(--text2)' }}>
+              Secret Password Keys
+            </label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete={isSignUp ? 'new-password' : 'current-password'}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="cf-input"
+            />
+          </div>
+
+          {/* Conditional Multi-tier Connection Invite Route Input Block */}
+          {isSignUp && mode === 'join' && (
+            <div className="animate-fade-in flex flex-col" style={{ gap: 6 }}>
+              <label htmlFor="inviteCode" className="t-caption" style={{ color: 'var(--teal)' }}>
+                🔗 Partner Invite Code Token
+              </label>
+              <input
+                id="inviteCode"
+                name="inviteCode"
+                type="text"
+                placeholder="Paste partner household unique identifier..."
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                required={mode === 'join'}
+                className="cf-input"
+                style={{ borderColor: 'var(--teal)', fontFamily: 'monospace', fontSize: 13, letterSpacing: '0.02em' }}
+              />
+              <p className="t-small t-muted" style={{ marginTop: 4, lineHeight: 1.5 }}>
+                Your partner can locate this key on their main application dashboard inside Settings → Household ID.
+              </p>
+            </div>
+          )}
+
+          {/* Central Submission Execution Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className={`cf-btn cf-btn-full ${loading ? '' : 'cf-btn-primary'}`}
+            style={{
+              marginTop: 8,
+              background: loading ? 'var(--border)' : undefined,
+              color: loading ? 'var(--text3)' : undefined,
+              cursor: loading ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {loading
+              ? 'Synchronizing Pipeline Vault…'
+              : isSignUp
+                ? mode === 'join' ? 'Link Vault & Sign Up' : 'Initialize Vault & Sign Up'
+                : 'Access Secure Account'}
+          </button>
+        </form>
+
+        {/* Dynamic Context Entry Path Link Swapper */}
+        <div className="text-center" style={{ marginTop: 24 }}>
+          <button
+            onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
+            className="t-small t-muted"
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontWeight: 500 }}
+          >
+            {isSignUp ? 'Already have an initialized ledger? Sign in.' : 'New to the platform? Initialize a free account.'}
+          </button>
         </div>
       </div>
-
-      {/* Back to site */}
-      <a href="/" style={{ marginTop: 24, color: text3, fontSize: 12, textDecoration: 'none', letterSpacing: '0.04em' }}>
-        ← Back to chillarflow.com
-      </a>
+      
     </div>
   );
 }
