@@ -10,9 +10,9 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'ChillarFlow',
   },
-  other: { 'mobile-web-app-capable': 'yes' },
-  verification: {
-    facebook: 'oa5jc12kl8z9f18sz2c6n1lwm7apiu',
+  other: { 
+    'mobile-web-app-capable': 'yes',
+    'facebook-domain-verification': 'oa5jc12kl8z9f18sz2c6n1lwm7apiu',
   },
 };
 
