@@ -194,9 +194,13 @@ export default function PricingPage() {
               border: p.borderStyle,
               padding: '40px 32px',
               position: 'relative',
+              overflow: 'visible', /* ⚡ CRITICAL OVERRIDE: Stops internal hidden boundary checks from clipping absolute overlay children */
+              marginTop: p.highlight ? '12px' : '0px', /* Adds explicit balance tracking spacing to clear card layout heights */
             }}>
+              
+              {/* ⚡ ABSOLUTE UNCLIPPED PILL BADGE COMPONENT */}
               {p.highlight && (
-                  <div style={{ 
+                <div style={{ 
                   position: 'absolute', 
                   top: '-12px', 
                   left: '50%', 
@@ -207,13 +211,14 @@ export default function PricingPage() {
                   fontWeight: 900, 
                   letterSpacing: '0.06em',
                   padding: '4px 12px',
-                  borderRadius: '99px',      /* Recreating the design system pill shape manually */
+                  borderRadius: '99px',      /* Beautiful native system pill shape geometry */
                   boxShadow: 'var(--shadow-accent)',
-                  display: 'flex',           /* Forces clean flex alignment */
+                  display: 'flex',           
                   alignItems: 'center',
                   justifyContent: 'center',
-                  whiteSpace: 'nowrap',      /* Guarantees words stay tightly on one single line */
-                  width: 'auto',             /* Unlocks the container constraint entirely */
+                  whiteSpace: 'nowrap',      
+                  width: 'auto',             
+                  zIndex: 10,                /* Locks execution visibility stack priority above border layers */
                 }}>
                   UNLIMITED OPERATIONS
                 </div>
