@@ -720,11 +720,84 @@ html { background: #0a0a0a; }
 .neo-toggle    { border-radius: var(--radius-pill) !important; border: none !important; }
 .neo-toggle-thumb { border-radius: 50% !important; box-shadow: 0 2px 6px rgba(0,0,0,0.25) !important; }
 
-#menu-toggle { display: none; }
-#menu-toggle:checked ~ .mobile-drawer { transform: translateX(0); opacity: 1; visibility: visible; }
-#menu-toggle:checked ~ .drawer-overlay { opacity: 0.6; visibility: visible; }
+/* ==========================================================================
+   CHILLARFLOW PREMIUM RESPONSIVE DIRECTORY DRAWER (SCALABLE ARCHITECTURE)
+   ========================================================================== */
 
+/* Hidden structural interaction switch */
+#menu-toggle { display: none; }
+
+/* Desktop view defaults */
+.mobile-menu-trigger { display: none; }
+.mobile-drawer { display: none; }
+.drawer-overlay { display: none; }
+
+/* Responsive break points for mobile viewports */
 @media (max-width: 768px) {
   .nav-links-desktop { display: none !important; }
-  .mobile-menu-trigger { display: flex !important; }
+  
+  /* Persistent layout elements */
+  .mobile-menu-trigger {
+    display: flex !important;
+    flex-direction: column;
+    gap: 5px;
+    cursor: pointer;
+    padding: 8px;
+    z-index: 100;
+    transition: opacity 0.2s ease;
+  }
+
+  /* Dark background shadow blur mask */
+  .drawer-overlay {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    z-index: 900;
+  }
+
+  /* Sliding side container drawer container box */
+  .mobile-drawer {
+    display: flex !important;
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 85%;
+    max-width: 320px;
+    height: 100vh;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    flex-direction: column;
+    transform: translateX(100%);
+    opacity: 0;
+    visibility: hidden;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, visibility 0.3s ease;
+    z-index: 1000;
+  }
+
+  /* Drawer functional conditional layout toggles */
+  #menu-toggle:checked ~ .mobile-drawer {
+    transform: translateX(0) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+
+  #menu-toggle:checked ~ .drawer-overlay {
+    opacity: 0.6 !important;
+    visibility: visible !important;
+  }
+
+  /* CRITICAL FIX: Hide standard hamburger trigger icon line art while open */
+  #menu-toggle:checked ~ .mobile-menu-trigger {
+    opacity: 0 !important;
+    pointer-events: none;
+  }
 }
