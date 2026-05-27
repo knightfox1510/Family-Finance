@@ -3,8 +3,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { AppData, Settings as SettingsType, HouseholdMode } from '@/types';
-import { ThemePicker } from '@/components/ui';
-import { Icon } from '@/components/Icon';
+import { ThemePicker } from '@/components/ui/ui';
+import { Icon } from '@/components/ui/Icon';
 import { C, HOUSEHOLD_MODE_META } from '@/constants';
 import { hasPartnerB } from '@/lib/householdModes';
 import { supabase } from '@/lib/supabaseClient';
