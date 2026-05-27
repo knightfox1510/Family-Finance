@@ -1,6 +1,24 @@
 // app/reviews/page.tsx — ChillarFlow premium testimonials wall platform
 import Link from 'next/link';
+import { useState } from 'react';
 import { CoinMark } from '@/components/CoinMark';
+
+// 🎯 Grouped strictly by specific platform toolsets
+const featureSubLinks = [
+  { href: '/features/tracking', label: 'Chat Log Automation' }, /* ⚡ Was WhatsApp Tracking */
+  { href: '/features/budgeting', label: 'Retention Metrics' },    /* ⚡ Was Leakage Budgeting */
+  { href: '/features/planning', label: 'Household Settlement' }, /* ⚡ Was Household Planning */
+  { href: '/shortcuts',         label: 'Power User Guide' }, 
+];
+
+// 🧭 The high-level main directories remain clean and distinct
+const navLinks = [
+  { href: '/pricing',  label: 'Pricing' },
+  { href: '/reviews',  label: 'Reviews' }, 
+  { href: '/about',    label: 'About'   },
+  { href: '/help',     label: 'Help'    },
+];
+
 
 export const metadata = {
   title: 'User Testimonials & Case Studies — ChillarFlow',
