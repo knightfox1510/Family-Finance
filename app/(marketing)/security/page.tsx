@@ -1,6 +1,6 @@
 // app/security/page.tsx — ChillarFlow premium security & privacy hub
 import Link from 'next/link';
-import { CoinMark } from '@/components/CoinMark';
+import { CoinMark } from '@/components/marketing/CoinMark';
 
 export const metadata = {
   title: 'Security & Data Privacy — ChillarFlow',
