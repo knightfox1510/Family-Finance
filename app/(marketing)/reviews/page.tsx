@@ -1,6 +1,6 @@
 // app/reviews/page.tsx — ChillarFlow premium testimonials wall platform
 import Link from 'next/link';
-import { CoinMark } from '@/components/CoinMark';
+import { CoinMark } from '@/components/marketing/CoinMark';
 
 // 🎯 Grouped strictly by specific platform toolsets
 const featureSubLinks = [
