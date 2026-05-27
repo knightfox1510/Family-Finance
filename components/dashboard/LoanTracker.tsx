@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import type { AppData } from '@/types';
 import { C } from '@/constants';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function uid() { return typeof window !== 'undefined' && window.crypto?.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2); }
