@@ -18,28 +18,28 @@ import { supabase } from '@/lib/supabaseClient';
 import { redirect } from 'next/navigation'; // ⚡ Next.js native navigation redirect routing hook
 
 import { loadData } from '@/lib/supabaseHelpers';
-import { SetupWizard } from '@/components/SetupWizard';
+import { SetupWizard } from '@/components/dashboard/SetupWizard';
 import { useActions } from '@/hooks/useActions';
-import { ToastContainer, BottomNav, QuickTray, addToast } from '@/components/ui';
+import { ToastContainer, BottomNav, QuickTray, addToast } from '@/components/ui/ui';
 
 import { C, navForMode } from '@/constants';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 import type { AppData, ViewId, HouseholdMode } from '@/types';
 
 // ─── View imports ─────────────────────────────────────────────────────────────
 // Each of these was previously inlined in the 5900-line file.
 // Move them to their own files, e.g. components/Dashboard.tsx, etc.
 // The import paths below are the target structure.
-import { Dashboard }        from '@/components/Dashboard';
-import { AddExpense }       from '@/components/AddExpense';
-import { IncomeTracker }    from '@/components/IncomeTracker';
-import { ExpenseList }      from '@/components/ExpenseList';
-import { SettleDashboard }  from '@/components/SettleDashboard';
-import { Contributions }    from '@/components/Contributions';
-import { Goals }            from '@/components/Goals';
-import { LoanTracker }      from '@/components/LoanTracker';
-import { AIInsights }       from '@/components/AIInsights';
-import { Settings }         from '@/components/Settings';
+import { Dashboard }        from '@/components/dashboard/Dashboard';
+import { AddExpense }       from '@/components/dashboard/AddExpense';
+import { IncomeTracker }    from '@/components/dashboard/IncomeTracker';
+import { ExpenseList }      from '@/components/dashboard/ExpenseList';
+import { SettleDashboard }  from '@/components/dashboard/SettleDashboard';
+import { Contributions }    from '@/components/dashboard/Contributions';
+import { Goals }            from '@/components/dashboard/Goals';
+import { LoanTracker }      from '@/components/dashboard/LoanTracker';
+import { AIInsights }       from '@/components/dashboard/AIInsights';
+import { Settings }         from '@/components/dashboard/Settings';
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
 function today() {
