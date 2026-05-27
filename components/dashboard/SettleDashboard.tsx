@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import type { AppData, PartnerCalculations } from '@/types';
 import { C } from '@/constants';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 
 interface Props {
   fmt: (n: number) => string;
