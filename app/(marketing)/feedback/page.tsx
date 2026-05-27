@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CoinMark } from '@/components/CoinMark';
+import { CoinMark } from '@/components/marketing/CoinMark';
 
 export default function FeedbackPage() {
   const [feedbackType, setFeedbackType] = useState<'feature' | 'bug' | 'other'>('feature');
