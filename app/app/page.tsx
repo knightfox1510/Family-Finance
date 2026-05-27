@@ -312,19 +312,25 @@ export default function App() {
     { id: 'more', label: 'More', icon: 'more' },
   ];
 
-  const moreNavItems = [
-    { id: 'income',    label: 'Income',   icon: 'trendUp' },
-    ...(isJointMode ? [{ id: 'contributions', label: 'Contrib', icon: 'wallet' }] : []),
-    ...(isSolo
-      ? [{ id: 'settle', label: 'Settle', icon: 'refresh' }]
-      : [{ id: 'goals',  label: 'Goals',  icon: 'target' }]
-    ),
-    { id: 'loans',    label: 'EMI',      icon: 'bank' },
-    { id: 'insights', label: 'Insights', icon: 'sparkles' },
-    { id: 'settings', label: 'Settings', icon: 'settings' },
-  ];
-
   const fmt$ = (n: number) => fmt(n, data.settings.currency, privacyMode);
+
+  const activeGoalCount  = data.goals.filter((g: any) => !g.completed).length;
+  const goalsSavedTotal  = data.goals.reduce((s: number, g: any) => s + Number(g.current ?? 0), 0);
+  const activeLoanCount  = data.loans?.length ?? 0;
+  const monthlyEmiTotal  = (data.loans ?? []).reduce((s: number, l: any) => s + Number(l.emi ?? l.monthlyPayment ?? 0), 0);
+  const p2pPendingCount  = partnerCalculations.pendingPartnerItems.length;
+
+  const moreNavItems = [
+    { id: 'income',    label: 'Income',        icon: 'trendUp',  subtitle: 'Inflow dashboard · partner split' },
+    ...(isJointMode ? [{ id: 'contributions', label: 'Contributions', icon: 'wallet', subtitle: 'Monthly joint-pool entry' }] : []),
+    ...(isSolo
+      ? [{ id: 'settle', label: 'Settle', icon: 'refresh', subtitle: p2pPendingCount > 0 ? `${p2pPendingCount} pending` : 'All settled' }]
+      : [{ id: 'goals',  label: 'Goals',  icon: 'target',  subtitle: activeGoalCount > 0 ? `${activeGoalCount} active · ${fmt$(goalsSavedTotal)} saved` : 'No active goals' }]
+    ),
+    { id: 'loans',    label: 'Loans & EMI',   icon: 'bank',     subtitle: activeLoanCount > 0 ? `${activeLoanCount} active · ${fmt$(monthlyEmiTotal)}/mo` : 'No active EMIs' },
+    { id: 'insights', label: 'AI Insights',   icon: 'sparkles', subtitle: 'Personalised analysis · monthly read' },
+    { id: 'settings', label: 'Settings',      icon: 'settings', subtitle: 'Household, data, notifications' },
+  ];
 
   // ── Layout ────────────────────────────────────────────────────────────────
   return (
@@ -613,29 +619,37 @@ export default function App() {
                 borderTop: `1px solid ${C.border}`,
                 borderRadius: '24px 24px 0 0',
                 boxShadow: '0 -16px 48px rgba(0,0,0,0.5)',
-                padding: '20px 20px 12px',
+                maxHeight: '72vh', overflowY: 'auto',
               }} onClick={(e) => e.stopPropagation()}>
-                <div style={{ width: 40, height: 4, background: C.border, borderRadius: 99, margin: '0 auto 20px' }} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {moreNavItems.map((n) => (
+                <div style={{ width: 40, height: 4, background: C.border2, borderRadius: 99, margin: '16px auto 8px' }} />
+                {(moreNavItems as any[]).map((n: any, i: number) => {
+                  const isActive = view === n.id;
+                  const isLast   = i === moreNavItems.length - 1;
+                  return (
                     <button key={n.id}
                       onClick={() => { setView(n.id as any); setShowMore(false); }}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        background: view === n.id ? C.accentBg : C.surface2,
-                        border: view === n.id ? `1px solid ${C.accent}` : 'none',
-                        borderRadius: 14, padding: '14px 16px',
-                        cursor: 'pointer', textAlign: 'left',
+                        display: 'flex', alignItems: 'center', gap: 16,
+                        width: '100%', background: 'transparent', border: 'none',
+                        borderBottom: isLast ? 'none' : `1px solid ${C.border}`,
+                        padding: '14px 20px', cursor: 'pointer', textAlign: 'left',
                         WebkitTapHighlightColor: 'transparent',
                       }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: view === n.id ? `${C.accent}22` : C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <Icon name={n.icon} size={18} color={view === n.id ? C.accent : C.text2} />
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                        background: isActive ? C.accentBg : C.surface2,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icon name={n.icon} size={20} color={isActive ? C.accent : C.text2} />
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: view === n.id ? C.accent : C.textW }}>{n.label}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: isActive ? C.accent : C.textW }}>{n.label}</div>
+                        <div style={{ fontSize: 12, color: C.text3, marginTop: 3 }}>{n.subtitle}</div>
+                      </div>
+                      <Icon name="chevron" size={16} color={C.text3} />
                     </button>
-                  ))}
-                </div>
-                <div style={{ height: 16 }} />
+                  );
+                })}
               </div>
             </div>
           )}
