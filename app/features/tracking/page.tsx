@@ -28,12 +28,10 @@ export default function TrackingFeaturePage() {
 
         {/* ── Immersive Interactive Chat App Visual Demo Block ─────────────────── */}
         <div style={{ margin: '40px 0 48px', position: 'relative' }}>
-          {/* Ambient Glow Backdrop Element */}
           <div className="pulse" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 260, height: 260, background: 'var(--accent-glow)', filter: 'blur(80px)', borderRadius: '50%', pointerEvents: 'none' }}></div>
 
           <div style={{ maxWidth: 440, margin: '0 auto', background: '#0b141a', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-lg), 0 0 0 1px rgba(255,255,255,0.05)', position: 'relative', zIndex: 5 }}>
             
-            {/* Header Strip Wrapper */}
             <div style={{ background: '#1f2c34', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #2a3942' }}>
               <div className="flex items-center" style={{ gap: 12 }}>
                 <div style={{ width: 38, height: 38, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -49,17 +47,13 @@ export default function TrackingFeaturePage() {
               <div style={{ color: '#8696a0', fontSize: 18, cursor: 'default' }}>•••</div>
             </div>
 
-            {/* Simulated Live Processing Conversation Stream */}
             <div style={{ padding: '20px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              
-              {/* Message Set 01: Multi-transaction string entry log */}
               <div className="flex" style={{ justifyContent: 'flex-end' }}>
                 <div style={{ background: '#005c4b', color: '#e9edef', padding: '12px 16px', borderRadius: '16px 16px 2px 16px', maxWidth: '85%', fontSize: 13, boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }}>
                   grocery 1200, petrol 400 to settle, rent 15000 from joint
                 </div>
               </div>
 
-              {/* Engine Core Response Block Feedback */}
               <div className="flex" style={{ justifyContent: 'flex-start' }}>
                 <div style={{ background: '#202c33', color: '#e9edef', padding: '14px 16px', borderRadius: '16px 16px 16px 2px', maxWidth: '85%', fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-line', boxShadow: '0 1px 2px rgba(0,0,0,0.2)', border: '1px solid #2a3942' }}>
                   {`📝 **Ecosystem Batch Log complete:**
@@ -76,7 +70,6 @@ export default function TrackingFeaturePage() {
                   📊 *Household retention velocity projections updated.*`}
                 </div>
               </div>
-
             </div>
           </div>
           <p className="t-small t-muted text-center" style={{ marginTop: 16, fontStyle: 'italic' }}>
@@ -84,7 +77,6 @@ export default function TrackingFeaturePage() {
           </p>
         </div>
 
-        {/* ── Explanatory Technical Breakdowns ───────────────────────────────── */}
         <h2 className="t-h1" style={{ marginBottom: 16, fontSize: 24 }}>How Natural Language Works</h2>
         <p className="t-body" style={{ marginBottom: 32, fontSize: 15, lineHeight: 1.65 }}>
           Our parsing engine evaluates plain sentences, extracting numeric values and text labels simultaneously. You don't have to follow strict formatting guidelines. Type conversational short-hand blocks as you handle transactions throughout your day—the system processes, maps, and logs rows instantly.
@@ -97,13 +89,11 @@ export default function TrackingFeaturePage() {
           </p>
         </div>
 
-        {/* Action Trigger Node Link Vector */}
         <div className="w-full flex" style={{ justifyContent: 'center' }}>
           <Link href="/app" className="cf-btn cf-btn-primary cf-btn-lg cf-btn-full" style={{ maxWidth: '360px', fontWeight: 800, boxShadow: 'var(--shadow-accent)' }}>
             Connect Your WhatsApp Bot Node
           </Link>
         </div>
-
       </div>
     </div>
   );
