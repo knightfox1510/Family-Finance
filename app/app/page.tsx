@@ -1,10 +1,10 @@
-// ─── app/page.tsx ─────────────────────────────────────────────────────────────
+// ─── app/app/page.tsx ─────────────────────────────────────────────────────────────
 // Root shell. Handles:
-//   • Auth gate
-//   • Loading state
-//   • First-time setup wizard
-//   • Layout (sidebar / mobile bottom nav)
-//   • View routing
+//    • Auth gate (Cleanly decoupled native redirect)
+//    • Loading state
+//    • First-time setup wizard
+//    • Layout (sidebar / mobile bottom nav)
+//    • View routing
 //
 // All data logic is in useActions.ts, all DB calls in supabaseHelpers.ts.
 // All types are in types/index.ts. Design tokens are in constants/index.ts.
@@ -15,7 +15,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 
 import { supabase } from '@/lib/supabaseClient';
-import Auth from '@/Auth';
+import { redirect } from 'next/navigation'; // ⚡ Next.js native navigation redirect routing hook
 
 import { loadData } from '@/lib/supabaseHelpers';
 import { SetupWizard } from '@/components/SetupWizard';
@@ -180,22 +180,13 @@ export default function App() {
     const pendingPartnerItems: any[] = [];
 
     data.expenses.forEach((t) => {
-      // Skip if not a partner-track item
       if (t.settleTrack !== 'partner') return;
-      // Skip if already settled (via the "Settle ⚡" split action)
-      // Note: old transactions may have settled=true from joint flow — only skip
-      // if settleTrack is also 'partner', which we already checked above,
-      // AND settled is true meaning the partner split was explicitly completed.
       if (t.settled) return;
-      // Joint account items never appear in partner ledger
       if (t.account === 'Joint') return;
       const amount = Number(t.amount);
       const aShare = Number(t.partnerAShare);
       const bShare = Number(t.partnerBShare);
 
-      // 'fixed' mode: shares are absolute amounts (e.g. ₹4698)
-      // 'percentage' mode: shares are 0–100, convert to fraction
-      // 'equal' mode: always 50/50
       let shareA: number;
       let shareB: number;
       if (t.splitMode === 'equal') {
@@ -212,9 +203,6 @@ export default function App() {
         shareB = amount * bShare;
       }
 
-      // Use t.account (mapped from account_used) to determine who actually paid.
-      // addedBy = who logged the transaction — may differ from who paid.
-      // account = which account was debited — the authoritative "payer" field.
       const paidByA = t.account === names.a || t.account === 'Partner A';
       const paidByB = t.account === names.b || t.account === 'Partner B';
 
@@ -241,7 +229,6 @@ export default function App() {
       getUsageSummary(data.householdId)
         .then(setPlanInfo)
         .catch(() => {
-          // Columns may not exist yet — show safe free-plan default
           setPlanInfo({ plan: 'free', count: 0, limit: 30, month: new Date().toISOString().slice(0, 7), pct: 0 });
         });
     }).catch(() => {
@@ -250,10 +237,6 @@ export default function App() {
   }, [data?.householdId]);
 
   // ── First-time setup wizard ────────────────────────────────────────────────
-  // Show when household mode is unset or user is newly onboarded
-  // Show wizard when user has never completed setup.
-  // New users: no household_settings row → setupComplete is false.
-  // Existing pre-wizard users: setupComplete is false → wizard shows once.
   const needsSetup = data && !data.settings.setupComplete;
 
   const handleSetupComplete = async (mode: HouseholdMode, nameA: string, nameB: string, telegramUsername?: string) => {
@@ -267,7 +250,6 @@ export default function App() {
       ...(telegramUsername ? { telegramUsername } : {}),
     };
     await actions.saveSettings(updatedSettings);
-    // Also save telegram username to profiles table if provided
     if (telegramUsername && session?.user?.id) {
       const { supabase } = await import('@/lib/supabaseClient');
       await supabase.from('profiles').update({ telegram_username: telegramUsername }).eq('id', session.user.id);
@@ -277,7 +259,10 @@ export default function App() {
   };
 
   // ── Guards ────────────────────────────────────────────────────────────────
-  if (!session) return <Auth />;
+  // ⚡ REDIRECT MUTATION: Cleanly shifts execution straight to your modular /auth route
+  if (!session) {
+    redirect('/auth');
+  }
 
   if (loading || !data) {
     return (
@@ -301,9 +286,8 @@ export default function App() {
   const isSolo      = mode === 'solo';
   const isJointMode = mode === 'joint';
 
-  // Mobile bottom nav: 5 primary slots + More drawer
   const primaryNavItems = [
-    { id: 'dashboard', label: 'Home',     icon: 'home' },
+    { id: 'dashboard', label: 'Home',      icon: 'home' },
     { id: 'expenses',  label: 'Expenses', icon: 'list' },
     { id: 'add',       label: 'Add',      icon: 'plus' },
     isSolo
@@ -327,7 +311,7 @@ export default function App() {
       ? [{ id: 'settle', label: 'Settle', icon: 'refresh', subtitle: p2pPendingCount > 0 ? `${p2pPendingCount} pending` : 'All settled' }]
       : [{ id: 'goals',  label: 'Goals',  icon: 'target',  subtitle: activeGoalCount > 0 ? `${activeGoalCount} active · ${fmt$(goalsSavedTotal)} saved` : 'No active goals' }]
     ),
-    { id: 'loans',    label: 'Loans & EMI',   icon: 'bank',     subtitle: activeLoanCount > 0 ? `${activeLoanCount} active · ${fmt$(monthlyEmiTotal)}/mo` : 'No active EMIs' },
+    { id: 'loans',    label: 'Loans & EMI',   icon: 'bank',      subtitle: activeLoanCount > 0 ? `${activeLoanCount} active · ${fmt$(monthlyEmiTotal)}/mo` : 'No active EMIs' },
     { id: 'insights', label: 'AI Insights',   icon: 'sparkles', subtitle: 'Personalised analysis · monthly read' },
     { id: 'settings', label: 'Settings',      icon: 'settings', subtitle: 'Household, data, notifications' },
   ];
@@ -405,14 +389,14 @@ export default function App() {
           </div>
 
           {/* Offline banner */}
-      {!isOnline && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9998, background: '#f59e0b', color: '#0b0f1a', padding: '8px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          ⚠️ You are offline. Expenses will be saved and synced when you reconnect.
-          {offlineQueue.length > 0 && <span>({offlineQueue.length} pending)</span>}
-        </div>
-      )}
+          {!isOnline && (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9998, background: '#f59e0b', color: '#0b0f1a', padding: '8px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              ⚠️ You are offline. Expenses will be saved and synced when you reconnect.
+              {offlineQueue.length > 0 && <span>({offlineQueue.length} pending)</span>}
+            </div>
+          )}
 
-      {/* Footer: email + privacy + logout */}
+          {/* Footer: email + privacy + logout */}
           <div style={{ padding: '0 20px 6px', fontSize: 11, color: C.text2, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {sidebarOpen ? session.user.email : ''}
           </div>
@@ -447,7 +431,6 @@ export default function App() {
             borderBottom: `1px solid ${C.border}`,
             background: C.bg, position: 'sticky', top: 0, zIndex: 50,
           }}>
-            {/* Avatar + view title */}
             <button
               onClick={() => { setView('settings'); setShowMore(false); }}
               style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
@@ -468,7 +451,6 @@ export default function App() {
                 </div>
               </div>
             </button>
-            {/* Actions */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {view !== 'add' && view !== 'settings' && (
                 <button onClick={handleManualRefresh} disabled={isRefreshing}
@@ -491,7 +473,7 @@ export default function App() {
         {/* Page content */}
         <div style={{ maxWidth: 1000, margin: '0 auto', padding: isMobile ? '12px 12px 90px' : '40px 40px 100px' }}>
 
-          {/* Header row — desktop only (mobile header is the sticky top bar) */}
+          {/* Header row — desktop only */}
           {!isMobile && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 12 }}>
               <h2 style={{ color: C.textW, fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: -0.5 }}>
@@ -585,7 +567,7 @@ export default function App() {
           )}
         </div>
 
-        {/* Desktop FAB — only on desktop */}
+        {/* Desktop FAB */}
         {!isMobile && view !== 'add' && (
           <button
             onClick={() => { setPrevView(view); setView('add'); }}
