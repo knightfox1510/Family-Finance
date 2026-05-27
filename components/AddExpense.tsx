@@ -137,207 +137,224 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
   const sortedCats = useMemo(() => [...cats].sort((a, b) => a.localeCompare(b)), [cats]);
   const accounts = accountOptions(mode, data.settings);
 
-  return (
-    <div style={{ maxWidth: 560 }}>
-      <Card style={{ border: duplicateData ? `1px solid ${C.amber}55` : `1px solid ${C.border}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <SectionTitle style={{ margin: 0 }}>
-            {isEditingMode ? '📝 Edit Transaction' : duplicateData ? '📋 Duplicate Entry' : 'Add New Transaction'}
-          </SectionTitle>
-          <Btn variant="ghost" onClick={onClose} style={{ padding: '4px 10px', fontSize: 16 }}>✕</Btn>
-        </div>
+  const CAT_EMOJI: Record<string, string> = {
+    'Groceries': '🛒', 'Dining Out': '🍽️', 'Coffee & Snacks': '☕', 'Transport / Fuel': '🚗',
+    'Electricity': '⚡', 'Streaming Services': '🎬', 'Investment': '📈', 'Investments': '📈',
+    'Insurance': '🛡️', 'Rent / Mortgage': '🏠', 'Medical / Health': '🏥', 'Gym & Fitness': '💪',
+    'Entertainment': '🎭', 'Clothing & Apparel': '👗', 'Public Transport': '🚌', 'Flights & Hotels': '✈️',
+    'Education': '📚', 'Gifts & Celebrations': '🎁', 'Home Maintenance': '🔧', 'Mobile Plans': '📱',
+    'Internet': '📡', 'Water & Gas': '💧', 'Kids & School': '🎒', 'Personal Care': '✨',
+    'Salary': '💼', 'Freelance': '💻', 'Rental Income': '🏘️', 'Investment Returns': '📈',
+    'Bonus': '🎁', 'Other Income': '💰', 'Subscriptions': '📱', 'Parking & Tolls': '🅿️',
+    'Furniture & Decor': '🛋️', 'Books & Courses': '📖', '🤝 Partner Debt Settlement': '🤝',
+  };
 
-        {/* Type toggle */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+  return (
+    <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Top bar: type toggle + close */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', background: C.surface, borderRadius: 99, padding: 4, gap: 2 }}>
           {(['expense', 'income'] as const).map((t) => (
-            <Btn key={t} variant={form.type === t ? 'primary' : 'ghost'} onClick={() => { set('type', t); set('category', t === 'income' ? data.settings.incomeCategories[0] : data.settings.expenseCategories[0]); }} style={{ flex: 1, textTransform: 'capitalize' }}>
+            <button key={t}
+              onClick={() => { set('type', t); set('category', t === 'income' ? data.settings.incomeCategories[0] : data.settings.expenseCategories[0]); }}
+              style={{ padding: '7px 16px', fontSize: 12, fontWeight: form.type === t ? 700 : 500,
+                background: form.type === t ? C.accent : 'transparent',
+                color: form.type === t ? '#0a0a0a' : C.text3, border: 'none', cursor: 'pointer',
+                borderRadius: 99, fontFamily: 'inherit', transition: 'all 0.15s' }}>
               {t === 'expense' ? '💸 Expense' : '💰 Income'}
-            </Btn>
+            </button>
           ))}
         </div>
+        <button onClick={onClose}
+          style={{ background: C.surface2, border: 'none', color: C.text2, width: 34, height: 34, borderRadius: '50%',
+            cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>
+          ✕
+        </button>
+      </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-
-          {/* Quick presets — shown at the top so they can pre-fill fields below */}
-          {!isEditingMode && (jointPresets.length > 0 || personalPresets.length > 0) && (
-            <div style={{ background: `${C.bg}80`, borderRadius: 0, padding: '10px 12px', border: `1px solid ${C.border}` }}>
-              {[
-                ...(isJoint ? [{ label: '🏠 Joint presets', presets: jointPresets }] : []),
-                { label: isJoint ? '👤 Your presets' : '⚡ Quick fill', presets: personalPresets },
-              ].map(({ label, presets }) => presets.length > 0 && (
-                <div key={label} style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, marginBottom: 5 }}>{label}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {presets.map((p: any) => (
-                      <button key={p.label} type="button" style={presetBtnStyle(p.shared)}
-                        onClick={() => {
-                          set('category', p.cat);
-                          set('note', p.note);
-                          if (p.shared && isJoint) { set('toSettle', true); set('settleTrack', 'joint'); }
-                        }}>
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div><Label>Date</Label><Inp type="date" value={form.date} onChange={(e: any) => set('date', e.target.value)} /></div>
-            <div><Label>Amount (₹)</Label><Inp type="number" placeholder="0" value={form.amount} onChange={(e: any) => set('amount', e.target.value)} /></div>
+      {/* Hero amount */}
+      <div style={{ background: C.surface, borderRadius: 20, padding: '22px 20px', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: C.text3, marginBottom: 8 }}>
+          {isEditingMode ? 'Edit amount' : 'Amount'}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4 }}>
+          <span style={{ fontSize: 26, fontWeight: 700, color: C.text3 }}>₹</span>
+          <input
+            value={form.amount}
+            onChange={(e: any) => set('amount', e.target.value.replace(/[^0-9.]/g, ''))}
+            inputMode="decimal"
+            placeholder="0"
+            style={{ background: 'transparent', border: 'none', outline: 'none', color: C.textW, fontFamily: 'inherit',
+              fontSize: 52, fontWeight: 900, letterSpacing: '-0.04em', textAlign: 'center', maxWidth: 240, width: '100%' }}
+          />
+        </div>
+        <input type="date" value={form.date} onChange={(e: any) => set('date', e.target.value)}
+          style={{ background: 'transparent', border: 'none', color: C.text3, fontSize: 12, outline: 'none', cursor: 'pointer', textAlign: 'center', fontFamily: 'inherit', marginTop: 8 }} />
+        {/* Quick presets */}
+        {!isEditingMode && (jointPresets.length > 0 || personalPresets.length > 0) && (
+          <div style={{ marginTop: 10, display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {[...(isJoint ? jointPresets : []), ...personalPresets].slice(0, 6).map((p: any) => (
+              <button key={p.label} type="button"
+                onClick={() => { set('category', p.cat); set('note', p.note); if (p.shared && isJoint) { set('settleTrack', 'joint'); } }}
+                style={{ padding: '4px 10px', borderRadius: 99, fontSize: 11, fontWeight: 600,
+                  background: p.shared ? `${C.amber}18` : C.surface2, border: `1px solid ${p.shared ? `${C.amber}44` : C.border2}`,
+                  color: p.shared ? C.amber : C.text2, cursor: 'pointer', fontFamily: 'inherit' }}>
+                {p.label}
+              </button>
+            ))}
           </div>
+        )}
+      </div>
 
-          <div><Label>Category</Label>
-            <Sel value={form.category} onChange={(e: any) => set('category', e.target.value)}>
-              {sortedCats.map((c) => <option key={c} value={c}>{c}</option>)}
-            </Sel>
+      {/* Account toggle */}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.text3, marginBottom: 8 }}>Paid from</div>
+        <div style={{ display: 'flex', background: C.surface, borderRadius: 14, padding: 4, gap: 3 }}>
+          {accounts.map((a) => (
+            <button key={a}
+              onClick={() => { set('account', a); if (a === 'Joint') { set('settleTrack', 'none'); set('splitMode', 'equal'); set('partnerAShare', 0.5); set('partnerBShare', 0.5); } }}
+              style={{ flex: 1, padding: '11px 6px', borderRadius: 10, border: 'none',
+                background: form.account === a ? C.accent : 'transparent',
+                color: form.account === a ? '#0a0a0a' : C.text2, fontWeight: 700, fontSize: 13,
+                cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+              {a === 'Joint' ? 'Joint' : a}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Settlement chips */}
+      {form.type === 'expense' && mode !== 'solo' && form.account !== 'Joint' && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.text3, marginBottom: 8 }}>Settlement</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {([
+              { id: 'none',    label: 'Personal',         color: C.text2   },
+              ...(isJoint && form.account !== 'Joint' ? [{ id: 'joint', label: 'Joint Reimb.', color: C.orange }] : []),
+              { id: 'partner', label: 'Split w/ partner', color: C.blue    },
+            ] as { id: string; label: string; color: string }[]).map((s) => {
+              const active = form.settleTrack === s.id;
+              return (
+                <button key={s.id}
+                  onClick={() => { set('settleTrack', s.id); if (s.id !== 'partner') { set('splitMode', 'equal'); set('partnerAShare', 0.5); set('partnerBShare', 0.5); } }}
+                  style={{ padding: '8px 16px', borderRadius: 999, border: `1px solid ${active ? s.color : C.border2}`,
+                    background: active ? C.surface : 'transparent', color: active ? s.color : C.text2,
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <Label>Paid From</Label>
-              <Sel value={form.account} onChange={(e: any) => {
-                const v = e.target.value;
-                set('account', v);
-                if (v === 'Joint') { set('settleTrack', 'none'); set('splitMode', 'equal'); set('partnerAShare', 0.5); set('partnerBShare', 0.5); }
-              }}>
-                {accounts.map((a) => <option key={a} value={a}>{a === 'Joint' ? 'Joint Account' : a}</option>)}
-              </Sel>
-            </div>
-            <div>
-              <Label>Added By</Label>
-              <Sel value={form.addedBy} onChange={(e: any) => set('addedBy', e.target.value)}>
-                <option value="Partner A">{names.a}</option>
-                {hasPartner && <option value="Partner B">{names.b}</option>}
-              </Sel>
-            </div>
-          </div>
-
-          <div><Label>Note (optional)</Label><Inp placeholder="What was this for?" value={form.note} onChange={(e: any) => set('note', e.target.value)} /></div>
-
-          {/* Recurring */}
-          <div style={{ background: '#1e284033', padding: 14, borderRadius: 0, display: 'flex', flexDirection: 'column', gap: 12, border: `1px solid ${C.border}` }}>
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-              <span style={{ fontSize: 14, color: C.text1 }}>🔄 Recurring Commitment</span>
-              <input type="checkbox" checked={form.isRecurring} onChange={(e) => set('isRecurring', e.target.checked)} style={{ width: 18, height: 18, accentColor: C.amber, cursor: 'pointer' }} />
-            </label>
-            {form.isRecurring && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ color: C.text2, fontSize: 12, fontWeight: 600, marginBottom: 5 }}>Interval</div>
-                <Sel value={form.recurrenceInterval} onChange={(e: any) => set('recurrenceInterval', e.target.value)}>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly (Rent, WiFi, Maid…)</option>
-                  <option value="yearly">Yearly (Insurance, Taxes…)</option>
-                </Sel>
+          {form.settleTrack === 'partner' && (
+            <div style={{ marginTop: 10, background: C.surface2, borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: C.text2, fontWeight: 600 }}>Split mode</span>
+                <select value={form.splitMode} onChange={(e) => {
+                  const m = e.target.value;
+                  set('splitMode', m);
+                  if (m === 'equal') { set('partnerAShare', 0.5); set('partnerBShare', 0.5); }
+                  else if (m === 'percentage') { set('partnerAShare', 50); set('partnerBShare', 50); }
+                  else { set('partnerAShare', ''); set('partnerBShare', ''); }
+                }} style={{ background: C.surface, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 10, padding: '5px 10px', fontSize: 12, outline: 'none', cursor: 'pointer' }}>
+                  <option value="equal">50/50 Equal</option>
+                  <option value="percentage">Percentages (%)</option>
+                  <option value="fixed">Fixed Amounts (₹)</option>
+                </select>
               </div>
-            )}
-          </div>
-
-          {/* Settlement track — hidden in solo mode */}
-          {form.type === 'expense' && mode !== 'solo' && (
-            <div style={{ background: '#1e284033', borderRadius: 0, padding: 14, display: 'flex', flexDirection: 'column', gap: 14, border: `1px solid ${C.border}` }}>
-              <div>
-                <Label>🎯 Settlement Track</Label>
-                <p style={{ color: C.muted, fontSize: 11, margin: '4px 0 8px', lineHeight: 1.5 }}>
-                  {form.account === 'Joint'
-                    ? 'Joint account expenses are shared directly — no settlement needed.'
-                    : isJoint
-                    ? 'Did you pay personally for something that should be reimbursed?'
-                    : 'Did someone else split this expense with you?'}
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
-
-                  {/* Option 1: No settlement */}
-                  <button type="button"
-                    onClick={() => { set('settleTrack', 'none'); set('splitMode', 'equal'); }}
-                    style={{ padding: '10px 12px', borderRadius: 0, fontSize: 12, textAlign: 'left',
-                      fontWeight: form.settleTrack === 'none' ? 700 : 500,
-                      background: form.settleTrack === 'none' ? C.amber : `${C.bg}80`,
-                      color: form.settleTrack === 'none' ? C.surface : C.text2,
-                      border: `1px solid ${form.settleTrack === 'none' ? C.amber : C.border}`,
-                      cursor: 'pointer' }}>
-                    ❌ No Settlement — personal or already joint
-                  </button>
-
-                  {/* Option 2: Reimburse from Joint pool — joint mode + personal account only */}
-                  {isJoint && form.account !== 'Joint' && (
-                    <button type="button"
-                      onClick={() => { set('settleTrack', 'joint'); set('splitMode', 'equal'); }}
-                      style={{ padding: '10px 12px', borderRadius: 0, fontSize: 12, textAlign: 'left',
-                        fontWeight: form.settleTrack === 'joint' ? 700 : 500,
-                        background: form.settleTrack === 'joint' ? C.green : `${C.bg}80`,
-                        color: form.settleTrack === 'joint' ? C.surface : C.text2,
-                        border: `1px solid ${form.settleTrack === 'joint' ? C.green : C.border}`,
-                        cursor: 'pointer' }}>
-                      🏦 Reimburse from Joint Pool — I paid personally, Joint owes me
-                    </button>
-                  )}
-
-                  {/* Option 3: Direct partner split — only when paid from personal account */}
-                  {form.account !== 'Joint' && (
-                    <button type="button"
-                      onClick={() => { set('settleTrack', 'partner'); }}
-                      style={{ padding: '10px 12px', borderRadius: 0, fontSize: 12, textAlign: 'left',
-                        fontWeight: form.settleTrack === 'partner' ? 700 : 500,
-                        background: form.settleTrack === 'partner' ? C.purple : `${C.bg}80`,
-                        color: form.settleTrack === 'partner' ? '#fff' : C.text2,
-                        border: `1px solid ${form.settleTrack === 'partner' ? C.purple : C.border}`,
-                        cursor: 'pointer' }}>
-                      🤝 Partner Split — my partner owes me part of this directly
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {form.settleTrack === 'partner' && form.account !== 'Joint' && (
-                <div style={{ background: `${C.bg}60`, padding: 12, borderRadius: 0, border: `1px solid ${C.border}60` }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, color: C.text1, fontWeight: 600 }}>Split Mode</span>
-                    <select value={form.splitMode} onChange={(e) => {
-                      const m = e.target.value;
-                      set('splitMode', m);
-                      if (m === 'equal') { set('partnerAShare', 0.5); set('partnerBShare', 0.5); }
-                      else if (m === 'percentage') { set('partnerAShare', 50); set('partnerBShare', 50); }
-                      else { set('partnerAShare', ''); set('partnerBShare', ''); }
-                    }} style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 0, padding: '4px 8px', fontSize: 12 }}>
-                      <option value="equal">50/50 Equal</option>
-                      <option value="percentage">Percentages (%)</option>
-                      <option value="fixed">Fixed Amounts (₹)</option>
-                    </select>
-                  </div>
-                  {form.splitMode !== 'equal' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                      {[['a', names.a], ['b', names.b]].map(([key, name]) => (
-                        <div key={key}>
-                          <span style={{ fontSize: 11, color: C.muted, display: 'block', marginBottom: 4 }}>{name}'s Share ({form.splitMode === 'percentage' ? '%' : '₹'})</span>
-                          <Inp type="number" placeholder="0" value={key === 'a' ? form.partnerAShare : form.partnerBShare}
-                            onChange={(e: any) => {
-                              const val = e.target.value === '' ? '' : Number(e.target.value);
-                              if (key === 'a') { set('partnerAShare', val); if (form.splitMode === 'percentage' && val !== '' && Number(val) <= 100) set('partnerBShare', 100 - Number(val)); }
-                              else set('partnerBShare', val);
-                            }} />
-                        </div>
-                      ))}
+              {form.splitMode !== 'equal' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {[['a', names.a], ['b', names.b]].map(([key, name]) => (
+                    <div key={key}>
+                      <div style={{ fontSize: 10, color: C.text3, fontWeight: 600, marginBottom: 4 }}>{name}'s share ({form.splitMode === 'percentage' ? '%' : '₹'})</div>
+                      <Inp type="number" placeholder="0" value={key === 'a' ? form.partnerAShare : form.partnerBShare}
+                        onChange={(e: any) => {
+                          const val = e.target.value === '' ? '' : Number(e.target.value);
+                          if (key === 'a') { set('partnerAShare', val); if (form.splitMode === 'percentage' && val !== '' && Number(val) <= 100) set('partnerBShare', 100 - Number(val)); }
+                          else set('partnerBShare', val);
+                        }} />
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
             </div>
           )}
-
-          {!isOnline && (
-            <div style={{ background: '#f59e0b22', border: '1px solid #f59e0b44', borderRadius: 0, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#f59e0b', textAlign: 'center' }}>
-              ⚠️ You are offline. This expense will be saved locally and synced when you reconnect.
-            </div>
-          )}
-          <Btn variant={flash ? 'success' : 'primary'} onClick={submit} style={{ width: '100%', padding: '13px', fontSize: 15, fontWeight: 700 }}>
-            {flash ? '✓ Saved!' : isEditingMode ? 'Update Transaction' : 'Add Transaction'}
-          </Btn>
         </div>
-      </Card>
+      )}
+
+      {/* Category grid */}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.text3, marginBottom: 8 }}>Category</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          {cats.slice(0, 8).map((c) => {
+            const active = form.category === c;
+            const emoji = CAT_EMOJI[c] || (form.type === 'income' ? '💰' : '💸');
+            return (
+              <button key={c} onClick={() => set('category', c)}
+                style={{ background: active ? C.accentBg : C.surface,
+                  border: `1px solid ${active ? C.accent : 'transparent'}`,
+                  borderRadius: 14, padding: '12px 6px',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                  cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' }}>
+                <span style={{ fontSize: 20 }}>{emoji}</span>
+                <div style={{ fontSize: 9, fontWeight: 600, color: active ? C.accent : C.text2, lineHeight: 1.2, textAlign: 'center' }}>
+                  {c.length > 12 ? c.slice(0, 11) + '…' : c}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <select value={form.category} onChange={(e: any) => set('category', e.target.value)}
+          style={{ marginTop: 8, width: '100%', background: C.surface2, border: 'none', color: C.textW, borderRadius: 12, padding: '10px 14px', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+          {sortedCats.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+
+      {/* Note */}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.text3, marginBottom: 8 }}>Note</div>
+        <input placeholder="What was this for?" value={form.note} onChange={(e: any) => set('note', e.target.value)}
+          style={{ width: '100%', background: C.surface2, border: '1.5px solid transparent', color: C.textW, fontFamily: 'inherit',
+            fontSize: 15, fontWeight: 500, padding: '13px 16px', outline: 'none', borderRadius: 14, boxSizing: 'border-box' as const, transition: 'border 0.15s' }}
+          onFocus={(e: any) => { e.currentTarget.style.borderColor = C.accent; }}
+          onBlur={(e: any) => { e.currentTarget.style.borderColor = 'transparent'; }} />
+      </div>
+
+      {/* Recurring toggle */}
+      <div style={{ background: C.surface, borderRadius: 14, padding: '14px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+          onClick={() => set('isRecurring', !form.isRecurring)}>
+          <span style={{ fontSize: 13, color: C.text2, fontWeight: 600 }}>🔄 Recurring commitment</span>
+          <div style={{ width: 44, height: 26, background: form.isRecurring ? C.accent : C.surface2, borderRadius: 99, position: 'relative', transition: 'background 0.2s', flexShrink: 0, cursor: 'pointer' }}>
+            <div style={{ position: 'absolute', top: 3, left: form.isRecurring ? 21 : 3, width: 20, height: 20, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.25)' }} />
+          </div>
+        </div>
+        {form.isRecurring && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 10, color: C.text3, fontWeight: 600, marginBottom: 6 }}>Interval</div>
+            <Sel value={form.recurrenceInterval} onChange={(e: any) => set('recurrenceInterval', e.target.value)}>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly (Rent, WiFi, Maid…)</option>
+              <option value="yearly">Yearly (Insurance, Taxes…)</option>
+            </Sel>
+          </div>
+        )}
+      </div>
+
+      {!isOnline && (
+        <div style={{ background: `${C.amber}22`, border: `1px solid ${C.amber}44`, borderRadius: 12, padding: '8px 14px', fontSize: 12, color: C.amber, textAlign: 'center' }}>
+          ⚠️ Offline — will sync when reconnected.
+        </div>
+      )}
+
+      {/* CTA */}
+      <button onClick={submit}
+        style={{ width: '100%', minHeight: 56, borderRadius: 999, border: 'none',
+          background: flash ? C.green : C.accent, color: flash ? '#fff' : '#0a0a0a',
+          fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+          letterSpacing: '0.01em', transition: 'all 0.15s', boxShadow: `0 4px 20px ${C.accent}40` }}>
+        {flash ? '✓ Saved!' : isEditingMode ? `Update · ₹${form.amount || 0}` : `Log expense · ₹${form.amount || 0}`}
+      </button>
     </div>
   );
 }

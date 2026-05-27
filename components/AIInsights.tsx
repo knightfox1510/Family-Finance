@@ -1,7 +1,6 @@
 'use client';
 import React, { useState } from 'react';
 import type { AppData } from '@/types';
-import { Card, Btn, SectionTitle } from '@/components/ui';
 import { C } from '@/constants';
 
 function today() { return new Date().toISOString().slice(0, 10); }
@@ -9,13 +8,13 @@ function monthKey(d: string) { const dt = new Date(d); return `${dt.getFullYear(
 function monthLabel(key: string) { const [y,m]=key.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-IN',{month:'short',year:'numeric'}); }
 
 const MODES = [
-  { id: 'monthly',       label: '📊 Monthly Summary' },
-  { id: 'anomalies',     label: '🔍 Unusual Spending' },
-  { id: 'advice',        label: '💡 Financial Advice' },
-  { id: 'loans',         label: '🏧 Loan Strategy' },
-  { id: 'runway',        label: '⏳ Runway & Forecast' },
-  { id: 'milestones',    label: '🎯 Goal Velocity' },
-  { id: 'discretionary', label: '✂️ Lifestyle Pruning' },
+  { id: 'monthly',       icon: '📊', label: 'Monthly Summary'   },
+  { id: 'anomalies',     icon: '🔍', label: 'Unusual Spending'  },
+  { id: 'advice',        icon: '💡', label: 'Financial Advice'  },
+  { id: 'loans',         icon: '🏧', label: 'Loan Strategy'     },
+  { id: 'runway',        icon: '⏳', label: 'Runway & Forecast' },
+  { id: 'milestones',    icon: '🎯', label: 'Goal Velocity'     },
+  { id: 'discretionary', icon: '✂️', label: 'Lifestyle Pruning' },
 ];
 
 interface Props { data: AppData; fmt: (n: number) => string; }
@@ -59,37 +58,89 @@ export function AIInsights({ data, fmt }: Props) {
     setLoading(false);
   };
 
+  const currentMode = MODES.find((m) => m.id === mode)!;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <Card>
-        <SectionTitle>AI-Powered Financial Insights</SectionTitle>
-        <p style={{ color: C.text1, fontSize: 14, margin: '0 0 18px', lineHeight: 1.6 }}>Personalised insights based on your actual spending, goals, and loans.</p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-          {MODES.map((m) => <Btn key={m.id} variant={mode === m.id ? 'primary' : 'ghost'} onClick={() => setMode(m.id)} style={{ fontSize: 13 }}>{m.label}</Btn>)}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Hero */}
+      <div style={{ background: C.surface, borderRadius: 20, padding: '20px', display: 'flex', gap: 14, alignItems: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+        <div style={{ width: 56, height: 56, borderRadius: 16, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 28 }}>
+          ✨
         </div>
-        <Btn variant="primary" onClick={generate} style={{ padding: '11px 24px', fontSize: 14 }} disabled={loading}>{loading ? 'Generating…' : '✨ Generate Insight'}</Btn>
-      </Card>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: C.textW, letterSpacing: '-0.02em' }}>AI-powered insights</div>
+          <div style={{ fontSize: 12, color: C.text2, marginTop: 3 }}>Personalised analysis of your spending, goals, and loans</div>
+          <div style={{ marginTop: 6, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: C.accent }}>✦ Powered by Claude</div>
+        </div>
+      </div>
 
-      {loading && (
-        <Card style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ color: C.amber, fontSize: 32, marginBottom: 12, animation: 'spin 1.2s linear infinite' }}>✨</div>
-          <div style={{ color: C.text1, fontSize: 15 }}>Analysing your finances…</div>
-          <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
-        </Card>
-      )}
+      {/* Mode picker grid */}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.text3, marginBottom: 10, padding: '0 4px' }}>
+          Choose an analysis
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+          {MODES.map((m) => {
+            const active = mode === m.id;
+            return (
+              <button key={m.id} onClick={() => setMode(m.id)} style={{
+                background: active ? C.accentBg : C.surface,
+                border: `1px solid ${active ? C.accent : 'transparent'}`,
+                borderRadius: 14, padding: '14px 12px',
+                display: 'flex', flexDirection: 'column', gap: 8,
+                alignItems: 'flex-start', cursor: 'pointer',
+                fontFamily: 'inherit', textAlign: 'left', transition: 'all .12s',
+              }}>
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: active ? C.accent : C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+                  {m.icon}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: active ? C.accent : C.textW, lineHeight: 1.3 }}>
+                  {m.label}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      {error && <Card style={{ border: `1px solid ${C.red}44`, background: C.red + '11' }}><p style={{ color: C.red, margin: 0 }}>{error}</p></Card>}
-
+      {/* Report card */}
       {report && (
-        <Card style={{ border: `1px solid ${C.amber}33` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-            <span style={{ fontSize: 20 }}>✨</span>
-            <span style={{ color: C.textW, fontWeight: 700, fontSize: 15 }}>{MODES.find((m) => m.id === mode)?.label}</span>
-            <span style={{ color: C.muted, fontSize: 12, marginLeft: 'auto' }}>{monthLabel(monthKey(today()))}</span>
+        <div style={{ background: C.surface, border: `1px solid ${C.border2}`, borderRadius: 20, padding: '18px 18px 20px', boxShadow: C.shadowSm }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: 18 }}>✨</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: C.textW }}>{currentMode.label}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: C.text3 }}>{monthLabel(monthKey(today()))}</span>
           </div>
-          <div style={{ color: C.text1, fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{report}</div>
-        </Card>
+          <div style={{ fontSize: 13, color: C.text1, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{report}</div>
+        </div>
       )}
+
+      {/* Error */}
+      {error && (
+        <div style={{ background: `${C.red}11`, border: `1px solid ${C.red}44`, borderRadius: 14, padding: '14px 16px', fontSize: 13, color: C.red }}>
+          {error}
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ background: C.surface, borderRadius: 20, padding: '40px 20px', textAlign: 'center', boxShadow: C.shadowSm }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>✨</div>
+          <div style={{ color: C.text1, fontSize: 15 }}>Analysing your finances…</div>
+        </div>
+      )}
+
+      {/* Generate / Regenerate button */}
+      <button onClick={generate} disabled={loading}
+        style={{ width: '100%', minHeight: 52, borderRadius: 999, border: 'none',
+          background: loading ? C.surface2 : C.accent, color: loading ? C.text3 : '#0a0a0a',
+          fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
+          fontFamily: 'inherit', letterSpacing: '0.01em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          boxShadow: loading ? 'none' : `0 4px 20px ${C.accent}40` }}>
+        <span>{loading ? '⏳' : '✨'}</span>
+        {loading ? 'Generating…' : report ? 'Regenerate' : 'Generate Insight'}
+      </button>
     </div>
   );
 }
