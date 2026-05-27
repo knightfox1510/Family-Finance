@@ -74,26 +74,6 @@ export default function HomePage() {
   return (
     <div className="cf-page animate-fade-in" style={{ paddingBottom: 0 }}>
       
-      {/* ── Dynamic Layout Engine CSS Fix Injection Block ────────────────────── */}
-      <style dangerouslySetInnerHTML={{__html: `
-        /* Ensure responsive toggle pipeline acts instantly on interaction */
-        #menu-toggle:checked ~ .mobile-drawer { 
-          transform: translateX(0) !important; 
-          opacity: 1 !important; 
-          visibility: visible !important; 
-        }
-        #menu-toggle:checked ~ .drawer-overlay { 
-          opacity: 0.6 !important; 
-          visibility: visible !important; 
-        }
-
-        /* Responsive Mobile Elements Execution Breakpoint */
-        @media (max-width: 768px) {
-          .nav-links-desktop { display: none !important; }
-          .mobile-menu-trigger { display: flex !important; }
-        }
-      `}} />
-
       {/* ── Nav ──────────────────────────────────────────────────────────────── */}
       <nav className="cf-header" style={{ position: 'relative', height: 64, padding: '0 24px', zIndex: 1100 }}>
         <div className="w-full flex justify-between items-center" style={{ maxWidth: 1100, margin: '0 auto' }}>
@@ -104,7 +84,7 @@ export default function HomePage() {
           </Link>
 
           <div className="flex items-center" style={{ gap: 16 }}>
-            {/* Desktop Link Layout Block */}
+            {/* Desktop link directory map */}
             <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
               <Link href="/features" className="t-body" style={{ textDecoration: 'none', fontWeight: 500 }}>
                 Features
@@ -116,55 +96,60 @@ export default function HomePage() {
               ))}
             </div>
 
-            {/* Persistent Display Block: Visible on both Desktop and Mobile */}
-            <Link href="/app" className="cf-btn cf-btn-primary cf-btn-sm" style={{ fontWeight: 800 }}>
+            {/* Persistent Display Button Action Element */}
+            <Link href="/app" className="cf-btn cf-btn-primary cf-btn-sm" style={{ fontWeight: 800, zIndex: 95 }}>
               Sign In
             </Link>
 
-            {/* Core Interaction Functional Pipeline Input Switch */}
-            <input type="checkbox" id="menu-toggle" style={{ display: 'none' }} />
+            {/* Functional Checkbox State Toggle Control */}
+            <input type="checkbox" id="menu-toggle" />
             
-            {/* Mobile Three-Line Hamburger Icon Trigger Button */}
-            <label htmlFor="menu-toggle" className="mobile-menu-trigger" style={{ display: 'none', flexDirection: 'column', gap: 5, cursor: 'pointer', padding: '8px', zIndex: 1200 }}>
+            {/* Three-Line Hamburger Component Trigger Icon Art */}
+            <label htmlFor="menu-toggle" className="mobile-menu-trigger">
               <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
               <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
               <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
             </label>
 
-            {/* Semi-Transparent Background Overlay Mask */}
-            <label htmlFor="menu-toggle" className="drawer-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#000', opacity: 0, visibility: 'hidden', transition: 'all 0.25s ease', zIndex: 1000 }}></label>
+            {/* Semi-Transparent Background Overlay Dismissal Mask */}
+            <label htmlFor="menu-toggle" className="drawer-overlay"></label>
 
-            {/* Sliding Navigation Drawer Component Panel */}
-            <div className="mobile-drawer" style={{ position: 'fixed', top: 0, right: 0, width: '300px', height: '100vh', background: 'var(--surface)', padding: '32px 24px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 20, transform: 'translateX(100%)', opacity: 0, visibility: 'hidden', transition: 'all 0.28s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1150, overflowY: 'auto' }}>
+            {/* Sliding Mobile System Control Drawer Container Box */}
+            <div className="mobile-drawer">
               
-              <div className="flex justify-between items-center" style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
-                <span className="t-caption">Menu Directory</span>
-                <label htmlFor="menu-toggle" style={{ color: 'var(--text2)', fontSize: 28, cursor: 'pointer', lineHeight: 1 }}>&times;</label>
+              {/* Dynamic Header Wrapper Area */}
+              <div className="flex justify-between items-center" style={{ marginBottom: 28, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 22, fontWeight: 900, color: 'var(--textW)', letterSpacing: '-0.03em' }}>MENU</span>
+                <label htmlFor="menu-toggle" style={{ color: 'var(--text3)', fontSize: 32, cursor: 'pointer', lineHeight: 0.5, padding: '4px' }}>&times;</label>
               </div>
 
-              {/* Multi-Level Feature Route Nesting Tree */}
-              <div className="flex flex-col" style={{ gap: 8 }}>
-                <Link href="/features" className="t-h2" style={{ textDecoration: 'none', fontWeight: 700 }}>
-                  Features
-                </Link>
-                <div className="flex flex-col" style={{ gap: 10, paddingLeft: 16, marginTop: 4, borderLeft: '1px solid var(--border)' }}>
-                  {featureSubLinks.map((sub) => (
-                    <Link key={sub.href} href={sub.href} className="t-body" style={{ textDecoration: 'none', fontSize: 13, color: 'var(--text2)' }}>
-                      ↳ {sub.label}
-                    </Link>
-                  ))}
+              {/* Functional Routing Menu Directory Scroll Tree */}
+              <div className="flex flex-col" style={{ gap: 24, flex: 1, overflowY: 'auto' }}>
+                
+                {/* Multi-tier nested features navigation item list */}
+                <div className="flex flex-col" style={{ gap: 12 }}>
+                  <Link href="/features" className="t-h1" style={{ textDecoration: 'none' }}>
+                    Features
+                  </Link>
+                  <div className="flex flex-col" style={{ gap: 14, paddingLeft: 12, borderLeft: '1.5px solid var(--border)' }}>
+                    {featureSubLinks.map((sub) => (
+                      <Link key={sub.href} href={sub.href} className="t-body" style={{ textDecoration: 'none', fontSize: 14 }}>
+                        {sub.label}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Secondary system configuration index points */}
+                {navLinks.map((l) => (
+                  <Link key={l.href} href={l.href} className="t-h1" style={{ textDecoration: 'none' }}>
+                    {l.label}
+                  </Link>
+                ))}
               </div>
 
-              {/* Standard Directory Link Set */}
-              {navLinks.map((l) => (
-                <Link key={l.href} href={l.href} className="t-h2" style={{ textDecoration: 'none', fontWeight: 700, paddingTop: 8 }}>
-                  {l.label}
-                </Link>
-              ))}
-
-              {/* Separated Intent Action Button Group */}
-              <div className="flex flex-col" style={{ gap: 12, marginTop: 'auto', paddingTop: 24 }}>
+              {/* Onboarding Identity Control Actions Container Footer */}
+              <div className="flex flex-col" style={{ gap: 12, paddingTop: 16, marginTop: 'auto' }}>
                 <Link href="/app" className="cf-btn cf-btn-primary cf-btn-full" style={{ fontWeight: 800 }}>
                   Create Account (Sign Up)
                 </Link>
@@ -172,6 +157,7 @@ export default function HomePage() {
                   Sign In
                 </Link>
               </div>
+
             </div>
           </div>
 
@@ -307,8 +293,8 @@ export default function HomePage() {
           <h2 className="t-display" style={{ marginBottom: 16, fontSize: 38 }}>Ready to watch your savings velocity accelerate?</h2>
           <p className="t-body" style={{ marginBottom: 40, fontSize: 16 }}>Try basic features fully free. Upgrade only when your operations expand.</p>
           
-          <div className="w-full flex justify-between items-center" style={{ justifyContent: 'center', padding: '0 8px' }}>
-            <Link href="/app" className="cf-btn cf-btn-primary cf-btn-lg" style={{ boxShadow: 'var(--shadow-accent)', whiteSpace: 'normal', height: 'auto', minHeight: 56, padding: '16px 32px', textAlign: 'center', lineHeight: 1.2, width: '100%', maxWidth: '340px' }}>
+          <div className="w-full flex justify-between items-center" style={{ justifyContent: 'center', padding: '0 16px' }}>
+            <Link href="/app" className="cf-btn cf-btn-primary cf-btn-lg cf-btn-full" style={{ maxWidth: '360px', height: 'auto', minHeight: 52, whiteSpace: 'normal', padding: '14px 24px', textAlign: 'center', lineHeight: 1.3 }}>
               Claim Your Secure Dashboard Access
             </Link>
           </div>
