@@ -755,7 +755,7 @@ html { background: #0a0a0a; }
     top: 0;
     left: 0;
     width: 100vw;
-    height: 100dvh; /* ⚡ CHANGED: Dynamic height matches visible viewport mask */
+    height: 100lvh; /* 🔒 Locked height: prevents backdrop flickering on scroll */
     background: #000000;
     opacity: 0;
     visibility: hidden;
@@ -771,11 +771,16 @@ html { background: #0a0a0a; }
     right: 0;
     width: 85%;
     max-width: 320px;
-    height: 100dvh; /* ⚡ CHANGED: Dynamic height perfectly locks actions above browser bars */
+    height: 100lvh; /* 🔒 Locked height: drawer stays mathematically rigid while URL bar moves */
     background: var(--surface);
     border-left: 1px solid var(--border);
-    /* Safe-areas protect top notches and bottom home-indicator bars */
-    padding: calc(16px + env(safe-area-inset-top, 0px)) 24px calc(20px + env(safe-area-inset-bottom, 0px));
+    
+    /* CRITICAL LAYOUT VALVE: 
+       We use a combination of standard safe areas + 32px of baseline margin.
+       This pushes the bottom button group high enough to never be obstructed 
+       by the URL bar, completely removing the need for variable resizing.
+    */
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 24px calc(32px + env(safe-area-inset-bottom, 0px));
     box-sizing: border-box;
     flex-direction: column;
     transform: translateX(100%);
