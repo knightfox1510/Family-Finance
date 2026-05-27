@@ -40,7 +40,6 @@ export default function SecurityHubPage() {
   return (
     <div className="cf-page animate-fade-in" style={{ paddingBottom: 0 }}>
       
-      {/* ── Nav Header ──────────────────────────────────────────────────────── */}
       <nav className="cf-header" style={{ position: 'relative', height: 64, padding: '0 24px', zIndex: 1100 }}>
         <div className="w-full flex justify-between items-center" style={{ maxWidth: 1100, margin: '0 auto' }}>
           <Link href="/" className="flex items-center" style={{ gap: 10, textDecoration: 'none' }}>
@@ -59,7 +58,6 @@ export default function SecurityHubPage() {
         </div>
       </nav>
 
-      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <section className="cf-content text-center animate-fade-up" style={{ padding: '80px 16px 48px' }}>
         <div className="cf-badge" style={{ background: 'rgba(34,197,94,0.12)', color: 'var(--green)', border: '1px solid rgba(34,197,94,0.2)', marginBottom: 24, padding: '6px 16px' }}>
           🔒 Non-Custodial Financial Logging Infrastructure
@@ -67,12 +65,12 @@ export default function SecurityHubPage() {
         <h1 className="t-display" style={{ marginBottom: 24, lineHeight: 1.1 }}>
           Your household assets.<br />Locked in a private vault.
         </h1>
-        <p className="t-body" style={{ fontSize: 17, maxW: 560, margin: '0 auto', color: 'var(--text2)' }}>
+        {/* ⚡ CORE MAXWIDTH RECOMPILATION FIX APPLIED HERE */}
+        <p className="t-body" style={{ fontSize: 17, maxWidth: 560, margin: '0 auto', color: 'var(--text2)' }}>
           We treat your household financial operations with absolute confidentiality. Discover the strict defensive parameters protecting your data footprints.
         </p>
       </section>
 
-      {/* ── Security Architecture Grid ───────────────────────────────────────── */}
       <section className="cf-content" style={{ padding: '40px 16px 80px', maxWidth: 900 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 24 }}>
           {securityProtocols.map((p) => (
@@ -85,7 +83,6 @@ export default function SecurityHubPage() {
         </div>
       </section>
 
-      {/* ── Compliance Statements Block ───────────────────────────────────────── */}
       <section style={{ padding: '64px 24px', borderTop: '1px solid var(--border)', background: 'var(--bg2)' }}>
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
           <h2 className="t-h1 text-center" style={{ marginBottom: 32 }}>Our Structural Guarantees</h2>
@@ -102,7 +99,6 @@ export default function SecurityHubPage() {
         </div>
       </section>
 
-      {/* ── Bottom Section CTA ────────────────────────────────────────────────── */}
       <section className="text-center" style={{ padding: '100px 24px', borderTop: '1px solid var(--border)' }}>
         <div className="cf-content" style={{ maxWidth: 540 }}>
           <h2 className="t-h1" style={{ fontSize: 32, marginBottom: 16 }}>Deploy your isolated vault today</h2>
