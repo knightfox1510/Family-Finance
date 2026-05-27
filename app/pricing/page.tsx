@@ -196,7 +196,21 @@ export default function PricingPage() {
               position: 'relative',
             }}>
               {p.highlight && (
-                <div className="cf-badge" style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#0a0a0a', fontSize: 10, fontWeight: 900, padding: '6px 18px', boxShadow: 'var(--shadow-accent)' }}>
+  <div className="cf-badge" style={{ 
+    position: 'absolute', 
+    top: -12, 
+    left: '50%', 
+    transform: 'translateX(-50%)', 
+    background: 'var(--accent)', 
+    color: '#0a0a0a', 
+    fontSize: 10, 
+    fontWeight: 900, 
+    padding: '4px 12px',       
+    boxShadow: 'var(--shadow-accent)',
+    width: 'max-content',      
+    maxWidth: '90%',           
+    textAlign: 'center'
+  }}>
                   UNLIMITED OPERATIONS
                 </div>
               )}
