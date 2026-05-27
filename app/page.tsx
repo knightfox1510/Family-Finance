@@ -9,7 +9,7 @@ export const metadata = {
 
 // 🎯 Grouped strictly by specific platform toolsets
 const featureSubLinks = [
-  { href: '/features/tracking', label: 'Chat Log Automation' }, /* ⚡ Was WhatsApp Tracking */
+  { href: '/features/tracking', label: 'Chat Log Automations' }, /* ⚡ Was WhatsApp Tracking */
   { href: '/features/budgeting', label: 'Retention Metrics' },    /* ⚡ Was Leakage Budgeting */
   { href: '/features/planning', label: 'Household Settlement' }, /* ⚡ Was Household Planning */
   { href: '/shortcuts',         label: 'Power User Guide' }, 
