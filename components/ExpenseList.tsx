@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import type { AppData } from '@/types';
 import { C } from '@/constants';
+import { Icon } from '@/components/Icon';
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function monthKey(d: string) { const dt = new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; }
@@ -33,35 +34,40 @@ interface Props {
   onDuplicate: (e: any) => void;
 }
 
-const catIconStyle = (cat: string, type?: string): { bg: string; color: string; emoji: string } => {
-  if (type === 'income') return { bg: C.greenBg, color: C.green, emoji: '💰' };
-  const map: Record<string, { bg: string; color: string; emoji: string }> = {
-    'Groceries':            { bg: C.greenBg,  color: C.green,  emoji: '🛒' },
-    'Dining Out':           { bg: C.orangeBg, color: C.orange, emoji: '🍽️' },
-    'Coffee & Snacks':      { bg: C.orangeBg, color: C.orange, emoji: '☕' },
-    'Rent / Mortgage':      { bg: C.blueBg,   color: C.blue,   emoji: '🏠' },
-    'Electricity':          { bg: C.tealBg,   color: C.teal,   emoji: '⚡' },
-    'Water & Gas':          { bg: C.tealBg,   color: C.teal,   emoji: '💧' },
-    'Internet':             { bg: C.purpleBg, color: C.purple, emoji: '📡' },
-    'Mobile Plans':         { bg: C.purpleBg, color: C.purple, emoji: '📱' },
-    'Streaming Services':   { bg: C.purpleBg, color: C.purple, emoji: '🎬' },
-    'Insurance':            { bg: C.blueBg,   color: C.blue,   emoji: '🛡️' },
-    'Medical / Health':     { bg: C.redBg,    color: C.red,    emoji: '🏥' },
-    'Gym & Fitness':        { bg: C.greenBg,  color: C.green,  emoji: '💪' },
-    'Clothing & Apparel':   { bg: C.purpleBg, color: C.purple, emoji: '👗' },
-    'Personal Care':        { bg: C.purpleBg, color: C.purple, emoji: '✨' },
-    'Transport / Fuel':     { bg: C.tealBg,   color: C.teal,   emoji: '🚗' },
-    'Public Transport':     { bg: C.tealBg,   color: C.teal,   emoji: '🚌' },
-    'Flights & Hotels':     { bg: C.blueBg,   color: C.blue,   emoji: '✈️' },
-    'Investment':           { bg: C.tealBg,   color: C.teal,   emoji: '📈' },
-    'Investments':          { bg: C.tealBg,   color: C.teal,   emoji: '📈' },
-    'Entertainment':        { bg: C.purpleBg, color: C.purple, emoji: '🎭' },
-    'Gifts & Celebrations': { bg: C.redBg,    color: C.red,    emoji: '🎁' },
-    'Education':            { bg: C.blueBg,   color: C.blue,   emoji: '📚' },
-    'Kids & School':        { bg: C.blueBg,   color: C.blue,   emoji: '🎒' },
-    'Home Maintenance':     { bg: C.orangeBg, color: C.orange, emoji: '🔧' },
+const catIconStyle = (cat: string, type?: string): { bg: string; color: string; icon: string } => {
+  if (type === 'income') return { bg: C.greenBg, color: C.green, icon: 'wallet' };
+  const map: Record<string, { bg: string; color: string; icon: string }> = {
+    'Groceries':            { bg: C.greenBg,  color: C.green,  icon: 'cart'      },
+    'Dining Out':           { bg: C.orangeBg, color: C.orange, icon: 'utensils'  },
+    'Coffee & Snacks':      { bg: C.orangeBg, color: C.orange, icon: 'coffee'    },
+    'Rent / Mortgage':      { bg: C.blueBg,   color: C.blue,   icon: 'home'      },
+    'Electricity':          { bg: C.tealBg,   color: C.teal,   icon: 'zap'       },
+    'Water & Gas':          { bg: C.tealBg,   color: C.teal,   icon: 'zap'       },
+    'Internet':             { bg: C.purpleBg, color: C.purple, icon: 'sync'      },
+    'Mobile Plans':         { bg: C.purpleBg, color: C.purple, icon: 'more'      },
+    'Streaming Services':   { bg: C.purpleBg, color: C.purple, icon: 'film'      },
+    'Insurance':            { bg: C.blueBg,   color: C.blue,   icon: 'shield'    },
+    'Medical / Health':     { bg: C.redBg,    color: C.red,    icon: 'alert'     },
+    'Gym & Fitness':        { bg: C.greenBg,  color: C.green,  icon: 'target'    },
+    'Clothing & Apparel':   { bg: C.purpleBg, color: C.purple, icon: 'sparkles'  },
+    'Personal Care':        { bg: C.purpleBg, color: C.purple, icon: 'sparkles'  },
+    'Transport / Fuel':     { bg: C.tealBg,   color: C.teal,   icon: 'car'       },
+    'Public Transport':     { bg: C.tealBg,   color: C.teal,   icon: 'car'       },
+    'Flights & Hotels':     { bg: C.blueBg,   color: C.blue,   icon: 'send'      },
+    'Investment':           { bg: C.tealBg,   color: C.teal,   icon: 'trendUp'   },
+    'Investments':          { bg: C.tealBg,   color: C.teal,   icon: 'trendUp'   },
+    'Entertainment':        { bg: C.purpleBg, color: C.purple, icon: 'star'      },
+    'Gifts & Celebrations': { bg: C.redBg,    color: C.red,    icon: 'star'      },
+    'Education':            { bg: C.blueBg,   color: C.blue,   icon: 'briefcase' },
+    'Kids & School':        { bg: C.blueBg,   color: C.blue,   icon: 'users'     },
+    'Home Maintenance':     { bg: C.orangeBg, color: C.orange, icon: 'settings'  },
+    'Parking & Tolls':      { bg: C.tealBg,   color: C.teal,   icon: 'car'       },
+    'Subscriptions':        { bg: C.purpleBg, color: C.purple, icon: 'film'      },
+    'Furniture & Decor':    { bg: C.blueBg,   color: C.blue,   icon: 'home'      },
+    'Books & Courses':      { bg: C.blueBg,   color: C.blue,   icon: 'briefcase' },
+    'Miscellaneous':        { bg: C.accentBg, color: C.accent, icon: 'more'      },
   };
-  return map[cat] ?? { bg: C.accentBg, color: C.accent, emoji: '💸' };
+  return map[cat] ?? { bg: C.accentBg, color: C.accent, icon: 'wallet' };
 };
 
 export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, onUnsettle, onBulkDelete, onDuplicate, onBulkFlagToSettle, onBulkMarkAsSettled, onBulkAssignToAccount, onTriggerEdit }: Props) {
@@ -170,12 +176,12 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
           </select>
           <select style={selStyle} value={filter.settled} onChange={(e) => sf('settled', e.target.value)}>
             <option value="All">All Statuses</option>
-            {isJoint && <option value="pendingJoint">⏳ Joint Pending</option>}
-            {hasPartner && <option value="pendingPartner">🤝 Partner Split</option>}
-            <option value="personal">👤 Personal</option>
-            <option value="settled">✅ Settled</option>
-            <option value="settledA">✅ {names.a}</option>
-            {hasPartner && <option value="settledB">✅ {names.b}</option>}
+            {isJoint && <option value="pendingJoint">Joint Pending</option>}
+            {hasPartner && <option value="pendingPartner">Partner Split</option>}
+            <option value="personal">Personal</option>
+            <option value="settled">Settled</option>
+            <option value="settledA">Settled — {names.a}</option>
+            {hasPartner && <option value="settledB">Settled — {names.b}</option>}
           </select>
         </div>
       </div>
@@ -183,7 +189,7 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
       {/* ── Bulk action bar ───────────────────────────────────────────────── */}
       {selectedIds.size > 0 && (
         <div style={{ background: C.red + '15', border: `1px solid ${C.red}44`, borderRadius: 16, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' as const, gap: 10 }}>
-          <span style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>💥 {selectedIds.size} selected</span>
+          <span style={{ color: C.red, fontWeight: 700, fontSize: 14 }}>{selectedIds.size} selected</span>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }}>
             <select value={selectedTargetAccount} onChange={(e) => setSelectedTargetAccount(e.target.value)} style={{ ...selStyle, fontSize: 12 }}>
               <option value="">-- Account --</option>
@@ -191,14 +197,20 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
               {hasPartner && <option value="Partner B">{names.b}</option>}
               {isJoint && <option value="Joint">Joint</option>}
             </select>
-            <button style={smallBtn(selectedTargetAccount ? C.amber : undefined)} disabled={!selectedTargetAccount}
+            <button style={{ ...smallBtn(selectedTargetAccount ? C.amber : undefined), display: 'inline-flex', alignItems: 'center', gap: 4 }} disabled={!selectedTargetAccount}
               onClick={() => { onBulkAssignToAccount([...selectedIds], selectedTargetAccount); setSelectedTargetAccount(''); setSelectedIds(new Set()); }}>
-              🔄 Assign
+              <Icon name="sync" size={12} color={selectedTargetAccount ? C.amber : C.text2} /> Assign
             </button>
             <button style={smallBtn()} onClick={() => setSelectedIds(new Set())}>Deselect</button>
-            <button style={smallBtn(C.amber)} onClick={() => { onBulkFlagToSettle([...selectedIds]); setSelectedIds(new Set()); }}>⚖️ Flag</button>
-            <button style={smallBtn(C.green)} onClick={() => { onBulkMarkAsSettled([...selectedIds]); setSelectedIds(new Set()); }}>✅ Settle</button>
-            <button style={{ ...smallBtn(C.red), fontWeight: 700 }} onClick={() => { if (confirm(`Delete ${selectedIds.size} records?`)) { onBulkDelete([...selectedIds]); setSelectedIds(new Set()); } }}>🗑️ Delete</button>
+            <button style={{ ...smallBtn(C.amber), display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => { onBulkFlagToSettle([...selectedIds]); setSelectedIds(new Set()); }}>
+              <Icon name="alert" size={12} color={C.amber} /> Flag
+            </button>
+            <button style={{ ...smallBtn(C.green), display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => { onBulkMarkAsSettled([...selectedIds]); setSelectedIds(new Set()); }}>
+              <Icon name="check" size={12} color={C.green} strokeWidth={3} /> Settle
+            </button>
+            <button style={{ ...smallBtn(C.red), fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => { if (confirm(`Delete ${selectedIds.size} records?`)) { onBulkDelete([...selectedIds]); setSelectedIds(new Set()); } }}>
+              <Icon name="trash" size={12} color={C.red} /> Delete
+            </button>
           </div>
         </div>
       )}
@@ -215,7 +227,9 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
       {/* ── Empty state ───────────────────────────────────────────────────── */}
       {filtered.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 24px', color: C.text3 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+          <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
+            <Icon name="search" size={40} color={C.text3} strokeWidth={1.5} />
+          </div>
           <div style={{ fontSize: 15, fontWeight: 600, color: C.text1, marginBottom: 6 }}>No transactions found</div>
           <div style={{ fontSize: 13 }}>Try adjusting your filters</div>
         </div>
@@ -275,15 +289,15 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
                   style={{ background: isSelected ? C.accentBg : C.surface, borderRadius: 14, padding: '14px 16px', boxShadow: isSelected ? `0 0 0 1.5px ${C.accent}` : '0 2px 12px rgba(0,0,0,0.18)', transition: 'all 0.15s', cursor: 'pointer' }}
                   onClick={() => toggleSelect(e.id)}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: isSelected ? C.accent + '30' : icon.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, border: `1.5px solid ${isSelected ? C.accent : 'transparent'}`, transition: 'all 0.15s' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: isSelected ? C.accent + '30' : icon.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1.5px solid ${isSelected ? C.accent : 'transparent'}`, transition: 'all 0.15s' }}>
                       {isSelected
                         ? <input type="checkbox" checked readOnly style={{ cursor: 'pointer', accentColor: C.accent, width: 16, height: 16 }} onClick={(ev) => ev.stopPropagation()} />
-                        : icon.emoji}
+                        : <Icon name={icon.icon} size={20} color={icon.color} strokeWidth={1.8} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 3 }}>
                         <div style={{ fontWeight: 700, fontSize: 14, color: C.textW, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, flex: 1 }}>
-                          {e.note || e.category}{e.isRecurring && <span style={{ marginLeft: 6, fontSize: 12 }}>🔄</span>}
+                          {e.note || e.category}{e.isRecurring && <Icon name="refresh" size={12} color={C.text3} style={{ marginLeft: 6, verticalAlign: 'middle' }} />}
                         </div>
                         <div style={{ fontSize: 15, fontWeight: 800, color: e.type === 'income' ? C.green : C.textW, flexShrink: 0, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
                           {e.type === 'income' ? '+' : ''}{fmt(e.amount)}
@@ -314,15 +328,25 @@ export function ExpenseList({ data, fmt, onToggleToSettle, onDelete, onUpdate, o
 
                   {isSelected && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }} onClick={(ev) => ev.stopPropagation()}>
-                      <button style={smallBtn()} onClick={() => onTriggerEdit(e)}>✏️ Edit</button>
-                      <button style={smallBtn()} onClick={() => onDuplicate(e)}>📋 Copy</button>
+                      <button style={{ ...smallBtn(), display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => onTriggerEdit(e)}>
+                        <Icon name="edit" size={12} color={C.text2} /> Edit
+                      </button>
+                      <button style={{ ...smallBtn(), display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => onDuplicate(e)}>
+                        <Icon name="briefcase" size={12} color={C.text2} /> Copy
+                      </button>
                       {e.account !== 'Joint' && !e.settled && e.type !== 'income' && (
-                        <button style={smallBtn(C.amber)} onClick={(ev) => { ev.stopPropagation(); onBulkFlagToSettle([e.id]); }}>⚖️ Flag</button>
+                        <button style={{ ...smallBtn(C.amber), display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={(ev) => { ev.stopPropagation(); onBulkFlagToSettle([e.id]); }}>
+                          <Icon name="alert" size={12} color={C.amber} /> Flag
+                        </button>
                       )}
                       {e.settled && (
-                        <button style={smallBtn()} onClick={() => onUnsettle(e.id)}>↩ Unsettle</button>
+                        <button style={{ ...smallBtn(), display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => onUnsettle(e.id)}>
+                          <Icon name="arrowLeft" size={12} color={C.text2} /> Unsettle
+                        </button>
                       )}
-                      <button style={{ ...smallBtn(C.red), marginLeft: 'auto' }} onClick={() => onDelete(e.id)}>🗑️</button>
+                      <button style={{ ...smallBtn(C.red), marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => onDelete(e.id)}>
+                        <Icon name="trash" size={14} color={C.red} />
+                      </button>
                     </div>
                   )}
                 </div>
