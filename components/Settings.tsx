@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { AppData, Settings as SettingsType, HouseholdMode } from '@/types';
 import { Card, Btn, Inp, Label, SectionTitle, Toggle, PlanBadge, UsageMeter, ThemePicker, Collapsible } from '@/components/ui';
+import { Icon } from '@/components/Icon';
 import { C, HOUSEHOLD_MODE_META } from '@/constants';
 import { hasPartnerB } from '@/lib/householdModes';
 import { supabase } from '@/lib/supabaseClient';
@@ -888,16 +889,16 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.text3 }}>Notifications</div>
         </div>
         {([
-          { icon: '🔔', title: 'Push notifications', sub: 'Browser permission required', on: s.notifications.enabled, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, enabled: v } })) },
-          { icon: '⚠️', title: 'Budget alerts', sub: 'At 80% of monthly budget', on: s.notifications.budgetAlert, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetAlert: v } })) },
-          { icon: '🔄', title: 'Settlement reminders', sub: 'When partner adds or settles', on: s.notifications.settlement, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, settlement: v } })) },
-          { icon: '💸', title: 'Partner expense alerts', sub: 'Notify when partner logs an expense', on: s.notifications.newExpense, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, newExpense: v } })) },
+          { icon: 'bell', title: 'Push notifications', sub: 'Browser permission required', on: s.notifications.enabled, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, enabled: v } })) },
+          { icon: 'alert', title: 'Budget alerts', sub: 'At 80% of monthly budget', on: s.notifications.budgetAlert, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetAlert: v } })) },
+          { icon: 'refresh', title: 'Settlement reminders', sub: 'When partner adds or settles', on: s.notifications.settlement, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, settlement: v } })) },
+          { icon: 'wallet', title: 'Partner expense alerts', sub: 'Notify when partner logs an expense', on: s.notifications.newExpense, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, newExpense: v } })) },
         ]).map((row, i) => (
           <React.Fragment key={row.title}>
             {i > 0 && <div style={{ height: 1, background: C.border, margin: '0 16px' }} />}
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
-              <div style={{ width: 36, height: 36, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16 }}>
-                {row.icon}
+              <div style={{ width: 36, height: 36, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon name={row.icon} size={18} color={C.text2} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: C.textW }}>{row.title}</div>

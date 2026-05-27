@@ -2,10 +2,14 @@
 import React, { useState } from 'react';
 import type { HouseholdMode } from '@/types';
 import { HOUSEHOLD_MODE_META, C } from '@/constants';
+import { Icon } from '@/components/Icon';
 
 type Step = 'mode' | 'names' | 'connect' | 'features' | 'done';
 const STEPS: Step[] = ['mode', 'names', 'connect', 'features', 'done'];
 const DOT_STEPS: Step[] = ['mode', 'names', 'connect', 'features'];
+const MODE_ICONS: Record<string, string> = { joint: 'users', separate: 'user', solo: 'user' };
+const CHANNEL_ICONS: Record<string, string> = { whatsapp: 'messageCircle', telegram: 'send' };
+const FEATURE_ICONS: Record<string, string> = { Dashboard: 'barChart', 'Bot logging': 'messageCircle', Settlements: 'refresh', 'Goals & EMI': 'target' };
 
 interface Props {
   onComplete: (mode: HouseholdMode, nameA: string, nameB: string, telegramUsername?: string) => void;
@@ -35,9 +39,7 @@ function BackBtn({ onClick }: { onClick: () => void }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       cursor: 'pointer', color: C.textW, flexShrink: 0,
     }}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M19 12H5" /><path d="M12 19l-7-7 7-7" />
-      </svg>
+      <Icon name="arrowLeft" size={18} strokeWidth={2.5} />
     </button>
   );
 }
@@ -130,14 +132,14 @@ export function SetupWizard({ onComplete }: Props) {
                   background: active ? C.accent : C.surface2,
                   color: active ? '#0a0a0a' : C.text2,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, fontSize: 20,
-                }}>{meta.icon}</div>
+                  flexShrink: 0,
+                }}><Icon name={MODE_ICONS[m] ?? 'user'} size={20} color={active ? '#0a0a0a' : C.text2} /></div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: C.textW, marginBottom: 4 }}>{meta.label}</div>
                   <div style={{ fontSize: 12, color: C.text2, lineHeight: 1.5 }}>{meta.description}</div>
                 </div>
                 {active && (
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.accent, color: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 900 }}>✓</div>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.accent, color: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name="check" size={14} strokeWidth={3} color="#0a0a0a" /></div>
                 )}
               </button>
             );
@@ -220,15 +222,15 @@ export function SetupWizard({ onComplete }: Props) {
                 display: 'flex', alignItems: 'center', gap: 14,
                 cursor: 'pointer', transition: 'all .15s',
               }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: active ? C.accent : C.surface2, color: active ? '#0a0a0a' : C.text2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 22 }}>
-                  {c.icon}
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: active ? C.accent : C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon name={CHANNEL_ICONS[c.id]} size={22} color={active ? '#0a0a0a' : C.text2} />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: C.textW }}>{c.label}</div>
                   <div style={{ fontSize: 11, color: C.text2, marginTop: 3 }}>{c.sub}</div>
                 </div>
                 {active && (
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.accent, color: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13, fontWeight: 900 }}>✓</div>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon name="check" size={14} strokeWidth={3} color="#0a0a0a" /></div>
                 )}
               </button>
             );
@@ -276,14 +278,14 @@ export function SetupWizard({ onComplete }: Props) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
           {[
-            { icon: '📊', title: 'Dashboard', desc: 'Income, spending, investments and retention velocity' },
-            { icon: '💬', title: 'Bot logging', desc: 'WhatsApp and Telegram expense logging with AI parsing' },
-            { icon: '🔄', title: 'Settlements', desc: mode !== 'solo' ? 'Joint pool and partner split tracking' : 'Not needed in solo mode' },
-            { icon: '🎯', title: 'Goals & EMI', desc: 'Savings milestones and loan tracking' },
+            { title: 'Dashboard', desc: 'Income, spending, investments and retention velocity' },
+            { title: 'Bot logging', desc: 'WhatsApp and Telegram expense logging with AI parsing' },
+            { title: 'Settlements', desc: mode !== 'solo' ? 'Joint pool and partner split tracking' : 'Not needed in solo mode' },
+            { title: 'Goals & EMI', desc: 'Savings milestones and loan tracking' },
           ].map((f) => (
             <div key={f.title} style={{ display: 'flex', alignItems: 'center', gap: 14, background: C.surface, borderRadius: 16, padding: '14px 18px' }}>
-              <div style={{ width: 44, height: 44, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 22 }}>
-                {f.icon}
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: C.text2 }}>
+                <Icon name={FEATURE_ICONS[f.title] ?? 'star'} size={22} color={C.text2} />
               </div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.textW, marginBottom: 2 }}>{f.title}</div>
@@ -313,8 +315,8 @@ export function SetupWizard({ onComplete }: Props) {
     <div style={shell}>
       <div style={{ ...wrap, animation: 'cf-fade-up .4s ease-out' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 24, paddingTop: 32 }}>
-          <div style={{ width: 88, height: 88, borderRadius: '50%', background: C.accent, color: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 40px rgba(240,180,41,0.35)', animation: 'cf-pulse 2s ease-in-out infinite', fontSize: 40, fontWeight: 900 }}>
-            ✓
+          <div style={{ width: 88, height: 88, borderRadius: '50%', background: C.accent, color: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 12px 40px rgba(240,180,41,0.35)', animation: 'cf-pulse 2s ease-in-out infinite' }}>
+            <Icon name="check" size={44} strokeWidth={3.5} color="#0a0a0a" />
           </div>
           <div>
             <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1, color: C.textW, marginBottom: 10 }}>
@@ -325,7 +327,7 @@ export function SetupWizard({ onComplete }: Props) {
             </div>
           </div>
           <div style={{ background: C.surface, borderRadius: 14, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, maxWidth: 320, width: '100%', textAlign: 'left' as const }}>
-            <span style={{ fontSize: 20 }}>💬</span>
+            <Icon name="messageCircle" size={20} color={C.text2} />
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: C.text3, marginBottom: 2 }}>Try sending</div>
               <div style={{ fontSize: 13, fontWeight: 600, color: C.textW, fontStyle: 'italic' }}>"450 Zomato to settle"</div>

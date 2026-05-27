@@ -1,6 +1,7 @@
 'use client';
 import { addToQueue } from '@/lib/offlineQueue';
 import React, { useState, useEffect, useMemo } from 'react';
+import { Icon } from '@/components/Icon';
 import type { AppData, Expense } from '@/types';
 import { Card, Btn, Inp, Sel, Label, SectionTitle } from '@/components/ui';
 import { C } from '@/constants';
@@ -323,7 +324,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
       <div style={{ background: C.surface, borderRadius: 14, padding: '14px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
           onClick={() => set('isRecurring', !form.isRecurring)}>
-          <span style={{ fontSize: 13, color: C.text2, fontWeight: 600 }}>🔄 Recurring commitment</span>
+          <span style={{ fontSize: 13, color: C.text2, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="refresh" size={15} color={C.text2} strokeWidth={2} />Recurring commitment</span>
           <div style={{ width: 44, height: 26, background: form.isRecurring ? C.accent : C.surface2, borderRadius: 99, position: 'relative', transition: 'background 0.2s', flexShrink: 0, cursor: 'pointer' }}>
             <div style={{ position: 'absolute', top: 3, left: form.isRecurring ? 21 : 3, width: 20, height: 20, background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.25)' }} />
           </div>

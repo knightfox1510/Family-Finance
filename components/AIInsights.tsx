@@ -2,19 +2,20 @@
 import React, { useState } from 'react';
 import type { AppData } from '@/types';
 import { C } from '@/constants';
+import { Icon } from '@/components/Icon';
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function monthKey(d: string) { const dt = new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; }
 function monthLabel(key: string) { const [y,m]=key.split('-'); return new Date(Number(y),Number(m)-1,1).toLocaleDateString('en-IN',{month:'short',year:'numeric'}); }
 
 const MODES = [
-  { id: 'monthly',       icon: '📊', label: 'Monthly Summary'   },
-  { id: 'anomalies',     icon: '🔍', label: 'Unusual Spending'  },
-  { id: 'advice',        icon: '💡', label: 'Financial Advice'  },
-  { id: 'loans',         icon: '🏧', label: 'Loan Strategy'     },
-  { id: 'runway',        icon: '⏳', label: 'Runway & Forecast' },
-  { id: 'milestones',    icon: '🎯', label: 'Goal Velocity'     },
-  { id: 'discretionary', icon: '✂️', label: 'Lifestyle Pruning' },
+  { id: 'monthly',       icon: 'barChart' as const, label: 'Monthly Summary'   },
+  { id: 'anomalies',     icon: 'search'   as const, label: 'Unusual Spending'  },
+  { id: 'advice',        icon: 'sparkles' as const, label: 'Financial Advice'  },
+  { id: 'loans',         icon: 'bank'     as const, label: 'Loan Strategy'     },
+  { id: 'runway',        icon: 'clock'    as const, label: 'Runway & Forecast' },
+  { id: 'milestones',    icon: 'target'   as const, label: 'Goal Velocity'     },
+  { id: 'discretionary', icon: 'pieChart' as const, label: 'Lifestyle Pruning' },
 ];
 
 interface Props { data: AppData; fmt: (n: number) => string; }
@@ -65,8 +66,8 @@ export function AIInsights({ data, fmt }: Props) {
 
       {/* Hero */}
       <div style={{ background: C.surface, borderRadius: 20, padding: '20px', display: 'flex', gap: 14, alignItems: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
-        <div style={{ width: 56, height: 56, borderRadius: 16, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 28 }}>
-          ✨
+        <div style={{ width: 56, height: 56, borderRadius: 16, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon name="sparkles" size={28} color="#0a0a0a" strokeWidth={2} />
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: C.textW, letterSpacing: '-0.02em' }}>AI-powered insights</div>
@@ -92,8 +93,8 @@ export function AIInsights({ data, fmt }: Props) {
                 alignItems: 'flex-start', cursor: 'pointer',
                 fontFamily: 'inherit', textAlign: 'left', transition: 'all .12s',
               }}>
-                <div style={{ width: 32, height: 32, borderRadius: 10, background: active ? C.accent : C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
-                  {m.icon}
+                <div style={{ width: 32, height: 32, borderRadius: 10, background: active ? C.accent : C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name={m.icon} size={16} color={active ? '#0a0a0a' : 'var(--text2, #888)'} strokeWidth={2} />
                 </div>
                 <div style={{ fontSize: 12, fontWeight: 700, color: active ? C.accent : C.textW, lineHeight: 1.3 }}>
                   {m.label}
@@ -108,7 +109,7 @@ export function AIInsights({ data, fmt }: Props) {
       {report && (
         <div style={{ background: C.surface, border: `1px solid ${C.border2}`, borderRadius: 20, padding: '18px 18px 20px', boxShadow: C.shadowSm }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
-            <span style={{ fontSize: 18 }}>✨</span>
+            <Icon name="sparkles" size={18} color={C.accent} strokeWidth={2} />
             <span style={{ fontSize: 13, fontWeight: 800, color: C.textW }}>{currentMode.label}</span>
             <span style={{ marginLeft: 'auto', fontSize: 10, color: C.text3 }}>{monthLabel(monthKey(today()))}</span>
           </div>
@@ -126,7 +127,9 @@ export function AIInsights({ data, fmt }: Props) {
       {/* Loading */}
       {loading && (
         <div style={{ background: C.surface, borderRadius: 20, padding: '40px 20px', textAlign: 'center', boxShadow: C.shadowSm }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>✨</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <Icon name="sparkles" size={32} color={C.accent} strokeWidth={2} />
+          </div>
           <div style={{ color: C.text1, fontSize: 15 }}>Analysing your finances…</div>
         </div>
       )}
@@ -138,7 +141,7 @@ export function AIInsights({ data, fmt }: Props) {
           fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
           fontFamily: 'inherit', letterSpacing: '0.01em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           boxShadow: loading ? 'none' : `0 4px 20px ${C.accent}40` }}>
-        <span>{loading ? '⏳' : '✨'}</span>
+        <Icon name={loading ? 'clock' : 'sparkles'} size={18} color={loading ? 'var(--text3, #666)' : '#0a0a0a'} strokeWidth={2} />
         {loading ? 'Generating…' : report ? 'Regenerate' : 'Generate Insight'}
       </button>
     </div>

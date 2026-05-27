@@ -2,19 +2,23 @@
 import React, { useState } from 'react';
 import type { AppData } from '@/types';
 import { C } from '@/constants';
+import { Icon } from '@/components/Icon';
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function uid() { return typeof window !== 'undefined' && window.crypto?.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2); }
 
 interface Props { data: AppData; onAdd: (l: any) => void; onUpdate: (id: string, l: any) => void; onDelete: (id: string) => void; fmt: (n: number) => string; }
 
-const blank = { name: '', lender: '', principal: '', outstanding: '', emi: '', interestRate: '', startDate: today(), tenureMonths: '', paymentDay: 1, icon: '🏠' };
+const blank = { name: '', lender: '', principal: '', outstanding: '', emi: '', interestRate: '', startDate: today(), tenureMonths: '', paymentDay: 1, icon: 'bank' };
 
 const inpStyle: React.CSSProperties = {
   width: '100%', background: 'var(--surface2)', border: '1.5px solid transparent',
   color: 'var(--textW)', fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
   padding: '10px 13px', outline: 'none', borderRadius: 12, boxSizing: 'border-box',
 };
+
+const EMOJI_MAP: Record<string, string> = { '🏠': 'home', '🚗': 'car', '💼': 'briefcase', '🏦': 'bank', '🏧': 'bank' };
+function loanIcon(icon: string): string { return EMOJI_MAP[icon] || icon || 'bank'; }
 
 function SmallLabel({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: C.text3, marginBottom: 5 }}>{children}</div>;
@@ -121,16 +125,16 @@ export function LoanTracker({ data, onAdd, onUpdate, onDelete, fmt }: Props) {
               <>
                 {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 14, background: `${accent}22`, color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
-                    {(l as any).icon || '🏦'}
+                  <div style={{ width: 44, height: 44, borderRadius: 14, background: `${accent}22`, color: accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon name={loanIcon((l as any).icon)} size={22} color={accent} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: C.textW }}>{l.name}</div>
                     <div style={{ fontSize: 11, color: C.text3, marginTop: 2 }}>{l.lender} · {l.interestRate}% p.a.</div>
                   </div>
                   <button onClick={() => { setEditing(l.id); setForm({ ...l }); }}
-                    style={{ padding: '7px 14px', borderRadius: 99, border: `1px solid ${C.border2}`, background: 'transparent', color: C.text3, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Edit
+                    style={{ padding: '7px 10px', borderRadius: 99, border: `1px solid ${C.border2}`, background: 'transparent', color: C.text3, display: 'flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    <Icon name="edit" size={15} color={C.text3} />
                   </button>
                 </div>
 
@@ -168,12 +172,12 @@ export function LoanTracker({ data, onAdd, onUpdate, onDelete, fmt }: Props) {
       {/* Add button */}
       <button onClick={() => { setAdding(true); setForm(blank); }}
         style={{ width: '100%', padding: '14px', borderRadius: 999, border: `1px solid ${C.border2}`, background: 'transparent', color: C.text2, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-        + Add new loan
+        <Icon name="plus" size={16} color={C.text2} /> Add new loan
       </button>
 
       {data.loans.length === 0 && !adding && (
         <div style={{ background: C.surface, borderRadius: 20, padding: '40px 20px', textAlign: 'center', boxShadow: C.shadowSm }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🏧</div>
+          <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}><Icon name="bank" size={40} color={C.text3} /></div>
           <div style={{ color: C.textW, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>No loans tracked</div>
           <div style={{ color: C.text2, fontSize: 13, lineHeight: 1.6 }}>Add a loan to get prepayment insights, EMI calendar, and debt-to-income tracking.</div>
         </div>
