@@ -1,6 +1,6 @@
 // app/pricing/page.tsx — ChillarFlow premium marketing pricing platform
 import Link from 'next/link';
-import { CoinMark } from '@/components/CoinMark';
+import { CoinMark } from '@/components/marketing/CoinMark';
 
 export const metadata = {
   title: 'Pricing — ChillarFlow',
