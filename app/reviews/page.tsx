@@ -8,7 +8,6 @@ const featureSubLinks = [
   { href: '/features/budgeting', label: 'Retention Metrics' },    
   { href: '/features/planning', label: 'Household Settlement' }, 
   { href: '/shortcuts',         label: 'Power User Guide' }, 
-  { href: '/security',          label: '🔒 Data Vault Security' },
 ];
 
 // 🧭 The high-level main directories remain clean, distinct, and conversion-focused
