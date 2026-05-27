@@ -5,17 +5,19 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { CoinMark } from '@/components/CoinMark';
 
+// 🎯 Grouped strictly by specific platform toolsets
 const featureSubLinks = [
-  { href: '/features/tracking', label: 'WhatsApp Tracking' },
-  { href: '/features/budgeting', label: 'Leakage Budgeting' },
-  { href: '/features/planning', label: 'Household Planning' },
-  { href: '/shortcuts',         label: 'Power User Guide' }, /* ⚡ Added */
+  { href: '/features/tracking', label: 'Chat Log Automation' }, /* ⚡ Was WhatsApp Tracking */
+  { href: '/features/budgeting', label: 'Retention Metrics' },    /* ⚡ Was Leakage Budgeting */
+  { href: '/features/planning', label: 'Household Settlement' }, /* ⚡ Was Household Planning */
+  { href: '/shortcuts',         label: 'Power User Guide' }, 
 ];
 
+// 🧭 The high-level main directories remain clean and distinct
 const navLinks = [
-  { href: '/features', label: 'Features' },
+  { href: '/features', label: 'Capabilities' }, /* ⚡ Optional: Change 'Features' to 'Capabilities' to totally eliminate the double word */
   { href: '/pricing',  label: 'Pricing' },
-  { href: '/reviews',  label: 'Reviews' }, /* ⚡ Added */
+  { href: '/reviews',  label: 'Reviews' }, 
   { href: '/about',    label: 'About'   },
   { href: '/help',     label: 'Help'    },
 ];
