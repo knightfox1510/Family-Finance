@@ -11,7 +11,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
-import { CoinMark } from '@/components/CoinMark';
+import { CoinMark } from '@/components/marketing/CoinMark';
 
 interface InvitePreview {
   valid:        boolean;
