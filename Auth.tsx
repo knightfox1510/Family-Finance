@@ -110,19 +110,22 @@ export default function AuthPage() {
   };
 
   return (
-    /* ⚡ FIXED: Shifted distribution properties to completely center content both ways */
     <div 
       style={{ 
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: '100dvh',       /* Dynamic height locks content tightly to screen boundaries */
+        minHeight: '100dvh',       
         width: '100vw',
-        padding: '24px 20px',      /* Uniform, tight padding on all 4 sides */
+        padding: '24px 20px',      
         boxSizing: 'border-box',
-        background: '#0b0f1a',     /* Deep Obsidian fallback background color */
-        position: 'fixed',         /* ⚡ CRITICAL: Locks the container rigid to the mobile device window */
+        
+        /* ⚡ FIXED: Using your premium design system token variable */
+        background: 'var(--bg)',     
+        
+        /* Locking layout constraints directly to the viewport boundaries */
+        position: 'fixed',         
         top: 0,
         left: 0,
         right: 0,
