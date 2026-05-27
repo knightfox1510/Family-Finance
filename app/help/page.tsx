@@ -9,12 +9,15 @@ const featureSubLinks = [
   { href: '/features/tracking', label: 'WhatsApp Tracking' },
   { href: '/features/budgeting', label: 'Leakage Budgeting' },
   { href: '/features/planning', label: 'Household Planning' },
+  { href: '/shortcuts',         label: 'Power User Guide' }, /* ⚡ Added */
 ];
 
 const navLinks = [
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/about',   label: 'About'   },
-  { href: '/help',    label: 'Help'    },
+  { href: '/features', label: 'Features' },
+  { href: '/pricing',  label: 'Pricing' },
+  { href: '/reviews',  label: 'Reviews' }, /* ⚡ Added */
+  { href: '/about',    label: 'About'   },
+  { href: '/help',     label: 'Help'    },
 ];
 
 const categories = [
