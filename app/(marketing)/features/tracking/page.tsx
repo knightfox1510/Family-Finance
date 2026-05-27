@@ -1,6 +1,6 @@
 // app/features/tracking/page.tsx — Deep dive tracking capabilities with chat simulation mockup
 import Link from 'next/link';
-import { CoinMark } from '@/components/CoinMark';
+import { CoinMark } from '@/components/marketing/CoinMark';
 
 export const metadata = {
   title: 'WhatsApp & Telegram Integration — ChillarFlow',
