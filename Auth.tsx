@@ -1,34 +1,12 @@
+// app/auth/page.tsx — ChillarFlow premium unified authentication experience
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { CoinMark } from '@/components/CoinMark';
 
-const C = {
-  bg:      '#0b0f1a',
-  surface: '#131928',
-  border:  '#1e2840',
-  text1:   '#a8b8d4',
-  textW:   '#e8eeff',
-  amber:   '#f59e0b',
-  red:     '#ef4444',
-  teal:    '#06b6d4',
-};
-
-const inputStyle: React.CSSProperties = {
-  background: C.bg,
-  border: `1px solid ${C.border}`,
-  color: C.textW,
-  borderRadius: 8,
-  padding: '12px 14px',
-  width: '100%',
-  boxSizing: 'border-box',
-  outline: 'none',
-  fontSize: 16, // 16px prevents iOS auto-zoom on focus
-  WebkitAppearance: 'none',
-};
-
-export default function Auth() {
+export default function AuthPage() {
   const [loading, setLoading]   = useState(false);
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
@@ -59,14 +37,11 @@ export default function Auth() {
         if (onboardingChoice === 'create') {
           const newHouseholdId = crypto.randomUUID();
 
-          // Insert into households table (required for plan/usage tracking)
           const { error: householdError } = await supabase
             .from('households')
             .insert({ id: newHouseholdId });
-          // Non-fatal if households table doesn't exist yet — log and continue
           if (householdError) console.warn('households insert skipped:', householdError.message);
 
-          // Insert household settings
           const { error: settingsError } = await supabase
             .from('household_settings')
             .insert({
@@ -95,7 +70,6 @@ export default function Auth() {
           targetHouseholdId = newHouseholdId;
 
         } else {
-          // Joining an existing household
           const { data: existing, error: verifyError } = await supabase
             .from('household_settings')
             .select('household_id')
@@ -135,164 +109,149 @@ export default function Auth() {
     }
   };
 
-  const choiceTabStyle = (active: boolean): React.CSSProperties => ({
-    flex:       1,
-    padding:    '8px',
-    fontSize:   12,
-    fontWeight: 600,
-    background: active ? C.teal + '22' : 'transparent',
-    color:      active ? C.teal : C.text1,
-    border:     active ? `1px solid ${C.teal}` : `1px solid ${C.border}`,
-    borderRadius: 8,
-    cursor:     'pointer',
-    outline:    'none',
-    transition: 'all 0.2s ease',
-    WebkitAppearance: 'none' as any,
-    minHeight:  44,
-  });
-
   return (
-    <div style={{
-      background: C.bg, minHeight: '100vh',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 20, fontFamily: 'system-ui, sans-serif',
-    }}>
-      <div style={{
-        background: C.surface, border: `1px solid ${C.border}`,
-        borderRadius: 16, padding: '32px 28px', width: '100%', maxWidth: 400,
-      }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
-            <CoinMark size={56} color={C.amber} />
+    <div className="cf-page flex flex-col items-center justify-between" style={{ minHeight: '100dvh', padding: '40px 20px 24px' }}>
+      
+      {/* Structural Empty spacer to keep balance with central card */}
+      <div style={{ height: 20 }} />
+
+      {/* Main Container Core Auth Module Card */}
+      <div className="cf-card animate-fade-up" style={{ width: '100%', maxWidth: 400, padding: '40px 32px', border: '1px solid var(--border)' }}>
+        
+        {/* Brand System Title Header Area */}
+        <div className="text-center" style={{ marginBottom: 32 }}>
+          <div className="flex justify-between items-center" style={{ justifyContent: 'center', marginBottom: 16 }}>
+            <CoinMark size={48} color="var(--accent)" />
           </div>
-          <h2 style={{ color: C.textW, fontSize: 24, margin: 0, fontWeight: 800, letterSpacing: '-0.03em' }}>ChillarFlow</h2>
-          <p style={{ color: C.text1, fontSize: 14, marginTop: 4 }}>
-            {isSignUp ? 'Create your household account' : 'Welcome back — sign in below'}
+          <h2 style={{ fontSize: 24, fontWeight: 900, color: 'var(--textW)', letterSpacing: '-0.03em', margin: 0 }}>ChillarFlow</h2>
+          <p className="t-body" style={{ fontSize: 14, marginTop: 6, color: 'var(--text2)' }}>
+            {isSignUp ? 'Create your secure household vault' : 'Welcome back — access your private dashboard'}
           </p>
         </div>
 
-        {/* Error */}
+        {/* Runtime Operational Error Alert Feedback Block */}
         {error && (
-          <div style={{ background: C.red + '22', color: C.red, border: `1px solid ${C.red}44`, padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
-            {error}
+          <div className="animate-fade-in" style={{ background: 'var(--red-bg)', color: 'var(--red)', border: '1px solid rgba(255,77,77,0.2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', fontSize: 13, marginBottom: 20, lineHeight: 1.4 }}>
+            ⚠️ {error}
           </div>
         )}
 
-        <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <form onSubmit={handleAuth} className="flex flex-col" style={{ gap: 20 }}>
 
-          {/* Sign-up mode toggle */}
+          {/* Interactive Dynamic Context Multi-Setup Toggle Block */}
           {isSignUp && (
-            <div style={{ background: C.bg, padding: 12, borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 10, border: `1px solid ${C.border}` }}>
-              <label style={{ display: 'block', color: C.textW, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Setup mode
+            <div className="cf-card-inset flex flex-col" style={{ padding: 16, gap: 12, border: '1px solid var(--border)' }}>
+              <label className="t-caption" style={{ color: 'var(--text3)' }}>
+                Setup Operations Mode
               </label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={() => setOnboardingChoice('create')} style={choiceTabStyle(onboardingChoice === 'create')}>
+              <div className="flex" style={{ gap: 10 }}>
+                <button type="button" onClick={() => setOnboardingChoice('create')} className={`cf-chip flex-1 justify-between ${onboardingChoice === 'create' ? 'active' : ''}`} style={{ textAlign: 'center', justifyContent: 'center', minHeight: 40 }}>
                   ✨ Create New
                 </button>
-                <button type="button" onClick={() => setOnboardingChoice('join')} style={choiceTabStyle(onboardingChoice === 'join')}>
+                <button type="button" onClick={() => setOnboardingChoice('join')} className={`cf-chip flex-1 justify-between ${onboardingChoice === 'join' ? 'active' : ''}`} style={{ textAlign: 'center', justifyContent: 'center', minHeight: 40 }}>
                   🔗 Join Partner
                 </button>
               </div>
             </div>
           )}
 
-          {/* Email */}
-          <div>
-            <label htmlFor="email" style={{ display: 'block', color: C.text1, fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-              Email
+          {/* Email Form Field Block */}
+          <div className="flex flex-col" style={{ gap: 6 }}>
+            <label htmlFor="email" className="t-caption" style={{ color: 'var(--text2)' }}>
+              Account Email Address
             </label>
             <input
               id="email"
               name="email"
               type="email"
               autoComplete="email"
+              placeholder="name@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              style={inputStyle}
+              className="cf-input"
             />
           </div>
 
-          {/* Password */}
-          <div>
-            <label htmlFor="password" style={{ display: 'block', color: C.text1, fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-              Password
+          {/* Password Form Field Block */}
+          <div className="flex flex-col" style={{ gap: 6 }}>
+            <label htmlFor="password" className="t-caption" style={{ color: 'var(--text2)' }}>
+              Secret Password Keys
             </label>
             <input
               id="password"
               name="password"
               type="password"
               autoComplete={isSignUp ? 'new-password' : 'current-password'}
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              style={inputStyle}
+              className="cf-input"
             />
           </div>
 
-          {/* Invite code for join flow */}
+          {/* Conditional Multi-tier Connection Invite Route Input Block */}
           {isSignUp && onboardingChoice === 'join' && (
-            <div>
-              <label htmlFor="inviteCode" style={{ display: 'block', color: C.teal, fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                🔗 Partner Invite Code
+            <div className="animate-fade-in flex flex-col" style={{ gap: 6 }}>
+              <label htmlFor="inviteCode" className="t-caption" style={{ color: 'var(--teal)' }}>
+                🔗 Partner Invite Code Token
               </label>
               <input
                 id="inviteCode"
                 name="inviteCode"
                 type="text"
-                placeholder="Paste household ID from your partner's Settings"
+                placeholder="Paste partner household unique identifier..."
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
                 required={onboardingChoice === 'join'}
-                style={{ ...inputStyle, border: `1px solid ${C.teal}`, fontFamily: 'monospace', fontSize: 13 }}
+                className="cf-input"
+                style={{ borderColor: 'var(--teal)', fontFamily: 'monospace', fontSize: 13, letterSpacing: '0.02em' }}
               />
-              <p style={{ color: C.text1, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
-                Your partner can find this in Settings → Household ID.
+              <p className="t-small t-muted" style={{ marginTop: 4, lineHeight: 1.5 }}>
+                Your partner can locate this key on their main application dashboard inside Settings → Household ID.
               </p>
             </div>
           )}
 
-          {/* Submit */}
+          {/* Central Submission Execution Command Node Button */}
           <button
             type="submit"
             disabled={loading}
+            className={`cf-btn cf-btn-full ${loading ? '' : 'cf-btn-primary'}`}
             style={{
-              background: loading ? C.border : C.amber,
-              color: '#0b0f1a', border: 'none', borderRadius: 999,
-              padding: '14px', fontSize: 15, fontWeight: 700,
-              cursor: loading ? 'not-allowed' : 'pointer', marginTop: 8,
-              minHeight: 48, WebkitAppearance: 'none', width: '100%',
-              boxShadow: loading ? 'none' : '0 4px 20px rgba(245,158,11,0.25)',
-              transition: 'transform .12s ease, opacity .12s ease',
+              marginTop: 8,
+              background: loading ? 'var(--border)' : undefined,
+              color: loading ? 'var(--text3)' : undefined,
+              cursor: loading ? 'not-allowed' : 'pointer'
             }}
           >
             {loading
-              ? 'Please wait…'
+              ? 'Synchronizing Pipeline Vault…'
               : isSignUp
-                ? onboardingChoice === 'join' ? 'Link & Sign Up' : 'Create & Sign Up'
-                : 'Sign In'}
+                ? onboardingChoice === 'join' ? 'Link Vault & Sign Up' : 'Initialize Vault & Sign Up'
+                : 'Access Secure Account'}
           </button>
         </form>
 
-        {/* Toggle sign in / sign up */}
-        <div style={{ textAlign: 'center', marginTop: 20 }}>
+        {/* Dynamic Context Entry Path Link Swapper */}
+        <div className="text-center" style={{ marginTop: 24 }}>
           <button
             onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
-            style={{ background: 'transparent', border: 'none', color: C.text1, fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}
+            className="t-small t-muted"
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontWeight: 500 }}
           >
-            {isSignUp ? 'Already have an account? Sign in.' : 'Need an account? Sign up.'}
+            {isSignUp ? 'Already have an initialized ledger? Sign in.' : 'New to the platform? Initialize a free account.'}
           </button>
         </div>
       </div>
 
-      {/* Back to landing page */}
-      <div style={{ textAlign: 'center', marginTop: 20 }}>
-        <a href="/" style={{ color: C.text1, fontSize: 13, textDecoration: 'none' }}>
-          ← Back to chillarflow.com
-        </a>
+      {/* Return Vector Anchor Footer Link Elements */}
+      <div className="text-center" style={{ marginTop: 32 }}>
+        <Link href="/" className="t-small t-muted" style={{ textDecoration: 'none', fontWeight: 500 }}>
+          ← Cancel and return to chillarflow.com
+        </Link>
       </div>
     </div>
   );
