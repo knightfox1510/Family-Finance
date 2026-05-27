@@ -196,21 +196,25 @@ export default function PricingPage() {
               position: 'relative',
             }}>
               {p.highlight && (
-  <div className="cf-badge" style={{ 
-    position: 'absolute', 
-    top: -12, 
-    left: '50%', 
-    transform: 'translateX(-50%)', 
-    background: 'var(--accent)', 
-    color: '#0a0a0a', 
-    fontSize: 10, 
-    fontWeight: 900, 
-    padding: '4px 12px',       
-    boxShadow: 'var(--shadow-accent)',
-    width: 'max-content',      
-    maxWidth: '90%',           
-    textAlign: 'center'
-  }}>
+                  <div style={{ 
+                  position: 'absolute', 
+                  top: '-12px', 
+                  left: '50%', 
+                  transform: 'translateX(-50%)', 
+                  background: 'var(--accent)', 
+                  color: '#0a0a0a', 
+                  fontSize: '10px', 
+                  fontWeight: 900, 
+                  letterSpacing: '0.06em',
+                  padding: '4px 12px',
+                  borderRadius: '99px',      /* Recreating the design system pill shape manually */
+                  boxShadow: 'var(--shadow-accent)',
+                  display: 'flex',           /* Forces clean flex alignment */
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  whiteSpace: 'nowrap',      /* Guarantees words stay tightly on one single line */
+                  width: 'auto',             /* Unlocks the container constraint entirely */
+                }}>
                   UNLIMITED OPERATIONS
                 </div>
               )}
