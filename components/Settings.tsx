@@ -883,53 +883,53 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
       </CollapsibleCard>
 
       {/* ── Push Notifications ────────────────────────────────────────────── */}
-      <Card>
-        <SectionTitle>Push Notifications</SectionTitle>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <span style={{ fontSize: 13, color: C.text1 }}>Enable push notifications (browser permission required)</span>
-            <Toggle on={s.notifications.enabled} onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, enabled: v } }))} />
-          </div>
-          {s.notifications.enabled && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ fontSize: 13, color: C.text1 }}>Notify when partner adds an expense</span>
-                <Toggle on={s.notifications.newExpense} onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, newExpense: v } }))} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ fontSize: 13, color: C.text1 }}>Notify on settlement actions</span>
-                <Toggle on={s.notifications.settlement} onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, settlement: v } }))} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ fontSize: 13, color: C.text1 }}>Alert when approaching a budget limit</span>
-                <Toggle on={s.notifications.budgetAlert} onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetAlert: v } }))} />
-              </div>
-              {s.notifications.budgetAlert && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Label>Alert at</Label>
-                  <Inp type="number" value={s.notifications.budgetThreshold}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setS((x) => ({ ...x, notifications: { ...x.notifications, budgetThreshold: Number(e.target.value) } }))}
-                    style={{ width: 70 }} />
-                  <span style={{ color: C.text1, fontSize: 13 }}>% of budget used</span>
-                </div>
-              )}
-              <Btn variant="ghost" style={{ alignSelf: 'flex-start' }}
-                onClick={async () => {
-                  if (!('Notification' in window)) return;
-                  const permission = await Notification.requestPermission();
-                  if (permission === 'granted') {
-                    new Notification('ChillarFlow', { body: 'Notifications working! ✓' });
-                  } else {
-                    alert('Please allow notifications in your browser settings.');
-                  }
-                }}>
-                Test Notification
-              </Btn>
-            </>
-          )}
+      <div style={{ background: C.surface, borderRadius: 14, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.2)' }}>
+        <div style={{ padding: '12px 16px', borderBottom: `1px solid ${C.border}` }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.text3 }}>Notifications</div>
         </div>
-      </Card>
+        {([
+          { icon: '🔔', title: 'Push notifications', sub: 'Browser permission required', on: s.notifications.enabled, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, enabled: v } })) },
+          { icon: '⚠️', title: 'Budget alerts', sub: 'At 80% of monthly budget', on: s.notifications.budgetAlert, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetAlert: v } })) },
+          { icon: '🔄', title: 'Settlement reminders', sub: 'When partner adds or settles', on: s.notifications.settlement, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, settlement: v } })) },
+          { icon: '💸', title: 'Partner expense alerts', sub: 'Notify when partner logs an expense', on: s.notifications.newExpense, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, newExpense: v } })) },
+        ]).map((row, i) => (
+          <React.Fragment key={row.title}>
+            {i > 0 && <div style={{ height: 1, background: C.border, margin: '0 16px' }} />}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16 }}>
+                {row.icon}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.textW }}>{row.title}</div>
+                {row.sub && <div style={{ fontSize: 11, color: C.text2, marginTop: 2 }}>{row.sub}</div>}
+              </div>
+              <Toggle on={row.on} onChange={row.onChange} />
+            </div>
+          </React.Fragment>
+        ))}
+        {s.notifications.budgetAlert && (
+          <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 13, color: C.text2 }}>Alert at</span>
+            <input type="number" value={s.notifications.budgetThreshold}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetThreshold: Number(e.target.value) } }))}
+              style={{ width: 70, background: C.surface2, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none' }} />
+            <span style={{ fontSize: 13, color: C.text2 }}>% of budget used</span>
+          </div>
+        )}
+        {s.notifications.enabled && (
+          <div style={{ padding: '0 16px 14px', borderTop: `1px solid ${C.border}` }}>
+            <button style={{ marginTop: 10, background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, borderRadius: 99, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              onClick={async () => {
+                if (!('Notification' in window)) return;
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') { new Notification('ChillarFlow', { body: 'Notifications working! ✓' }); }
+                else { alert('Please allow notifications in your browser settings.'); }
+              }}>
+              Test Notification
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* ── Data Management ───────────────────────────────────────────────── */}
       <CollapsibleCard id="dataMgmt" title="Data Management">
