@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import type { AppData } from '@/types';
-import { Inp, Label } from '@/components/ui';
+import { Inp, Label } from '@/components/ui/ui';
 import { C } from '@/constants';
 
 const GOAL_COLORS = [C.amber, C.green, C.blue, C.purple, C.red, C.teal, '#f97316', '#ec4899'];
