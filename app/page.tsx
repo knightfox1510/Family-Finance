@@ -74,6 +74,26 @@ export default function HomePage() {
   return (
     <div className="cf-page animate-fade-in" style={{ paddingBottom: 0 }}>
       
+      {/* ── Dynamic Layout Engine CSS Fix Injection Block ────────────────────── */}
+      <style dangerouslySetInnerHTML={{__html: `
+        /* Ensure responsive toggle pipeline acts instantly on interaction */
+        #menu-toggle:checked ~ .mobile-drawer { 
+          transform: translateX(0) !important; 
+          opacity: 1 !important; 
+          visibility: visible !important; 
+        }
+        #menu-toggle:checked ~ .drawer-overlay { 
+          opacity: 0.6 !important; 
+          visibility: visible !important; 
+        }
+
+        /* Responsive Mobile Elements Execution Breakpoint */
+        @media (max-width: 768px) {
+          .nav-links-desktop { display: none !important; }
+          .mobile-menu-trigger { display: flex !important; }
+        }
+      `}} />
+
       {/* ── Nav ──────────────────────────────────────────────────────────────── */}
       <nav className="cf-header" style={{ position: 'relative', height: 64, padding: '0 24px', zIndex: 1100 }}>
         <div className="w-full flex justify-between items-center" style={{ maxWidth: 1100, margin: '0 auto' }}>
@@ -96,14 +116,15 @@ export default function HomePage() {
               ))}
             </div>
 
-            <Link href="/app/login" className="cf-btn cf-btn-primary cf-btn-sm nav-links-desktop" style={{ fontWeight: 800 }}>
+            {/* Persistent Display Block: Visible on both Desktop and Mobile */}
+            <Link href="/app" className="cf-btn cf-btn-primary cf-btn-sm" style={{ fontWeight: 800 }}>
               Sign In
             </Link>
 
             {/* Core Interaction Functional Pipeline Input Switch */}
             <input type="checkbox" id="menu-toggle" style={{ display: 'none' }} />
             
-            {/* Interactive Hamburger Icon Button linked via HTML 'for' target */}
+            {/* Mobile Three-Line Hamburger Icon Trigger Button */}
             <label htmlFor="menu-toggle" className="mobile-menu-trigger" style={{ display: 'none', flexDirection: 'column', gap: 5, cursor: 'pointer', padding: '8px', zIndex: 1200 }}>
               <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
               <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
@@ -144,10 +165,10 @@ export default function HomePage() {
 
               {/* Separated Intent Action Button Group */}
               <div className="flex flex-col" style={{ gap: 12, marginTop: 'auto', paddingTop: 24 }}>
-                <Link href="/app/register" className="cf-btn cf-btn-primary cf-btn-full" style={{ fontWeight: 800 }}>
+                <Link href="/app" className="cf-btn cf-btn-primary cf-btn-full" style={{ fontWeight: 800 }}>
                   Create Account (Sign Up)
                 </Link>
-                <Link href="/app/login" className="cf-btn cf-btn-ghost cf-btn-full" style={{ fontWeight: 600, border: '1px solid var(--border2)' }}>
+                <Link href="/app" className="cf-btn cf-btn-ghost cf-btn-full" style={{ fontWeight: 600, border: '1px solid var(--border2)' }}>
                   Sign In
                 </Link>
               </div>
@@ -175,7 +196,7 @@ export default function HomePage() {
         </p>
 
         <div className="flex items-center justify-between" style={{ gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link href="/app/register" className="cf-btn cf-btn-primary cf-btn-lg" style={{ minWidth: 240 }}>
+          <Link href="/app" className="cf-btn cf-btn-primary cf-btn-lg" style={{ minWidth: 240 }}>
             Start tracking free
           </Link>
           <Link href="/pricing" className="cf-btn cf-btn-ghost cf-btn-lg" style={{ minWidth: 240, border: '1px solid var(--border2)' }}>
@@ -286,9 +307,8 @@ export default function HomePage() {
           <h2 className="t-display" style={{ marginBottom: 16, fontSize: 38 }}>Ready to watch your savings velocity accelerate?</h2>
           <p className="t-body" style={{ marginBottom: 40, fontSize: 16 }}>Try basic features fully free. Upgrade only when your operations expand.</p>
           
-          {/* Mobile Overflow Layout Fix applied here via explicit flex scaling wrappers */}
           <div className="w-full flex justify-between items-center" style={{ justifyContent: 'center', padding: '0 8px' }}>
-            <Link href="/app/register" className="cf-btn cf-btn-primary cf-btn-lg" style={{ boxShadow: 'var(--shadow-accent)', whiteSpace: 'normal', height: 'auto', minHeight: 56, padding: '16px 32px', textAlign: 'center', lineHeight: 1.2, width: '100%', maxWidth: '340px' }}>
+            <Link href="/app" className="cf-btn cf-btn-primary cf-btn-lg" style={{ boxShadow: 'var(--shadow-accent)', whiteSpace: 'normal', height: 'auto', minHeight: 56, padding: '16px 32px', textAlign: 'center', lineHeight: 1.2, width: '100%', maxWidth: '340px' }}>
               Claim Your Secure Dashboard Access
             </Link>
           </div>
