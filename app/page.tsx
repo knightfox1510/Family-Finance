@@ -1,25 +1,10 @@
-// app/page.tsx — ChillarFlow marketing landing page
-// Place this at the ROOT of your Next.js project (replacing the current page.tsx)
-// The app moves to /app route — see routing note at the bottom.
-
+// app/page.tsx — ChillarFlow premium marketing landing page
 import Link from 'next/link';
 import { CoinMark } from '@/components/CoinMark';
 
 export const metadata = {
   title: 'ChillarFlow — Track every rupee. Effortlessly.',
-  description: 'ChillarFlow helps couples and solo entrepreneurs track household finances through WhatsApp and Telegram. No spreadsheets. Just send a message.',
-};
-
-const C = {
-  bg:      '#0b0f1a',
-  surface: '#131928',
-  border:  '#1e2840',
-  amber:   '#f59e0b',
-  teal:    '#06b6d4',
-  textW:   '#e8eeff',
-  text2:   '#6b82a8',
-  muted:   '#3d4f6e',
-  green:   '#10b981',
+  description: 'ChillarFlow helps couples and solo entrepreneurs stop income leakage through WhatsApp and Telegram. No spreadsheets. Just send a message.',
 };
 
 const navLinks = [
@@ -36,28 +21,28 @@ const features = [
   },
   {
     icon: '🤖',
-    title: 'AI-powered parsing',
+    title: 'AI-Powered Parsing',
     desc: 'Gemini AI understands natural language. "Got grocery for 1200, petrol 400, to settle" logs three transactions in one message.',
   },
   {
     icon: '📊',
-    title: 'Real financial clarity',
-    desc: 'See exactly how much you earned, spent, saved, and retained. The retention velocity dashboard shows your true financial health.',
+    title: 'Plug Income Leakages',
+    desc: 'Don’t just track what went out. Our Income Retention dashboard calculates your wealth velocity, instantly highlighting hidden subscription traps and unallocated lifestyle drains.',
   },
   {
     icon: '🏠',
-    title: 'Built for Indian households',
-    desc: 'Joint pool, partner splits, settlement tracking, SIP investments — every feature maps to how Indian couples actually manage money.',
+    title: 'Built for Indian Households',
+    desc: 'Joint pool tracking, partner splits, informal peer settlement balances, and auto-segregated pride milestones — mapping seamlessly to how Indian homes actually run.',
   },
   {
     icon: '🤝',
-    title: 'Both partners, one view',
-    desc: 'Each partner logs independently. The dashboard shows combined income, individual spending, and joint expenses in one place.',
+    title: 'Both Partners, One View',
+    desc: 'Each partner logs independently via their personal chat apps. The dashboard automatically syncs combined income, individual spending, and shared goals.',
   },
   {
     icon: '🔒',
-    title: 'Private by default',
-    desc: 'Your data lives in your own Supabase instance. We never sell data, show ads, or share anything with third parties.',
+    title: 'Your Own Private Vault',
+    desc: 'Your financial logs are completely isolated in an encrypted, dedicated database sandbox. We never look at your balances, show ads, or monetize your lifestyle patterns.',
   },
 ];
 
@@ -65,13 +50,15 @@ const modes = [
   {
     name: 'ChillarFlow Home',
     tag: 'For couples',
-    color: C.amber,
+    accentClass: 't-accent',
+    borderStyle: '1px solid var(--accent-glow)',
     features: ['Joint pool tracking', 'Partner activity breakdown', 'Settlement dashboard', 'Wealth retention velocity', 'Both Telegram & WhatsApp'],
   },
   {
     name: 'ChillarFlow Hustle',
     tag: 'For solopreneurs',
-    color: C.teal,
+    accentClass: 't-green',
+    borderStyle: '1px solid rgba(34,197,94,0.2)',
     features: ['Personal + business split', 'Cash flow visualiser', 'Custom business categories', 'WhatsApp expense logging', 'Margin tracking'],
     badge: 'Coming soon',
   },
@@ -79,89 +66,130 @@ const modes = [
 
 export default function HomePage() {
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", sans-serif', color: C.textW }}>
-
+    <div className="cf-page animate-fade-in" style={{ paddingBottom: 0 }}>
+      
       {/* ── Nav ──────────────────────────────────────────────────────────────── */}
-      <nav style={{ borderBottom: `1px solid ${C.border}`, padding: '0 24px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: 64 }}>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <CoinMark size={36} color={C.amber} />
-            <span style={{ fontWeight: 800, fontSize: 18, color: C.textW, letterSpacing: '-0.02em' }}>ChillarFlow</span>
+      <nav className="cf-header" style={{ position: 'relative', height: 64, padding: '0 24px' }}>
+        <div className="w-full flex justify-between items-center" style={{ maxWidth: 1100, margin: '0 auto' }}>
+          
+          <Link href="/" className="flex items-center" style={{ gap: 10, textDecoration: 'none' }}>
+            <CoinMark size={36} color="var(--accent)" />
+            <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--textW)', letterSpacing: '-0.02em' }}>ChillarFlow</span>
           </Link>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-            {navLinks.map((l) => (
-              <Link key={l.href} href={l.href} style={{ color: C.text2, fontSize: 14, textDecoration: 'none', fontWeight: 500 }}>
-                {l.label}
-              </Link>
-            ))}
-            <Link href="/app" style={{ background: C.amber, color: C.bg, padding: '8px 20px', borderRadius: 8, fontWeight: 700, fontSize: 14, textDecoration: 'none' }}>
+          <div className="flex items-center" style={{ gap: 16 }}>
+            {/* Desktop link ecosystem navigation links */}
+            <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+              {navLinks.map((l) => (
+                <Link key={l.href} href={l.href} className="t-body" style={{ textDecoration: 'none', fontWeight: 500 }}>
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+
+            <Link href="/app" className="cf-btn cf-btn-primary cf-btn-sm" style={{ fontWeight: 800 }}>
               Sign In
             </Link>
+
+            {/* Native Hamburger Functional Pipeline Toggle */}
+            <input type="checkbox" id="menu-toggle" />
+            
+            <label htmlFor="menu-toggle" className="mobile-menu-trigger" style={{ display: 'none', flexDirection: 'column', gap: 5, cursor: 'pointer', padding: '8px' }}>
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+              <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
+            </label>
+
+            {/* Semi-Transparent Background Overlay Mask */}
+            <label htmlFor="menu-toggle" className="drawer-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#000', opacity: 0, visibility: 'hidden', transition: 'all 0.25s ease', zIndex: 500 }}></label>
+
+            {/* Sliding Navigation Drawer Component Panel */}
+            <div className="mobile-drawer" style={{ position: 'fixed', top: 0, right: 0, width: '280px', height: '100vh', background: 'var(--surface)', padding: '40px 24px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 24, transform: 'translateX(100%)', opacity: 0, visibility: 'hidden', transition: 'all 0.28s cubic-bezier(0.4, 0, 0.2, 1)', zIndex: 1000 }}>
+              <div className="flex justify-between items-center" style={{ marginBottom: 12 }}>
+                <span className="t-caption">Menu Layout Overview</span>
+                <label htmlFor="menu-toggle" style={{ color: 'var(--text2)', fontSize: 24, cursor: 'pointer' }}>&times;</label>
+              </div>
+              {navLinks.map((l) => (
+                <Link key={l.href} href={l.href} className="t-h2" style={{ textDecoration: 'none', paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                  {l.label}
+                </Link>
+              ))}
+            </div>
           </div>
+
         </div>
       </nav>
 
       {/* ── Hero ─────────────────────────────────────────────────────────────── */}
-      <section style={{ padding: '100px 24px 80px', textAlign: 'center' }}>
-        <div style={{ maxWidth: 760, margin: '0 auto' }}>
-          <div style={{ display: 'inline-block', background: `${C.amber}18`, border: `1px solid ${C.amber}44`, borderRadius: 99, padding: '6px 18px', fontSize: 13, color: C.amber, fontWeight: 600, marginBottom: 28 }}>
-            Now with WhatsApp expense logging
-          </div>
-          <h1 style={{ fontSize: 'clamp(36px, 6vw, 64px)', fontWeight: 800, lineHeight: 1.1, margin: '0 0 24px', letterSpacing: '-0.02em' }}>
-            Track every rupee.
-            <br />
-            <span style={{ color: C.amber }}>Effortlessly.</span>
-          </h1>
-          <p style={{ fontSize: 18, color: C.text2, lineHeight: 1.7, margin: '0 0 40px', maxWidth: 560, marginLeft: 'auto', marginRight: 'auto' }}>
-            ChillarFlow turns a WhatsApp message into a tracked, categorised, settled expense — in seconds.
-            Built for Indian couples and solopreneurs who are done with spreadsheets.
-          </p>
-          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/app" style={{ background: C.amber, color: C.bg, padding: '14px 32px', borderRadius: 10, fontWeight: 700, fontSize: 16, textDecoration: 'none' }}>
-              Start free — no card needed
-            </Link>
-            <Link href="/pricing" style={{ background: 'transparent', color: C.textW, padding: '14px 32px', borderRadius: 10, fontWeight: 600, fontSize: 16, textDecoration: 'none', border: `1px solid ${C.border}` }}>
-              See pricing
-            </Link>
-          </div>
-          <p style={{ color: C.muted, fontSize: 13, marginTop: 16 }}>30 AI parses free every month. No credit card.</p>
+      <section className="cf-content text-center animate-fade-up" style={{ padding: '80px 16px 48px', maxWidth: 760 }}>
+        <div className="cf-badge" style={{ background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-glow)', marginBottom: 24, padding: '6px 16px' }}>
+          ⚡ Fast WhatsApp & Telegram tracking active
         </div>
+        
+        <h1 className="t-display" style={{ marginBottom: 24, lineHeight: 1.1 }}>
+          Track every single rupee.
+          <br />
+          <span className="pro-shimmer">Keep 30% more of it.</span>
+        </h1>
+        
+        <p className="t-body" style={{ fontSize: 17, maxW: 580, margin: '0 auto 40px', color: 'var(--text2)' }}>
+          ChillarFlow automatically transforms plain text chat alerts into beautifully structured analytics. 
+          Stop losing ground to untracked lifestyle leakage, separate business metrics easily, and align shared goals effortlessly.
+        </p>
+
+        <div className="flex items-center justify-between" style={{ gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link href="/app" className="cf-btn cf-btn-primary cf-btn-lg" style={{ minWidth: 240 }}>
+            Start tracking free
+          </Link>
+          <Link href="/pricing" className="cf-btn cf-btn-ghost cf-btn-lg" style={{ minWidth: 240, border: '1px solid var(--border2)' }}>
+            See pricing plans
+          </Link>
+        </div>
+        <p className="t-small t-muted" style={{ marginTop: 16 }}>30 automated transactions free monthly • Setup under 2 minutes</p>
       </section>
 
-      {/* ── WhatsApp demo ─────────────────────────────────────────────────────── */}
-      <section style={{ padding: '0 24px 100px' }}>
-        <div style={{ maxWidth: 480, margin: '0 auto', background: '#075e54', borderRadius: 16, overflow: 'hidden' }}>
-          {/* Chat header */}
-          <div style={{ background: '#128c7e', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, background: '#0a0a0a', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CoinMark size={28} color={C.amber} />
+      {/* ── Immersive Unmissable WhatsApp Section Showcase ─────────────────── */}
+      <section style={{ padding: '24px 16px 80px', position: 'relative' }}>
+        {/* Decorative backdrop canvas blur container */}
+        <div className="pulse" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 280, height: 280, background: 'var(--accent-glow)', filter: 'blur(90px)', borderRadius: '50%', pointerEvents: 'none' }}></div>
+
+        <div style={{ maxWidth: 440, margin: '0 auto', background: '#0b141a', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-lg), 0 0 0 1px rgba(255,255,255,0.05)', position: 'relative', zIndex: 5 }}>
+          
+          {/* Header Wrapper */}
+          <div style={{ background: '#1f2c34', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #2a3942' }}>
+            <div className="flex items-center" style={{ gap: 12 }}>
+              <div style={{ width: 38, height: 38, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyC: 'center' }}>
+                <CoinMark size={22} color="var(--accent)" />
+              </div>
+              <div>
+                <div style={{ color: '#e9edef', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  ChillarFlow Bot <span className="cf-badge" style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--green)', fontSize: 9, padding: '2px 6px' }}>Verified</span>
+                </div>
+                <div style={{ color: '#8696a0', fontSize: 11 }}>online and parsing statements...</div>
+              </div>
             </div>
-            <div>
-              <div style={{ color: '#fff', fontWeight: 600, fontSize: 15 }}>ChillarFlow</div>
-              <div style={{ color: '#d1fae5', fontSize: 12 }}>online</div>
-            </div>
+            <div style={{ color: '#8696a0', fontSize: 18, cursor: 'default' }}>•••</div>
           </div>
 
-          {/* Messages */}
-          <div style={{ padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 10, background: '#e5ddd5' }}>
+          {/* Message Stream */}
+          <div style={{ padding: '20px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
               { from: 'user', text: '450 Zomato, 1200 Big Bazaar to settle, 400 Ola' },
-              { from: 'bot',  text: 'Transaction logged!\n\nAmount: ₹450\nCategory: Online Food Orders\nAccount: Rahul\nSettlement: Personal\nNote: Zomato' },
-              { from: 'bot',  text: 'Transaction logged!\n\nAmount: ₹1,200\nCategory: Groceries\nAccount: Rahul\nSettlement: Joint Reimbursement\nNote: Big Bazaar' },
-              { from: 'bot',  text: 'Transaction logged!\n\nAmount: ₹400\nCategory: Cab Services\nAccount: Rahul\nSettlement: Personal\nNote: Ola' },
+              { from: 'bot',  text: '📝 **Parsed Successfully!**\n\n💰 **Amount:** ₹450\n🏷️ **Category:** Dine Out / Food\n👤 **Logged By:** Current Session\n🤝 **Split Rule:** Personal\n\n*Synced directly with your household vault dashboard.*' },
+              { from: 'bot',  text: '📝 **Parsed Successfully!**\n\n💰 **Amount:** ₹1,200\n🏷️ **Category:** Groceries\n👤 **Logged By:** Current Session\n🤝 **Split Rule:** Shared (Joint Pool)\n\n*Reimbursement pipeline metrics recalculated.*' },
             ].map((m, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: m.from === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div key={i} className="flex" style={{ justifyContent: m.from === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div style={{
-                  background: m.from === 'user' ? '#dcf8c6' : '#fff',
-                  color: '#111',
-                  padding: '10px 14px',
-                  borderRadius: m.from === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                  maxWidth: '80%',
+                  background: m.from === 'user' ? '#005c4b' : '#202c33',
+                  color: '#e9edef',
+                  padding: '12px 16px',
+                  borderRadius: m.from === 'user' ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
+                  maxWidth: '85%',
                   fontSize: 13,
                   lineHeight: 1.6,
                   whiteSpace: 'pre-line',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                  border: m.from === 'user' ? 'none' : '1px solid #2a3942'
                 }}>
                   {m.text}
                 </div>
@@ -169,30 +197,32 @@ export default function HomePage() {
             ))}
           </div>
         </div>
-        <p style={{ textAlign: 'center', color: C.muted, fontSize: 13, marginTop: 16 }}>
-          One message. Three transactions. AI does the rest.
+
+        <p className="t-body text-center animate-fade-in" style={{ marginTop: 24, padding: '0 16px', fontWeight: 500 }}>
+          🚀 No complex accounting configurations to monitor. One chat string securely manages records.
         </p>
       </section>
 
-      {/* ── Products ──────────────────────────────────────────────────────────── */}
-      <section style={{ padding: '80px 24px', borderTop: `1px solid ${C.border}` }}>
+      {/* ── Products Mode Matrices ───────────────────────────────────────────── */}
+      <section style={{ padding: '64px 24px', borderTop: '1px solid var(--border)', background: 'var(--bg2)' }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
-          <h2 style={{ textAlign: 'center', fontSize: 36, fontWeight: 800, marginBottom: 12, letterSpacing: '-0.02em', color: C.textW }}>Two products. One platform.</h2>
-          <p style={{ textAlign: 'center', color: C.text2, fontSize: 16, marginBottom: 60 }}>Same powerful engine. Tuned for your life.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 24 }}>
+          <h2 className="t-h1 text-center" style={{ marginBottom: 12, fontSize: 32 }}>Two modes. One uniform database.</h2>
+          <p className="t-body text-center" style={{ marginBottom: 48 }}>Configured individually for your tracking structure.</p>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
             {modes.map((m) => (
-              <div key={m.name} style={{ background: C.surface, border: `1px solid ${m.color}44`, borderRadius: 16, padding: '32px 28px', position: 'relative' }}>
+              <div key={m.name} className="cf-card" style={{ border: m.borderStyle, padding: '32px 28px', background: 'var(--surface)' }}>
                 {m.badge && (
-                  <div style={{ position: 'absolute', top: 20, right: 20, background: `${C.teal}22`, color: C.teal, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 99 }}>
+                  <div className="cf-badge" style={{ position: 'absolute', top: 20, right: 20, background: 'var(--teal-bg)', color: 'var(--teal)' }}>
                     {m.badge}
                   </div>
                 )}
-                <div style={{ fontSize: 13, color: m.color, fontWeight: 600, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{m.tag}</div>
-                <h3 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 24px', color: m.color }}>{m.name}</h3>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div className="t-caption" style={{ marginBottom: 8, color: 'var(--text3)' }}>{m.tag}</div>
+                <h3 className={`t-h1 ${m.accentClass}`} style={{ margin: '0 0 24px' }}>{m.name}</h3>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {m.features.map((f) => (
-                    <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, color: C.text2 }}>
-                      <span style={{ color: m.color, flexShrink: 0 }}>✓</span> {f}
+                    <li key={f} className="t-body flex items-center" style={{ gap: 10 }}>
+                      <span className={m.accentClass} style={{ fontWeight: 'bold' }}>✓</span> {f}
                     </li>
                   ))}
                 </ul>
@@ -202,43 +232,45 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Features grid ─────────────────────────────────────────────────────── */}
-      <section style={{ padding: '80px 24px', borderTop: `1px solid ${C.border}` }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <h2 style={{ textAlign: 'center', fontSize: 36, fontWeight: 800, marginBottom: 60, letterSpacing: '-0.02em', color: C.textW }}>Everything you need. Nothing you don't.</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
-            {features.map((f) => (
-              <div key={f.title} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: '24px 22px' }}>
-                <div style={{ fontSize: 32, marginBottom: 14 }}>{f.icon}</div>
-                <h3 style={{ fontSize: 17, fontWeight: 700, margin: '0 0 10px' }}>{f.title}</h3>
-                <p style={{ color: C.text2, fontSize: 14, lineHeight: 1.7, margin: 0 }}>{f.desc}</p>
-              </div>
-            ))}
-          </div>
+      {/* ── Feature Grid ─────────────────────────────────────────────────────── */}
+      <section className="cf-content" style={{ padding: '80px 16px', maxWidth: 1000 }}>
+        <h2 className="t-h1 text-center" style={{ marginBottom: 56, fontSize: 32 }}>Engineered for absolute clarity.</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
+          {features.map((f) => (
+            <div key={f.title} className="cf-card" style={{ padding: '28px 24px', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 32, marginBottom: 16 }}>{f.icon}</div>
+              <h3 className="t-h2" style={{ marginBottom: 12 }}>{f.title}</h3>
+              <p className="t-body" style={{ margin: 0, lineHeight: 1.6 }}>{f.desc}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* ── CTA ───────────────────────────────────────────────────────────────── */}
-      <section style={{ padding: '100px 24px', textAlign: 'center', borderTop: `1px solid ${C.border}` }}>
-        <h2 style={{ fontSize: 40, fontWeight: 800, marginBottom: 16, letterSpacing: '-0.02em', color: C.textW }}>Ready to see where your money goes?</h2>
-        <p style={{ color: C.text2, fontSize: 16, marginBottom: 40 }}>Free forever for basic usage. Upgrade when you need more.</p>
-        <Link href="/app" style={{ background: C.amber, color: C.bg, padding: '16px 40px', borderRadius: 12, fontWeight: 700, fontSize: 17, textDecoration: 'none' }}>
-          Create your household — it's free
-        </Link>
+      {/* ── Bottom CTA ────────────────────────────────────────────────────────── */}
+      <section className="text-center" style={{ padding: '90px 24px', borderTop: '1px solid var(--border)', background: 'linear-gradient(180deg, var(--bg) 0%, var(--surface) 100%)' }}>
+        <div className="cf-content" style={{ maxWidth: 600 }}>
+          <h2 className="t-display" style={{ marginBottom: 16, fontSize: 38 }}>Ready to watch your savings velocity accelerate?</h2>
+          <p className="t-body" style={{ marginBottom: 40, fontSize: 16 }}>Try basic features fully free. Upgrade only when your operations expand.</p>
+          <Link href="/app" className="cf-btn cf-btn-primary cf-btn-lg" style={{ padding: '16px 48px', boxShadow: 'var(--shadow-accent)' }}>
+            Claim Your Secure Dashboard Access
+          </Link>
+        </div>
       </section>
 
       {/* ── Footer ────────────────────────────────────────────────────────────── */}
-      <footer style={{ borderTop: `1px solid ${C.border}`, padding: '40px 24px' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <div style={{ color: C.muted, fontSize: 13 }}>© 2026 ChillarFlow. Made with ♥ in India.</div>
-          <div style={{ display: 'flex', gap: 24 }}>
+      <footer style={{ borderTop: '1px solid var(--border)', padding: '40px 24px', background: 'var(--bg)' }}>
+        <div className="flex justify-between items-center" style={{ maxWidth: 1100, margin: '0 auto', flexWrap: 'wrap', gap: 20 }}>
+          <div className="t-small t-muted">© 2026 ChillarFlow. Secure, isolated financial vaults. Made with ♥ in India.</div>
+          <div className="flex" style={{ gap: 24, flexWrap: 'wrap' }}>
             {[
               { href: '/pricing', label: 'Pricing' },
-              { href: '/about',   label: 'About'   },
-              { href: '/help',    label: 'Help'     },
-              { href: 'mailto:team@chillarflow.com', label: 'Contact' },
+              { href: '/about',   label: 'About' },
+              { href: '/help',    label: 'Help' },
+              { href: 'mailto:team@chillarflow.com', label: 'Contact Vault Operations' },
             ].map((l) => (
-              <Link key={l.href} href={l.href} style={{ color: C.muted, fontSize: 13, textDecoration: 'none' }}>{l.label}</Link>
+              <Link key={l.href} href={l.href} className="t-small t-muted" style={{ textDecoration: 'none' }}>
+                {l.label}
+              </Link>
             ))}
           </div>
         </div>
