@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import type { AppData } from '@/types';
 import { C } from '@/constants';
-import { Icon } from '@/components/Icon';
+import { Icon } from '@/components/ui/Icon';
 
 function today() { return new Date().toISOString().slice(0, 10); }
 function monthKey(d: string) { const dt = new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; }
