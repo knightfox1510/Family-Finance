@@ -121,7 +121,7 @@ export default function HomePage() {
       </nav>
 
       {/* ── Hero ─────────────────────────────────────────────────────────────── */}
-      <section className="cf-content text-center animate-fade-up" style={{ padding: '80px 16px 48px', maxWidth: 760 }}>
+      <section className="cf-content text-center animate-fade-up" style={{ padding: '80px 16px 48px' }}>
         <div className="cf-badge" style={{ background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-glow)', marginBottom: 24, padding: '6px 16px' }}>
           ⚡ Fast WhatsApp & Telegram tracking active
         </div>
@@ -132,7 +132,7 @@ export default function HomePage() {
           <span className="pro-shimmer">Keep 30% more of it.</span>
         </h1>
         
-        <p className="t-body" style={{ fontSize: 17, maxW: 580, margin: '0 auto 40px', color: 'var(--text2)' }}>
+        <p className="t-body" style={{ fontSize: 17, marginBottom: 40, color: 'var(--text2)' }}>
           ChillarFlow automatically transforms plain text chat alerts into beautifully structured analytics. 
           Stop losing ground to untracked lifestyle leakage, separate business metrics easily, and align shared goals effortlessly.
         </p>
@@ -158,7 +158,7 @@ export default function HomePage() {
           {/* Header Wrapper */}
           <div style={{ background: '#1f2c34', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #2a3942' }}>
             <div className="flex items-center" style={{ gap: 12 }}>
-              <div style={{ width: 38, height: 38, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyC: 'center' }}>
+              <div style={{ width: 38, height: 38, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CoinMark size={22} color="var(--accent)" />
               </div>
               <div>
