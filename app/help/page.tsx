@@ -15,7 +15,6 @@ const featureSubLinks = [
 
 // 🧭 The high-level main directories remain clean and distinct
 const navLinks = [
-  { href: '/features', label: 'Capabilities' }, /* ⚡ Optional: Change 'Features' to 'Capabilities' to totally eliminate the double word */
   { href: '/pricing',  label: 'Pricing' },
   { href: '/reviews',  label: 'Reviews' }, 
   { href: '/about',    label: 'About'   },
