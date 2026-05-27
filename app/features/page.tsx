@@ -7,17 +7,22 @@ export const metadata = {
   description: 'Explore how ChillarFlow automates personal log entry tracking, catches lifestyle leakages, and maps to shared household goals.',
 };
 
+// 🎯 Grouped strictly by specific platform toolsets
 const featureSubLinks = [
-  { href: '/features/tracking', label: 'WhatsApp Tracking' },
-  { href: '/features/budgeting', label: 'Leakage Budgeting' },
-  { href: '/features/planning', label: 'Household Planning' },
+  { href: '/features/tracking', label: 'Chat Log Automation' }, /* ⚡ Was WhatsApp Tracking */
+  { href: '/features/budgeting', label: 'Retention Metrics' },    /* ⚡ Was Leakage Budgeting */
+  { href: '/features/planning', label: 'Household Settlement' }, /* ⚡ Was Household Planning */
+  { href: '/shortcuts',         label: 'Power User Guide' }, 
 ];
 
+// 🧭 The high-level main directories remain clean and distinct
 const navLinks = [
-  { href: '/pricing', label: 'Pricing' },
-  { href: '/about',   label: 'About'   },
-  { href: '/help',    label: 'Help'    },
+  { href: '/pricing',  label: 'Pricing' },
+  { href: '/reviews',  label: 'Reviews' }, 
+  { href: '/about',    label: 'About'   },
+  { href: '/help',     label: 'Help'    },
 ];
+
 
 const featurePillars = [
   {
