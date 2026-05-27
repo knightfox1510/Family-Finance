@@ -720,6 +720,7 @@ html { background: #0a0a0a; }
 .neo-toggle    { border-radius: var(--radius-pill) !important; border: none !important; }
 .neo-toggle-thumb { border-radius: 50% !important; box-shadow: 0 2px 6px rgba(0,0,0,0.25) !important; }
 
+
 /* ==========================================================================
    CHILLARFLOW PREMIUM RESPONSIVE DIRECTORY DRAWER (SCALABLE ARCHITECTURE)
    ========================================================================== */
@@ -754,7 +755,7 @@ html { background: #0a0a0a; }
     top: 0;
     left: 0;
     width: 100vw;
-    height: 100vh;
+    height: 100dvh; /* ⚡ CHANGED: Dynamic height matches visible viewport mask */
     background: #000000;
     opacity: 0;
     visibility: hidden;
@@ -770,10 +771,11 @@ html { background: #0a0a0a; }
     right: 0;
     width: 85%;
     max-width: 320px;
-    height: 100vh;
+    height: 100dvh; /* ⚡ CHANGED: Dynamic height perfectly locks actions above browser bars */
     background: var(--surface);
     border-left: 1px solid var(--border);
-    padding: calc(16px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px));
+    /* Safe-areas protect top notches and bottom home-indicator bars */
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 24px calc(20px + env(safe-area-inset-bottom, 0px));
     box-sizing: border-box;
     flex-direction: column;
     transform: translateX(100%);
@@ -795,7 +797,7 @@ html { background: #0a0a0a; }
     visibility: visible !important;
   }
 
-  /* CRITICAL FIX: Hide standard hamburger trigger icon line art while open */
+  /* Hide standard hamburger trigger icon line art while open */
   #menu-toggle:checked ~ .mobile-menu-trigger {
     opacity: 0 !important;
     pointer-events: none;
