@@ -20,7 +20,7 @@ import {
   toSystemKey,
 } from '@/lib/supabaseHelpers';
 import { supabase } from '@/lib/supabaseClient';
-import type { ToastType } from '@/components/ui';
+import type { ToastType } from '@/components/ui/ui';
 
 // ---------------------------------------------------------------------------
 // Utility: stable uid using Web Crypto API
