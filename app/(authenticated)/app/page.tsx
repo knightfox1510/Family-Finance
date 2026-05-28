@@ -35,6 +35,7 @@ import { AddExpense }       from '@/components/dashboard/AddExpense';
 import { IncomeTracker }    from '@/components/dashboard/IncomeTracker';
 import { ExpenseList }      from '@/components/dashboard/ExpenseList';
 import { SettleDashboard }  from '@/components/dashboard/SettleDashboard';
+import { Groups }  from '@/components/dashboard/Groups';
 import { Contributions }    from '@/components/dashboard/Contributions';
 import { Goals }            from '@/components/dashboard/Goals';
 import { LoanTracker }      from '@/components/dashboard/LoanTracker';
@@ -131,6 +132,14 @@ export default function App() {
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
+
+  // ── Invite link redirect — reads ?group= param and opens Groups tab ──────────
+useEffect(() => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('group')) {
+    setView('groups');
+  }
+}, []);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const actions = useActions({ data: data!, setData: setData as any, session, addToast });
@@ -542,6 +551,9 @@ export default function App() {
           {view === 'settle' && mode !== 'solo' && (
             <SettleDashboard data={data} fmt={fmt$} onBulkSettle={actions.bulkSettle} partnerCalculations={partnerCalculations} actions={actions} />
           )}
+
+          {view === 'groups' && <Groups data={data} session={session} fmt={fmt$} />}
+          
           {view === 'contributions' && mode === 'joint' && (
             <Contributions data={data} onUpdate={actions.updateContrib} fmt={fmt$} />
           )}
