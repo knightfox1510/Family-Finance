@@ -742,6 +742,23 @@ useEffect(() => {
         </>
       )}
 
+      {isRefreshing && (
+        <div className="cf-refresh-overlay animate-fade-in">
+          <div className="cf-loader-logo">
+            <span className="pulse">🔄</span>
+            <div className="cf-loader-ring" />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <div style={{ color: 'var(--accent)', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
+              Updating Ledger Matrices
+            </div>
+            <div style={{ color: 'var(--text3)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Fetching latest cash distributions…
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast notifications */}
       <ToastContainer />
     </div>
