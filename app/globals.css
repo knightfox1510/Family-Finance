@@ -809,3 +809,42 @@ html { background: #0a0a0a; }
     pointer-events: none;
   }
 }
+
+
+/* ─── Premium Loader State ────────────────────────────────────────────── */
+.cf-loader-page {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.cf-loader-logo {
+  position: relative;
+  font-size: 56px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cf-loader-ring {
+  position: absolute;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  opacity: 0.2;
+  z-index: 1;
+  animation: premiumPulse 2s infinite ease-in-out;
+}
+
+@keyframes premiumPulse {
+  0% { transform: scale(0.85); opacity: 0.4; box-shadow: 0 0 0 0 var(--accent-glow); }
+  70% { transform: scale(1.15); opacity: 0.9; box-shadow: 0 0 0 24px rgba(0,0,0,0); }
+  100% { transform: scale(0.85); opacity: 0.4; box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+}
