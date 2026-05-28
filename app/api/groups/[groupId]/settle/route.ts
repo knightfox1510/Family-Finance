@@ -104,7 +104,7 @@ export async function GET(
   if (memberUserIds.length > 0) {
     const { data: profileRows } = await supabase
       .from('profiles')
-      .select('id, display_name, ghost_name, is_ghost')
+      .select('id, display_name, ghost_name, is_ghost, household_id')
       .in('id', memberUserIds);
 
     for (const p of profileRows ?? []) {
@@ -112,16 +112,68 @@ export async function GET(
     }
   }
 
-  // Step 3: compose member list preserving order, including ghosts
+  // Step 3: for non-ghost members whose display_name is a role string ("Partner A" / "Partner B"),
+  // look up the real name from their household_settings so we show e.g. "Rahul" not "Partner A".
+  const householdIds = [...new Set(
+    Object.values(profilesMap)
+      .filter((p: any) => !p.is_ghost && p.household_id)
+      .map((p: any) => p.household_id)
+  )];
+
+  const householdSettingsMap: Record<string, any> = {};
+  if (householdIds.length > 0) {
+    const { data: settingsRows } = await supabase
+      .from('household_settings')
+      .select('household_id, settings_data')
+      .in('household_id', householdIds);
+
+    for (const row of settingsRows ?? []) {
+      const s = typeof row.settings_data === 'string'
+        ? JSON.parse(row.settings_data)
+        : row.settings_data;
+      householdSettingsMap[row.household_id] = s;
+    }
+  }
+
+  // Step 4: compose member list with resolved display names
+  const ROLE_STRINGS = new Set(['Partner A', 'Partner B', 'partner_a', 'partner_b']);
+
   const members = (memberRows ?? [])
     .map((row: any) => {
       const profile = profilesMap[row.user_id];
       if (!profile) return null;
+
+      // For ghost users: always use ghost_name (that's the name they typed when joining)
+      if (profile.is_ghost) {
+        return {
+          id:           profile.id,
+          display_name: profile.ghost_name || profile.display_name,
+          ghost_name:   profile.ghost_name,
+          is_ghost:     true,
+          role:         row.role,
+        };
+      }
+
+      // For real users: if display_name is a role string, resolve from household settings
+      let resolvedName = profile.display_name;
+      if (!resolvedName || ROLE_STRINGS.has(resolvedName)) {
+        const settings = householdSettingsMap[profile.household_id];
+        if (settings) {
+          // Match by role string to pick the right partner name
+          if (profile.display_name === 'Partner B') {
+            resolvedName = settings.partnerBName || settings.partnerAName || profile.display_name;
+          } else {
+            // Default to partnerAName for "Partner A" or any unrecognised role
+            resolvedName = settings.partnerAName || profile.display_name;
+          }
+        }
+      }
+
       return {
         id:           profile.id,
-        display_name: profile.display_name,
+        display_name: resolvedName,
         ghost_name:   profile.ghost_name,
-        is_ghost:     profile.is_ghost ?? false,
+        is_ghost:     false,
         role:         row.role,
       };
     })
