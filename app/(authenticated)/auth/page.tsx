@@ -15,10 +15,11 @@ export default function AuthPage() {
   const [mode, setMode]         = useState<'create' | 'join'>('create');
   const [inviteCode, setInviteCode] = useState('');
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+const handleAuth = async (e: React.FormEvent) => {
+  e.preventDefault();
+  console.log('handleAuth fired', { email, isSignUp }); // add this
+  setLoading(true);
+  setError(null);
 
     try {
       if (isSignUp) {
