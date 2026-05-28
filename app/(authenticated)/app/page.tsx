@@ -278,9 +278,9 @@ if (loading || !data) {
   return (
     <div className="cf-loader-page animate-fade-in">
       <div className="cf-loader-logo">
-        {/* 🌟 Custom App Icon Implementation */}
+        {/* Fixed: Explicitly matches your exact filename structure */}
         <img 
-          src="/icon-192.png" 
+          src="/icon-192x192.png" 
           alt="ChillarFlow Logo"
           style={{ width: 48, height: 48, zIndex: 3, objectFit: 'contain' }} 
         />
@@ -747,12 +747,12 @@ if (loading || !data) {
         </>
       )}
 
-{isRefreshing && (
+      {isRefreshing && (
         <div className="cf-refresh-overlay animate-fade-in">
           <div className="cf-loader-logo">
-            {/* 🌟 Custom App Icon Implementation with subtle continuous rotation */}
+            {/* Fixed: Explicitly matches your exact filename structure */}
             <img 
-              src="/icon-192.png" 
+              src="/icon-192x192.png" 
               alt="ChillarFlow Logo"
               className="spinning-logo"
               style={{ width: 44, height: 44, zIndex: 3, objectFit: 'contain' }} 
