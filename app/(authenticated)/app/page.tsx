@@ -112,11 +112,15 @@ export default function App() {
   // addToast is imported as a standalone function from ui.tsx (ToastContainer handles display)
 
   // ── Auth ──────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => setSession(s));
-    return () => subscription.unsubscribe();
-  }, []);
+useEffect(() => {
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    setSession(user ? { user } : null);
+  });
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setSession(session);
+  });
+  return () => subscription.unsubscribe();
+}, []);
 
   useEffect(() => {
     if (session) {
@@ -267,10 +271,7 @@ useEffect(() => {
   };
 
   // ── Guards ────────────────────────────────────────────────────────────────
-  // ⚡ REDIRECT MUTATION: Cleanly shifts execution straight to your modular /auth route
-  if (!session) {
-    redirect('/auth');
-  }
+
 
   if (loading || !data) {
     return (
