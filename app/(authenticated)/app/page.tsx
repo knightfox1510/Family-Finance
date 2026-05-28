@@ -274,25 +274,26 @@ useEffect(() => {
 
 
   //  NEW NATIVE-FEELING PRE-HYDRATION LOADER STATE
-  if (loading || !data) {
-    return (
-      <div className="cf-loader-page animate-fade-in">
-        <div className="cf-loader-logo">
-          <span className="pulse">💰</span>
-          <div className="cf-loader-ring" />
+if (loading || !data) {
+  return (
+    <div className="cf-loader-page animate-fade-in">
+      <div className="cf-loader-logo">
+        {/* Vector Alternative: Uses your native theme tokens instead of an emoji */}
+        <Icon name="wallet" size={44} color="var(--accent)" style={{ zIndex: 3 }} />
+        <div className="cf-loader-ring" />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+        <div style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>
+          ChillarFlow
         </div>
-  
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-          <div style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>
-            ChillarFlow
-          </div>
-          <div style={{ color: 'var(--text2)', fontSize: 13, fontWeight: 500, opacity: 0.7 }}>
-            Syncing household configurations…
-          </div>
+        <div style={{ color: 'var(--text2)', fontSize: 13, fontWeight: 500, opacity: 0.7 }}>
+          Syncing household configurations…
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (needsSetup) {
     return <SetupWizard onComplete={handleSetupComplete} />;
