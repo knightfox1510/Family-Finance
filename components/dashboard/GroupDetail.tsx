@@ -1,14 +1,14 @@
-// components/dashboard/GroupDetail.tsx
-// Fixed:
-//   1. TransactionCard shows "you are owed ₹X" when you paid and others owe you
-//   2. Split profiles resolved via direct query (not FK join) so ghost names show
-//   3. Balance tab shows one clear number — the net pair amounts, not raw splits
-//   4. "Partner A" in splits replaced by real name from the profile display_name
-//      (settle route already resolves this; transaction splits do it client-side too)
+\// components/dashboard/GroupDetail.tsx
+// Phase 1 fixes:
+//   1. TransactionCard shows "you are owed ₹X" / "you owe ₹X" correctly
+//   2. Split profiles resolved via members list (ghost-safe)
+//   3. Balance calculations memoized with useMemo
+//   4. Custom delete confirmation sheet (no native confirm())
+//   5. displayName() skips role strings like "Partner A"
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { C } from '@/constants';
 import { Icon } from '@/components/ui/Icon';
 import { addToast } from '@/components/ui/ui';
@@ -370,8 +370,9 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
   const [balanceData, setBalanceData]   = useState<BalanceData | null>(null);
   const [loading, setLoading]           = useState(true);
   const [activeTab, setActiveTab]       = useState<TabId>('expenses');
-  const [showAddExpense, setShowAddExpense] = useState(false);
-  const [settlingPair, setSettlingPair]    = useState<NetPair | null>(null);
+  const [showAddExpense, setShowAddExpense]   = useState(false);
+  const [settlingPair, setSettlingPair]       = useState<NetPair | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const makeHeaders = useCallback((): HeadersInit => {
     const h: Record<string, string> = {};
@@ -401,33 +402,48 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Net balance from net_pairs (after mutual cancellation) ─────────────────
-  const myNetBalance = balanceData?.net_pairs
-    ? balanceData.net_pairs.reduce((net, p) => {
-        if (p.creditor === userId) return net + p.amount;
-        if (p.debtor   === userId) return net - p.amount;
-        return net;
-      }, 0)
-    : 0;
+  // ── Memoized balance calculations ─────────────────────────────────────────
+  // Computed once when balanceData changes, not on every render / tab switch.
+  const { myNetBalance, totalOwedToMe, totalIOwe, memberNetMap } = useMemo(() => {
+    const pairs = balanceData?.net_pairs ?? [];
 
-  // What others owe me in total (from net_pairs, creditor side only)
-  const totalOwedToMe = balanceData?.net_pairs
-    ? balanceData.net_pairs
-        .filter((p) => p.creditor === userId)
-        .reduce((sum, p) => sum + p.amount, 0)
-    : 0;
+    const myNetBalance = pairs.reduce((net, p) => {
+      if (p.creditor === userId) return net + p.amount;
+      if (p.debtor   === userId) return net - p.amount;
+      return net;
+    }, 0);
 
-  // What I owe others in total (from net_pairs, debtor side only)
-  const totalIOwe = balanceData?.net_pairs
-    ? balanceData.net_pairs
-        .filter((p) => p.debtor === userId)
-        .reduce((sum, p) => sum + p.amount, 0)
-    : 0;
+    const totalOwedToMe = pairs
+      .filter((p) => p.creditor === userId)
+      .reduce((sum, p) => sum + p.amount, 0);
+
+    const totalIOwe = pairs
+      .filter((p) => p.debtor === userId)
+      .reduce((sum, p) => sum + p.amount, 0);
+
+    // Per-member net: positive = they owe me, negative = I owe them
+    const memberNetMap: Record<string, number> = {};
+    for (const p of pairs) {
+      if (p.creditor === userId) {
+        memberNetMap[p.debtor] = (memberNetMap[p.debtor] ?? 0) + p.amount;
+      } else if (p.debtor === userId) {
+        memberNetMap[p.creditor] = (memberNetMap[p.creditor] ?? 0) - p.amount;
+      }
+    }
+
+    return { myNetBalance, totalOwedToMe, totalIOwe, memberNetMap };
+  }, [balanceData?.net_pairs, userId]);
+
+  const handleDeleteTx = async (txId: string) => {
+    setDeleteConfirmId(txId);
+  };
 
   const handleExpenseAdded = () => { setShowAddExpense(false); loadData(); addToast('Expense added ✓', 'success'); };
 
-  const handleDeleteTx = async (txId: string) => {
-    if (!confirm('Delete this transaction?')) return;
+  const confirmDelete = async () => {
+    if (!deleteConfirmId) return;
+    const txId = deleteConfirmId;
+    setDeleteConfirmId(null);
     await fetch(`/api/groups/${groupId}/transactions`, {
       method: 'DELETE', headers: { 'Content-Type': 'application/json', ...makeHeaders() },
       body: JSON.stringify({ transactionId: txId, userId }),
@@ -556,13 +572,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
             <>
               {members.map((member, i) => {
                 const isMe = member.id === userId;
-                const netWithMember = balanceData?.net_pairs
-                  ? balanceData.net_pairs.reduce((net, p) => {
-                      if (p.creditor === userId && p.debtor   === member.id) return net + p.amount;
-                      if (p.debtor   === userId && p.creditor === member.id) return net - p.amount;
-                      return net;
-                    }, 0)
-                  : 0;
+                const netWithMember = memberNetMap[member.id] ?? 0;
                 return (
                   <div key={member.id} style={{ background: C.surface, borderRadius: 14, padding: '14px 16px', border: isMe ? `1px solid ${C.accent}44` : `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 14, boxShadow: C.shadowSm }}>
                     <MemberAvatar profile={member} size={44} colorIndex={i} />
@@ -632,6 +642,36 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
           onClose={() => setSettlingPair(null)}
           onSettled={() => { setSettlingPair(null); loadData(); }}
         />
+      )}
+
+      {/* ── Delete confirmation sheet ──────────────────────────────────────── */}
+      {deleteConfirmId && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+          onClick={() => setDeleteConfirmId(null)}>
+          <div style={{ background: C.surface, borderRadius: '24px 24px 0 0', padding: '20px 24px 40px', maxWidth: 480, width: '100%', boxShadow: '0 -16px 60px rgba(0,0,0,0.6)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: 36, height: 4, background: C.border, borderRadius: 99, margin: '0 auto 20px' }} />
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: `${C.red}20`, border: `2px solid ${C.red}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                <Icon name="trash" size={24} color={C.red} />
+              </div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: C.textW, marginBottom: 6 }}>Delete transaction?</div>
+              <div style={{ fontSize: 13, color: C.text2, lineHeight: 1.6 }}>
+                This will remove the expense and all its splits. This action cannot be undone.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setDeleteConfirmId(null)}
+                style={{ flex: 1, padding: '13px', borderRadius: 99, border: `1px solid ${C.border2}`, background: 'transparent', color: C.text2, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={confirmDelete}
+                style={{ flex: 2, padding: '13px', borderRadius: 99, border: 'none', background: C.red, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
