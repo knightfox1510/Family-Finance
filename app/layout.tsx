@@ -26,9 +26,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" data-theme="obsidian" suppressHydrationWarning>
       <head>
-        {/* iOS Touch Icons and Basic Startup Launch Handshakes */}
-        <link rel="apple-touch-icon" href="/icon-192.png" />
-        <link rel="apple-touch-startup-image" href="/icon-512.png" />
+        {/* iOS Touch Icons and Basic Startup Launch Handshakes (FIXED STRINGS HERE) */}
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-startup-image" href="/icon-512x512.png" />
         
         {/* No-flash: read theme from localStorage before React hydrates */}
         <script
