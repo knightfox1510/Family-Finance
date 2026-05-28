@@ -304,12 +304,13 @@ export async function POST(
       }));
 
     } else if (splitType === 'custom') {
-      const rawEntries = splits.map((s: any) => ({
+      type SplitEntry = { userId: string; itemName: string; paisaShare: number };
+      const rawEntries: SplitEntry[] = splits.map((s: any) => ({
         userId:      s.userId,
         itemName:    'Custom Share',
         paisaShare:  Math.round(Number(s.amount ?? 0) * 100),
       }));
-      const sumPaisa = rawEntries.reduce((acc, e) => acc + e.paisaShare, 0);
+      const sumPaisa = rawEntries.reduce((acc: number, e) => acc + e.paisaShare, 0);
       if (Math.abs(sumPaisa - totalPaisa) > 2) {   // > 2 paisa = real user error
         return NextResponse.json(
           { error: `Custom split amounts (₹${(sumPaisa / 100).toFixed(2)}) must equal total (₹${totalAmount.toFixed(2)})` },
@@ -319,12 +320,13 @@ export async function POST(
       computedSplits = distributeWithRemainder(rawEntries, totalPaisa);
 
     } else if (splitType === 'itemized') {
-      const rawEntries = splits.map((s: any) => ({
+      type SplitEntry = { userId: string; itemName: string; paisaShare: number };
+      const rawEntries: SplitEntry[] = splits.map((s: any) => ({
         userId:      s.userId,
         itemName:    s.itemName ?? 'Item',
         paisaShare:  Math.round(Number(s.amount ?? 0) * 100),
       }));
-      const sumPaisa = rawEntries.reduce((acc, e) => acc + e.paisaShare, 0);
+      const sumPaisa = rawEntries.reduce((acc: number, e) => acc + e.paisaShare, 0);
       if (Math.abs(sumPaisa - totalPaisa) > 2) {
         return NextResponse.json(
           { error: `Itemized amounts (₹${(sumPaisa / 100).toFixed(2)}) must equal total (₹${totalAmount.toFixed(2)})` },
