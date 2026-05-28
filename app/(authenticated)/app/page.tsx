@@ -315,6 +315,7 @@ useEffect(() => {
 
   const moreNavItems = [
     { id: 'income',    label: 'Income',        icon: 'trendUp',  subtitle: 'Inflow dashboard · partner split' },
+    { id: 'groups',    label: 'Groups',        icon: 'users',    subtitle: 'Split with friends · group trips' },
     ...(isJointMode ? [{ id: 'contributions', label: 'Contributions', icon: 'wallet', subtitle: 'Monthly joint-pool entry' }] : []),
     ...(isSolo
       ? [{ id: 'settle', label: 'Settle', icon: 'refresh', subtitle: p2pPendingCount > 0 ? `${p2pPendingCount} pending` : 'All settled' }]
