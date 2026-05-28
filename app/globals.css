@@ -873,3 +873,13 @@ html { background: #0a0a0a; }
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+
+/* Gives a smooth, continuous micro-rotation effect to your custom brand asset logo image */
+.spinning-logo {
+  animation: logoSpin 2.5s linear infinite;
+}
+
+@keyframes logoSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
