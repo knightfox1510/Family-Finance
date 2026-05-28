@@ -71,6 +71,7 @@ export const NAV: NavItem[] = [
   { id: 'income',        label: 'Income',       icon: 'trendUp' },
   { id: 'expenses',      label: 'Expenses',     icon: 'list' },
   { id: 'settle',        label: 'Settlements',  icon: 'refresh', hideIn: ['solo'] },
+  { id: 'groups', label: 'Groups', icon: 'users' },
   { id: 'contributions', label: 'Contributions',icon: 'wallet',  hideIn: ['solo', 'separate'] },
   { id: 'goals',         label: 'Goals',        icon: 'target' },
   { id: 'loans',         label: 'EMI Tracker',  icon: 'bank' },
