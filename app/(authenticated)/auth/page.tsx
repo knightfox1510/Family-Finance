@@ -103,7 +103,7 @@ export default function AuthPage() {
         }
 
         // ✅ Redirect after successful sign-up
-        router.push('/dashboard');
+        router.push('/app');
 
       } else {
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
