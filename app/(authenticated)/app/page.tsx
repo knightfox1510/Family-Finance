@@ -746,7 +746,8 @@ if (loading || !data) {
       {isRefreshing && (
         <div className="cf-refresh-overlay animate-fade-in">
           <div className="cf-loader-logo">
-            <span className="pulse">🔄</span>
+            {/* Vector Alternative: Matches your crisp, custom UI elements */}
+            <Icon name="sync" size={40} color="var(--accent)" style={{ zIndex: 3 }} />
             <div className="cf-loader-ring" />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
