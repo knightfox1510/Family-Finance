@@ -476,7 +476,7 @@ export function AddGroupExpense({ groupId, groupName, currency, members, userId,
 
               {/* Confirm: show per-member totals */}
               {(() => {
-                const splits = buildSplits();
+                const splits = buildSplits() as { userId: string; amount?: number; itemName?: string }[];
                 return splits.map((s) => {
                   const m = members.find((x) => x.id === s.userId);
                   return (
