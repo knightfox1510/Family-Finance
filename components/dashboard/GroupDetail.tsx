@@ -505,13 +505,13 @@ export function GroupDetail({ groupId, groupName, currency, userId, onBack, fmt 
   };
 
   // My net position in this group
-  const myNetBalance = balanceData
-    ? balanceData.net_pairs.reduce((net, p) => {
-        if (p.creditor === userId) return net + p.amount;
-        if (p.debtor   === userId) return net - p.amount;
-        return net;
-      }, 0)
-    : 0;
+const myNetBalance = balanceData?.net_pairs
+  ? balanceData.net_pairs.reduce((net: number, p: NetPair) => {
+      if (p.creditor === userId) return net + p.amount;
+      if (p.debtor   === userId) return net - p.amount;
+      return net;
+    }, 0)
+  : 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -641,7 +641,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, onBack, fmt 
       )}
 
       {/* ── Balances tab ─────────────────────────────────────────────────── */}
-      {!loading && activeTab === 'balances' && balanceData && (
+      {!loading && activeTab === 'balances' && balanceData?.net_pairs && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
           {/* My total owed banner */}
