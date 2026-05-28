@@ -15,7 +15,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 
 import { supabase } from '@/lib/supabaseClient';
-import { redirect } from 'next/navigation'; // ⚡ Next.js native navigation redirect routing hook
 
 import { loadData } from '@/lib/supabaseHelpers';
 import { SetupWizard } from '@/components/dashboard/SetupWizard';
