@@ -411,7 +411,7 @@ export function Groups({ data, session, fmt }: Props) {
   const [copiedId, setCopiedId]     = useState<string | null>(null);
 
   // Fix 1: track which group is open
-  const [selectedGroup, setSelectedGroup] = useState<{ id: string; name: string; currency: string } | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<{ id: string; name: string; currency: string; ghostToken?: string } | null>(null);
 
   const userId = session?.user?.id;
 
@@ -457,15 +457,16 @@ export function Groups({ data, session, fmt }: Props) {
   };
 
   // Fix 1: if a group is selected, render GroupDetail instead of list
-  if (selectedGroup) {
+if (selectedGroup) {
     return (
       <GroupDetail
         groupId={selectedGroup.id}
         groupName={selectedGroup.name}
         currency={selectedGroup.currency}
         userId={userId}
+        ghostToken={selectedGroup.ghostToken}
         fmt={fmt}
-        onBack={() => setSelectedGroup(null)}
+        onBack={() => { setSelectedGroup(null); loadGroups(); }}
       />
     );
   }
@@ -506,7 +507,7 @@ export function Groups({ data, session, fmt }: Props) {
         return (
           <div
             key={g.id}
-            onClick={() => setSelectedGroup({ id: g.id, name: g.name, currency: g.currency })}
+            onClick={() => setSelectedGroup({ id: g.id, name: g.name, currency: g.currency, ghostToken: undefined })}
             style={{
               background: C.surface, borderRadius: 18, padding: '16px 18px',
               boxShadow: C.shadowSm, border: `1px solid ${C.border}`,
