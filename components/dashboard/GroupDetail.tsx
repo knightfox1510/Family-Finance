@@ -549,6 +549,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
             currency={currency}
             members={members}
             userId={userId}
+            ghostToken={ghostToken}
             fmt={fmt}
             onClose={() => setShowAddExpense(false)}
             onAdded={handleExpenseAdded}
