@@ -277,13 +277,9 @@ useEffect(() => {
 if (loading || !data) {
   return (
     <div className="cf-loader-page animate-fade-in">
+      {/* 🌟 Unified vector container with absolute safety margins */}
       <div className="cf-loader-logo">
-        {/* Fixed: Explicitly matches your exact filename structure */}
-        <img 
-          src="/icon-192x192.png" 
-          alt="ChillarFlow Logo"
-          style={{ width: 48, height: 48, zIndex: 3, objectFit: 'contain' }} 
-        />
+        <Icon name="wallet" size={40} color="var(--accent)" style={{ zIndex: 3 }} />
         <div className="cf-loader-ring" />
       </div>
 
@@ -747,16 +743,11 @@ if (loading || !data) {
         </>
       )}
 
-      {isRefreshing && (
+{isRefreshing && (
         <div className="cf-refresh-overlay animate-fade-in">
+          {/* 🌟 Clean vector container with safe padding bounds */}
           <div className="cf-loader-logo">
-            {/* Fixed: Explicitly matches your exact filename structure */}
-            <img 
-              src="/icon-192x192.png" 
-              alt="ChillarFlow Logo"
-              className="spinning-logo"
-              style={{ width: 44, height: 44, zIndex: 3, objectFit: 'contain' }} 
-            />
+            <Icon name="sync" size={40} color="var(--accent)" style={{ zIndex: 3 }} />
             <div className="cf-loader-ring" />
           </div>
           
