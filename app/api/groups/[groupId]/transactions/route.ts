@@ -265,43 +265,73 @@ export async function POST(
     }
 
     // ── Compute splits ─────────────────────────────────────────────────────
+    // All arithmetic uses integer paisa (×100) to avoid floating-point drift.
+    // After distributing, any remainder paisa goes to the largest-share holder.
     let computedSplits: { userId: string; itemName: string; shareAmount: number }[] = [];
 
+    // Helper: distribute totalPaisa across entries, apply remainder to largest
+    function distributeWithRemainder(
+      entries: { userId: string; itemName: string; paisaShare: number }[],
+      totalPaisa: number,
+    ): { userId: string; itemName: string; shareAmount: number }[] {
+      const sumPaisa = entries.reduce((s, e) => s + e.paisaShare, 0);
+      const diff     = totalPaisa - sumPaisa;   // +ve or -ve, typically 0 or ±1
+      if (diff === 0) {
+        return entries.map((e) => ({ userId: e.userId, itemName: e.itemName, shareAmount: e.paisaShare / 100 }));
+      }
+      // Apply remainder to the entry with the largest share (most fair)
+      let maxIdx = 0;
+      for (let i = 1; i < entries.length; i++) {
+        if (entries[i].paisaShare > entries[maxIdx].paisaShare) maxIdx = i;
+      }
+      return entries.map((e, i) => ({
+        userId:      e.userId,
+        itemName:    e.itemName,
+        shareAmount: (e.paisaShare + (i === maxIdx ? diff : 0)) / 100,
+      }));
+    }
+
+    const totalPaisa = Math.round(totalAmount * 100);
+
     if (splitType === 'equal') {
-      const perPerson = totalAmount / splits.length;
-      const base      = Math.floor(perPerson * 100) / 100;
-      const remainder = Math.round((totalAmount - base * splits.length) * 100);
+      const basePaisa      = Math.floor(totalPaisa / splits.length);
+      const remainderPaisa = totalPaisa - basePaisa * splits.length;
+      // Distribute the extra paisa to the first N entries
       computedSplits = splits.map((s: any, i: number) => ({
         userId:      s.userId,
         itemName:    'Shared Cost',
-        shareAmount: i < remainder ? base + 0.01 : base,
+        shareAmount: (basePaisa + (i < remainderPaisa ? 1 : 0)) / 100,
       }));
+
     } else if (splitType === 'custom') {
-      const sum = splits.reduce((acc: number, s: any) => acc + Number(s.amount ?? 0), 0);
-      if (Math.abs(sum - totalAmount) > 0.02) {
-        return NextResponse.json(
-          { error: `Custom split amounts (₹${sum.toFixed(2)}) must equal total (₹${totalAmount.toFixed(2)})` },
-          { status: 400 }
-        );
-      }
-      computedSplits = splits.map((s: any) => ({
+      const rawEntries = splits.map((s: any) => ({
         userId:      s.userId,
         itemName:    'Custom Share',
-        shareAmount: Number(s.amount),
+        paisaShare:  Math.round(Number(s.amount ?? 0) * 100),
       }));
-    } else if (splitType === 'itemized') {
-      const sum = splits.reduce((acc: number, s: any) => acc + Number(s.amount ?? 0), 0);
-      if (Math.abs(sum - totalAmount) > 0.02) {
+      const sumPaisa = rawEntries.reduce((acc, e) => acc + e.paisaShare, 0);
+      if (Math.abs(sumPaisa - totalPaisa) > 2) {   // > 2 paisa = real user error
         return NextResponse.json(
-          { error: `Itemized amounts (₹${sum.toFixed(2)}) must equal total (₹${totalAmount.toFixed(2)})` },
+          { error: `Custom split amounts (₹${(sumPaisa / 100).toFixed(2)}) must equal total (₹${totalAmount.toFixed(2)})` },
           { status: 400 }
         );
       }
-      computedSplits = splits.map((s: any) => ({
+      computedSplits = distributeWithRemainder(rawEntries, totalPaisa);
+
+    } else if (splitType === 'itemized') {
+      const rawEntries = splits.map((s: any) => ({
         userId:      s.userId,
         itemName:    s.itemName ?? 'Item',
-        shareAmount: Number(s.amount),
+        paisaShare:  Math.round(Number(s.amount ?? 0) * 100),
       }));
+      const sumPaisa = rawEntries.reduce((acc, e) => acc + e.paisaShare, 0);
+      if (Math.abs(sumPaisa - totalPaisa) > 2) {
+        return NextResponse.json(
+          { error: `Itemized amounts (₹${(sumPaisa / 100).toFixed(2)}) must equal total (₹${totalAmount.toFixed(2)})` },
+          { status: 400 }
+        );
+      }
+      computedSplits = distributeWithRemainder(rawEntries, totalPaisa);
     }
 
     // ── Insert transaction ─────────────────────────────────────────────────
