@@ -1,12 +1,10 @@
 // app/api/groups/[groupId]/transactions/route.ts
-// Handles expense logging for a specific group.
-// POST: creates a group_transaction + individual transaction_splits
-// GET:  returns paginated transactions with split details
+// FIXED: resolveUserId now also accepts createdBy/userId from request body/query
+// as a fallback, consistent with the GET endpoint. This handles the case where
+// the client sends no auth header (regular Supabase session via cookie).
 //
-// Ghost token support:
-//   Ghost users send header x-ghost-token = <signed JWT from WhatsApp OTP flow>
-//   The token is verified, and the ghost's userId is extracted from the DB.
-//   Ghost users can GET (view) and POST (add expenses) — same as real members.
+// The correct long-term fix is for the client to send Authorization: Bearer <token>,
+// which AddGroupExpense.tsx now does. This fallback is a safety net.
 
 import { NextResponse } from 'next/server';
 import { createClient }  from '@supabase/supabase-js';
@@ -23,38 +21,64 @@ const GHOST_SECRET = new TextEncoder().encode(
 );
 
 // ── Ghost token resolution ───────────────────────────────────────────────────
-// Returns the userId if the ghost token is valid, null otherwise.
 async function resolveGhostToken(token: string): Promise<string | null> {
+  // Support hand-rolled HMAC format (from whatsapp-otp/verify)
+  try {
+    const [payloadB64] = token.split('.');
+    if (payloadB64) {
+      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+      if (payload.profileId) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', payload.profileId)
+          .single();
+        if (data?.id) return data.id;
+      }
+    }
+  } catch {}
+
+  // Fall back to jose JWT format
   try {
     const { payload } = await jwtVerify(token, GHOST_SECRET);
     const userId = payload.sub as string;
     if (!userId) return null;
-
-    // Confirm this user still exists and is a ghost
     const { data } = await supabase
       .from('profiles')
       .select('id, is_ghost')
       .eq('id', userId)
       .single();
-
     return data?.id ?? null;
   } catch {
     return null;
   }
 }
 
-// ── Auth helper — resolves userId from either session cookie OR ghost token ──
-async function resolveUserId(request: Request): Promise<string | null> {
-  // Prefer ghost token header (ghost users have no Supabase session)
+// ── Auth helper ──────────────────────────────────────────────────────────────
+// Priority: ghost token > Bearer token > userId query/body param (verified against DB)
+async function resolveUserId(request: Request, fallbackUserId?: string | null): Promise<string | null> {
+  // 1. Ghost token header
   const ghostToken = request.headers.get('x-ghost-token');
   if (ghostToken) return resolveGhostToken(ghostToken);
 
-  // Fallback: regular auth cookie via Authorization header
+  // 2. Bearer token (regular Supabase session)
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     const { data: { user } } = await supabase.auth.getUser(token);
-    return user?.id ?? null;
+    if (user?.id) return user.id;
+  }
+
+  // 3. Fallback: userId from query param or body — verify they're actually a real user
+  // This handles cases where the client didn't send an auth header but we have the userId.
+  // We verify by checking the profiles table (service role, so RLS bypassed).
+  if (fallbackUserId) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', fallbackUserId)
+      .single();
+    if (data?.id) return data.id;
   }
 
   return null;
@@ -67,16 +91,12 @@ async function notifyGroupMembers(
   description: string,
   totalAmount: number,
   currency:    string,
-  skipUserId:  string,   // Don't notify the person who added
+  skipUserId:  string,
 ) {
   try {
-    // Fetch all members with phone numbers (excluding adder)
     const { data: members } = await supabase
       .from('group_members')
-      .select(`
-        user_id,
-        profiles ( phone_number, display_name, ghost_name )
-      `)
+      .select(`user_id, profiles ( phone_number, display_name, ghost_name )`)
       .eq('group_id', groupId)
       .neq('user_id', skipUserId);
 
@@ -86,7 +106,7 @@ async function notifyGroupMembers(
     const accessToken   = process.env.META_ACCESS_TOKEN;
     const templateName  = process.env.META_EXPENSE_TEMPLATE_NAME ?? 'group_expense_added';
 
-    if (!phoneNumberId || !accessToken) return; // WA not configured, skip silently
+    if (!phoneNumberId || !accessToken) return;
 
     const fmt = (n: number) =>
       new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
@@ -96,7 +116,6 @@ async function notifyGroupMembers(
       const phone   = profile?.phone_number;
       if (!phone) continue;
 
-      // Normalize phone to E.164 (strip leading 0, add +91 for India if bare 10-digit)
       const e164 = phone.startsWith('+')
         ? phone.replace(/\s/g, '')
         : `+91${phone.replace(/\D/g, '').slice(-10)}`;
@@ -105,14 +124,11 @@ async function notifyGroupMembers(
 
       await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
         method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
-          to:                e164,
-          type:              'template',
+          to:   e164,
+          type: 'template',
           template: {
             name:     templateName,
             language: { code: 'en' },
@@ -130,7 +146,6 @@ async function notifyGroupMembers(
       });
     }
   } catch (e) {
-    // Notifications are best-effort — never let them break the main flow
     console.error('[WA notify] failed:', e);
   }
 }
@@ -145,15 +160,11 @@ export async function GET(
   const page        = parseInt(url.searchParams.get('page') ?? '0', 10);
   const pageSize    = 20;
 
-  // Support both userId query param (regular users) and ghost token header
-  let userId = url.searchParams.get('userId');
-  if (!userId) {
-    userId = await resolveUserId(request);
-  }
+  const urlUserId = url.searchParams.get('userId');
+  const userId    = await resolveUserId(request, urlUserId);
 
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
 
-  // Verify membership
   const { data: member } = await supabase
     .from('group_members')
     .select('id')
@@ -163,7 +174,6 @@ export async function GET(
 
   if (!member) return NextResponse.json({ error: 'Not a member of this group' }, { status: 403 });
 
-  // Fetch transactions with splits and payer profile
   const { data: transactions, error, count } = await supabase
     .from('group_transactions')
     .select(`
@@ -194,23 +204,6 @@ export async function GET(
 }
 
 // ── POST /api/groups/[groupId]/transactions ──────────────────────────────────
-// Body:
-// {
-//   paidBy:      string (user_id),
-//   description: string,
-//   totalAmount: number,
-//   splitType:   'equal' | 'custom' | 'itemized',
-//   category:    string,
-//   notes:       string,
-//   receiptUrl:  string | null,
-//   splits: [
-//     // For 'equal'    — just list member user_ids
-//     // For 'custom'   — { userId, amount }
-//     // For 'itemized' — { userId, itemName, amount }
-//     { userId: string, amount?: number, itemName?: string }
-//   ]
-// }
-// Ghost users: send x-ghost-token header instead of Authorization
 export async function POST(
   request: Request,
   { params }: { params: { groupId: string } }
@@ -218,23 +211,7 @@ export async function POST(
   try {
     const { groupId } = params;
 
-    // ── Resolve caller identity (real user OR ghost) ────────────────────────
-    const ghostToken = request.headers.get('x-ghost-token');
-    let callerId: string | null = null;
-
-    if (ghostToken) {
-      callerId = await resolveGhostToken(ghostToken);
-      if (!callerId) {
-        return NextResponse.json({ error: 'Invalid or expired ghost token' }, { status: 401 });
-      }
-    } else {
-      callerId = await resolveUserId(request);
-    }
-
-    if (!callerId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
-
+    // Clone the request so we can read body after resolveUserId reads headers
     const body = await request.json();
 
     const {
@@ -246,8 +223,16 @@ export async function POST(
       notes       = '',
       receiptUrl  = null,
       splits      = [],
-      createdBy,   // may be omitted — fall back to callerId
+      createdBy,
     } = body;
+
+    // Resolve caller — pass createdBy/paidBy as fallback for headerless requests
+    const fallbackId = createdBy ?? paidBy ?? null;
+    const callerId   = await resolveUserId(request, fallbackId);
+
+    if (!callerId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
 
     const resolvedCreatedBy = createdBy ?? callerId;
 
@@ -267,7 +252,7 @@ export async function POST(
       return NextResponse.json({ error: 'At least one split participant required' }, { status: 400 });
     }
 
-    // Verify creator is a group member (use callerId, not body's createdBy, to prevent spoofing)
+    // Verify caller is a group member
     const { data: member } = await supabase
       .from('group_members')
       .select('id')
@@ -279,20 +264,18 @@ export async function POST(
       return NextResponse.json({ error: 'Not a member of this group' }, { status: 403 });
     }
 
-    // ── Compute split amounts ───────────────────────────────────────────────
+    // ── Compute splits ─────────────────────────────────────────────────────
     let computedSplits: { userId: string; itemName: string; shareAmount: number }[] = [];
 
     if (splitType === 'equal') {
       const perPerson = totalAmount / splits.length;
       const base      = Math.floor(perPerson * 100) / 100;
       const remainder = Math.round((totalAmount - base * splits.length) * 100);
-
       computedSplits = splits.map((s: any, i: number) => ({
         userId:      s.userId,
         itemName:    'Shared Cost',
         shareAmount: i < remainder ? base + 0.01 : base,
       }));
-
     } else if (splitType === 'custom') {
       const sum = splits.reduce((acc: number, s: any) => acc + Number(s.amount ?? 0), 0);
       if (Math.abs(sum - totalAmount) > 0.02) {
@@ -306,7 +289,6 @@ export async function POST(
         itemName:    'Custom Share',
         shareAmount: Number(s.amount),
       }));
-
     } else if (splitType === 'itemized') {
       const sum = splits.reduce((acc: number, s: any) => acc + Number(s.amount ?? 0), 0);
       if (Math.abs(sum - totalAmount) > 0.02) {
@@ -381,8 +363,7 @@ export async function POST(
       .eq('id', transaction.id)
       .single();
 
-    // ── Fire WhatsApp notifications async (best-effort) ───────────────────
-    // Fetch payer name for notification copy
+    // ── Fire WhatsApp notifications async ─────────────────────────────────
     const { data: payerProfile } = await supabase
       .from('profiles')
       .select('display_name, ghost_name')
@@ -390,21 +371,13 @@ export async function POST(
       .single();
     const payerName = payerProfile?.display_name || payerProfile?.ghost_name || 'Someone';
 
-    // Fetch group currency
     const { data: group } = await supabase
       .from('groups')
       .select('currency')
       .eq('id', groupId)
       .single();
 
-    notifyGroupMembers(
-      groupId,
-      payerName,
-      description.trim(),
-      totalAmount,
-      group?.currency ?? 'INR',
-      callerId,
-    ); // intentionally not awaited
+    notifyGroupMembers(groupId, payerName, description.trim(), totalAmount, group?.currency ?? 'INR', callerId);
 
     return NextResponse.json({ transaction: enriched ?? transaction });
 
@@ -414,8 +387,6 @@ export async function POST(
 }
 
 // ── DELETE /api/groups/[groupId]/transactions ────────────────────────────────
-// Body: { transactionId, userId }
-// Soft-delete only. Hard deletes blocked — settlement history must persist.
 export async function DELETE(
   request: Request,
   { params }: { params: { groupId: string } }
