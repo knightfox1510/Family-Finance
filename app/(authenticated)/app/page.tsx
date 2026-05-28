@@ -273,14 +273,23 @@ useEffect(() => {
   // ── Guards ────────────────────────────────────────────────────────────────
 
 
+  //  NEW NATIVE-FEELING PRE-HYDRATION LOADER STATE
   if (loading || !data) {
     return (
-      <div style={{
-        background: C.bg, minHeight: '100vh', display: 'flex',
-        alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16,
-      }}>
-        <Icon name="wallet" size={40} color={C.amber} />
-        <div style={{ color: C.amber, fontSize: 17, fontWeight: 700 }}>Loading ChillarFlow…</div>
+      <div className="cf-loader-page animate-fade-in">
+        <div className="cf-loader-logo">
+          <span className="pulse">💰</span>
+          <div className="cf-loader-ring" />
+        </div>
+  
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <div style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>
+            ChillarFlow
+          </div>
+          <div style={{ color: 'var(--text2)', fontSize: 13, fontWeight: 500, opacity: 0.7 }}>
+            Syncing household configurations…
+          </div>
+        </div>
       </div>
     );
   }
