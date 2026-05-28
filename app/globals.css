@@ -864,7 +864,7 @@ html { background: #0a0a0a; }
   gap: 20px;
 }
 
-/* Rotates the refresh vector while background synchronization is active */
+/* Automatically rotates the sync vector while your background update runs */
 .cf-refresh-overlay .cf-loader-logo svg {
   animation: svgSpin 1.4s linear infinite;
 }
