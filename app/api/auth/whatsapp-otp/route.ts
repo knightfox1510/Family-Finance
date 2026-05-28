@@ -202,8 +202,8 @@ export async function POST(req: Request) {
     }
 
     // Increment attempt counter for rate limiting
-    supabase.rpc('increment_otp_attempts', { p_phone: cleanPhone }).then().catch(() => {}); // fire-and-forget, non-critical
-
+    try { await supabase.rpc('increment_otp_attempts', { p_phone: cleanPhone }); } catch {} // fire-and-forget, non-critical
+    
     // ── Send OTP ───────────────────────────────────────────────────────────
     const { success, error: sendError } = await sendWhatsAppOTP(cleanPhone, otp);
 
