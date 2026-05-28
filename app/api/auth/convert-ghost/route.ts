@@ -159,24 +159,26 @@ export async function POST(req: Request) {
     }
 
     // Insert default household settings
-    await supabaseAdmin.from('household_settings').insert({
-      household_id:  newHouseholdId,
-      settings_data: {
-        partnerAName:      name || ghostProfile.ghost_name || 'Partner A',
-        partnerBName:      'Partner B',
-        householdMode:     'solo',   // start solo, they can upgrade later
-        expenseCategories: [
-          'Groceries', 'Dining Out', 'Online Food Orders', 'Cab Services',
-          'Utilities', 'Housing', 'Personal Transportation', 'Online Shopping',
-          'Subscriptions', 'Entertainment', 'Healthcare', 'Personal Care',
-          'Investments', 'Travel', 'Miscellaneous',
-        ],
-        incomeCategories: ['Salary', 'Freelance', 'Business', 'Other Income'],
-        budgets:          {},
-        currency:         'INR',
-        setupComplete:    false,     // setup wizard will run on first app login
-      },
-    }).catch(() => {}); // non-fatal
+try {
+      await supabaseAdmin.from('household_settings').insert({
+        household_id:  newHouseholdId,
+        settings_data: {
+          partnerAName:      name || ghostProfile.ghost_name || 'Partner A',
+          partnerBName:      'Partner B',
+          householdMode:     'solo',
+          expenseCategories: [
+            'Groceries', 'Dining Out', 'Online Food Orders', 'Cab Services',
+            'Utilities', 'Housing', 'Personal Transportation', 'Online Shopping',
+            'Subscriptions', 'Entertainment', 'Healthcare', 'Personal Care',
+            'Investments', 'Travel', 'Miscellaneous',
+          ],
+          incomeCategories: ['Salary', 'Freelance', 'Business', 'Other Income'],
+          budgets:          {},
+          currency:         'INR',
+          setupComplete:    false,
+        },
+      });
+    } catch {} // non-fatal
 
     // ── Update the ghost profile row ───────────────────────────────────────
     // Critical: link the auth user id, clear ghost flags, add household
@@ -219,12 +221,14 @@ export async function POST(req: Request) {
     }
 
     // Step C: Migrate transaction_splits to new auth id
-    await supabaseAdmin
-      .from('transaction_splits')
-      .update({ user_id: newAuthId })
-      .eq('user_id', profileId)
-      .then(() => {})
-      .catch((e: any) => console.warn('[Convert] splits migration:', e.message));
+try {
+      await supabaseAdmin
+        .from('transaction_splits')
+        .update({ user_id: newAuthId })
+        .eq('user_id', profileId);
+    } catch (e: any) {
+      console.warn('[Convert] splits migration:', e.message);
+    }
 
     // Step D: Delete the old ghost profile
     await supabaseAdmin
