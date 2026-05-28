@@ -747,18 +747,24 @@ if (loading || !data) {
         </>
       )}
 
-      {isRefreshing && (
+{isRefreshing && (
         <div className="cf-refresh-overlay animate-fade-in">
           <div className="cf-loader-logo">
-            {/* Vector Alternative: Matches your crisp, custom UI elements */}
-            <Icon name="sync" size={40} color="var(--accent)" style={{ zIndex: 3 }} />
+            {/* 🌟 Custom App Icon Implementation with subtle continuous rotation */}
+            <img 
+              src="/icon-192.png" 
+              alt="ChillarFlow Logo"
+              className="spinning-logo"
+              style={{ width: 44, height: 44, zIndex: 3, objectFit: 'contain' }} 
+            />
             <div className="cf-loader-ring" />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
             <div style={{ color: 'var(--accent)', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
               Updating Ledger Matrices
             </div>
-            <div style={{ color: 'var(--text3)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ color: 'var(--text3)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.8 }}>
               Fetching latest cash distributions…
             </div>
           </div>
