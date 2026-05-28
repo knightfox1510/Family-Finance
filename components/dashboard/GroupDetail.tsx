@@ -1,8 +1,10 @@
 // components/dashboard/GroupDetail.tsx
-// Fixed version — no new API endpoints needed.
-// Members are fetched from the existing /settle endpoint which always queries
-// group_members JOIN profiles regardless of transaction count.
-// The Add button is never blocked by member loading state.
+// Fixed:
+//   1. TransactionCard shows "you are owed ₹X" when you paid and others owe you
+//   2. Split profiles resolved via direct query (not FK join) so ghost names show
+//   3. Balance tab shows one clear number — the net pair amounts, not raw splits
+//   4. "Partner A" in splits replaced by real name from the profile display_name
+//      (settle route already resolves this; transaction splits do it client-side too)
 
 'use client';
 
@@ -26,21 +28,20 @@ interface Split {
   item_name:    string;
   share_amount: number;
   is_settled:   boolean;
-  settled_at:   string | null;
-  settled_via:  string | null;
-  profiles:     Profile;
+  profiles:     Profile | null;
 }
 
 interface Transaction {
-  id:                  string;
-  description:         string;
-  total_amount:        number;
-  split_type:          string;
-  category:            string;
-  notes:               string | null;
-  created_at:          string;
-  payer:               Profile;
-  transaction_splits:  Split[];
+  id:                 string;
+  description:        string;
+  total_amount:       number;
+  split_type:         string;
+  category:           string;
+  notes:              string | null;
+  created_at:         string;
+  paid_by:            string;
+  payer:              Profile | null;
+  transaction_splits: Split[];
 }
 
 interface NetPair {
@@ -69,15 +70,22 @@ interface GroupDetailProps {
 type TabId = 'expenses' | 'balances' | 'members';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function displayName(p: Profile | null | undefined): string {
-  if (!p) return 'Unknown';
-  return p.display_name || p.ghost_name || 'Member';
+// Resolve the best display name for a profile.
+// Priority: display_name (if not a role string) > ghost_name > fallback
+const ROLE_STRINGS = new Set(['Partner A', 'Partner B', 'partner_a', 'partner_b']);
+
+function displayName(p: Profile | null | undefined, fallback = 'Member'): string {
+  if (!p) return fallback;
+  const dn = p.display_name;
+  if (dn && !ROLE_STRINGS.has(dn)) return dn;
+  return p.ghost_name || dn || fallback;
 }
 
 const AVATAR_COLORS = [C.accent, C.green, C.purple, C.blue, C.teal, C.orange];
 
-function MemberAvatar({ member, size = 32, colorIndex = 0 }: { member: Profile; size?: number; colorIndex?: number }) {
-  const bg = AVATAR_COLORS[colorIndex % AVATAR_COLORS.length];
+function MemberAvatar({ profile, size = 32, colorIndex = 0 }: { profile: Profile | null; size?: number; colorIndex?: number }) {
+  const name = displayName(profile, '?');
+  const bg   = AVATAR_COLORS[colorIndex % AVATAR_COLORS.length];
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
@@ -85,7 +93,7 @@ function MemberAvatar({ member, size = 32, colorIndex = 0 }: { member: Profile; 
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.38, fontWeight: 800, flexShrink: 0,
     }}>
-      {displayName(member).charAt(0).toUpperCase()}
+      {name.charAt(0).toUpperCase()}
     </div>
   );
 }
@@ -109,7 +117,6 @@ const CAT_EMOJI: Record<string, string> = {
   'Alcohol': '🍻', 'Hosting Day': '🏠', 'Miscellaneous': '📦',
 };
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
 function SkeletonList({ count = 3 }: { count?: number }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -121,16 +128,58 @@ function SkeletonList({ count = 3 }: { count?: number }) {
 }
 
 // ─── Transaction card ─────────────────────────────────────────────────────────
-function TransactionCard({ tx, userId, fmt, onDelete }: {
+function TransactionCard({
+  tx, userId, members, fmt, onDelete,
+}: {
   tx:       Transaction;
   userId:   string;
+  members:  Profile[];           // full member list for name resolution
   fmt:      (n: number) => string;
   onDelete: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const mySlice    = tx.transaction_splits.find((s) => s.user_id === userId);
-  const iPaid      = tx.payer?.id === userId;
+
+  const iPaid = tx.paid_by === userId || tx.payer?.id === userId;
+
+  // My split entry (could be settled if I'm the payer)
+  const mySlice = tx.transaction_splits.find((s) => s.user_id === userId);
+
+  // Unsettled splits that others owe me (when I paid)
+  const othersOweMe = iPaid
+    ? tx.transaction_splits.filter((s) => s.user_id !== userId && !s.is_settled)
+    : [];
+  const totalOwedToMe = othersOweMe.reduce((sum, s) => sum + s.share_amount, 0);
+
   const allSettled = tx.transaction_splits.every((s) => s.is_settled);
+  const noneSettledByOthers = othersOweMe.length === tx.transaction_splits.filter((s) => s.user_id !== userId).length;
+
+  // Resolve profile for a split — use members list as fallback for name resolution
+  const resolveProfile = (split: Split): Profile | null => {
+    if (split.profiles) {
+      // If profile has a role string as display_name, try to find real name from members
+      const memberMatch = members.find((m) => m.id === split.user_id);
+      if (memberMatch) return memberMatch;
+      return split.profiles;
+    }
+    return members.find((m) => m.id === split.user_id) ?? null;
+  };
+
+  // Sub-label shown under amount on right
+  const amountSubLabel = () => {
+    if (allSettled) return null;
+    if (iPaid && totalOwedToMe > 0) {
+      return { text: `you are owed ${fmt(totalOwedToMe)}`, color: C.green };
+    }
+    if (!iPaid && mySlice && !mySlice.is_settled) {
+      return { text: `you owe ${fmt(mySlice.share_amount)}`, color: C.red };
+    }
+    if (!iPaid && mySlice?.is_settled) {
+      return { text: '✓ you paid', color: C.green };
+    }
+    return null;
+  };
+
+  const sub = amountSubLabel();
 
   return (
     <div style={{ background: C.surface, borderRadius: 16, overflow: 'hidden', border: `1px solid ${C.border}`, boxShadow: C.shadowSm }}>
@@ -147,18 +196,13 @@ function TransactionCard({ tx, userId, fmt, onDelete }: {
               <span>{iPaid ? 'You paid' : `${displayName(tx.payer)} paid`}</span>
               <span>·</span>
               <span>{relTime(tx.created_at)}</span>
-              {allSettled && <><span>·</span><span style={{ color: C.green, fontWeight: 700 }}>✓ Settled</span></>}
+              {allSettled && <><span>·</span><span style={{ color: C.green, fontWeight: 700 }}>✓ All settled</span></>}
             </div>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: C.textW }}>{fmt(tx.total_amount)}</div>
-            {mySlice && !iPaid && (
-              <div style={{ fontSize: 11, marginTop: 2, color: mySlice.is_settled ? C.green : C.red, fontWeight: 600 }}>
-                {mySlice.is_settled ? '✓ paid' : `you owe ${fmt(mySlice.share_amount)}`}
-              </div>
-            )}
-            {iPaid && !allSettled && (
-              <div style={{ fontSize: 11, color: C.teal, fontWeight: 600, marginTop: 2 }}>pending</div>
+            {sub && (
+              <div style={{ fontSize: 11, marginTop: 2, color: sub.color, fontWeight: 600 }}>{sub.text}</div>
             )}
           </div>
         </div>
@@ -170,30 +214,33 @@ function TransactionCard({ tx, userId, fmt, onDelete }: {
             Split · {tx.split_type}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {tx.transaction_splits.map((s, i) => (
-              <div key={s.id} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-                background: s.user_id === userId ? `${C.accent}0a` : 'transparent',
-                borderRadius: 8,
-                border: `1px solid ${s.user_id === userId ? C.accent + '22' : 'transparent'}`,
-              }}>
-                <MemberAvatar member={s.profiles} size={24} colorIndex={i} />
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: C.text1 }}>
-                    {s.user_id === userId ? 'You' : displayName(s.profiles)}
-                  </span>
-                  {tx.split_type === 'itemized' && (
-                    <span style={{ fontSize: 11, color: C.text3, marginLeft: 6 }}>{s.item_name}</span>
-                  )}
+            {tx.transaction_splits.map((s, i) => {
+              const profile  = resolveProfile(s);
+              const isMe     = s.user_id === userId;
+              const name     = isMe ? 'You' : displayName(profile);
+              return (
+                <div key={s.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                  background: isMe ? `${C.accent}0a` : 'transparent',
+                  borderRadius: 8,
+                  border: `1px solid ${isMe ? C.accent + '22' : 'transparent'}`,
+                }}>
+                  <MemberAvatar profile={profile} size={24} colorIndex={i} />
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.text1 }}>{name}</span>
+                    {tx.split_type === 'itemized' && s.item_name && s.item_name !== 'Shared Cost' && s.item_name !== 'Custom Share' && (
+                      <span style={{ fontSize: 11, color: C.text3, marginLeft: 6 }}>{s.item_name}</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: s.is_settled ? C.green : C.textW }}>{fmt(s.share_amount)}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: s.is_settled ? C.green : C.text3, padding: '2px 8px', borderRadius: 99, background: s.is_settled ? C.greenBg : C.surface }}>
+                    {s.is_settled ? '✓' : 'owes'}
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: s.is_settled ? C.green : C.textW }}>{fmt(s.share_amount)}</div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: s.is_settled ? C.green : C.text3, padding: '2px 8px', borderRadius: 99, background: s.is_settled ? C.greenBg : C.surface }}>
-                  {s.is_settled ? '✓' : 'owes'}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          {tx.payer?.id === userId && (
+          {iPaid && (
             <button onClick={() => onDelete(tx.id)} style={{ marginTop: 12, width: '100%', padding: '8px', borderRadius: 10, border: `1px solid ${C.red}33`, background: 'transparent', color: C.red, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               Delete transaction
             </button>
@@ -217,19 +264,20 @@ function BalanceRow({ pair, members, userId, fmt, onSettle }: {
   const isMyDebt = pair.debtor   === userId;
   const iOweMe   = pair.creditor === userId;
   if (!creditor || !debtor) return null;
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: isMyDebt ? `${C.red}0a` : iOweMe ? `${C.green}0a` : C.surface2, borderRadius: 12, border: `1px solid ${isMyDebt ? C.red + '22' : iOweMe ? C.green + '22' : 'transparent'}` }}>
-      <MemberAvatar member={debtor} size={28} colorIndex={1} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: isMyDebt ? `${C.red}0a` : iOweMe ? `${C.green}0a` : C.surface2, borderRadius: 12, border: `1px solid ${isMyDebt ? C.red + '33' : iOweMe ? C.green + '33' : 'transparent'}` }}>
+      <MemberAvatar profile={debtor} size={36} colorIndex={1} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: C.text1 }}>
-          <span style={{ color: isMyDebt ? C.red : C.textW }}>{isMyDebt ? 'You' : displayName(debtor)}</span>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.text1, lineHeight: 1.4 }}>
+          <span style={{ color: isMyDebt ? C.red : C.textW, fontWeight: 700 }}>{isMyDebt ? 'You' : displayName(debtor)}</span>
           <span style={{ color: C.text3, fontWeight: 400 }}> owe </span>
-          <span style={{ color: iOweMe ? C.green : C.textW }}>{iOweMe ? 'you' : displayName(creditor)}</span>
+          <span style={{ color: iOweMe ? C.green : C.textW, fontWeight: 700 }}>{iOweMe ? 'you' : displayName(creditor)}</span>
         </div>
       </div>
-      <div style={{ fontSize: 15, fontWeight: 800, color: isMyDebt ? C.red : iOweMe ? C.green : C.textW }}>{fmt(pair.amount)}</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color: isMyDebt ? C.red : iOweMe ? C.green : C.textW }}>{fmt(pair.amount)}</div>
       {isMyDebt && (
-        <button onClick={() => onSettle(pair)} style={{ padding: '6px 14px', borderRadius: 99, border: 'none', background: C.accent, color: '#0a0a0a', fontSize: 12, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
+        <button onClick={() => onSettle(pair)} style={{ padding: '8px 16px', borderRadius: 99, border: 'none', background: C.accent, color: '#0a0a0a', fontSize: 13, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
           Settle
         </button>
       )}
@@ -238,15 +286,16 @@ function BalanceRow({ pair, members, userId, fmt, onSettle }: {
 }
 
 // ─── Settle modal ─────────────────────────────────────────────────────────────
-function SettleModal({ pair, members, mySplits, userId, groupId, fmt, onClose, onSettled }: {
-  pair:      NetPair;
-  members:   Profile[];
-  mySplits:  any[];
-  userId:    string;
-  groupId:   string;
-  fmt:       (n: number) => string;
-  onClose:   () => void;
-  onSettled: () => void;
+function SettleModal({ pair, members, mySplits, userId, groupId, fmt, ghostToken, onClose, onSettled }: {
+  pair:        NetPair;
+  members:     Profile[];
+  mySplits:    any[];
+  userId:      string;
+  groupId:     string;
+  fmt:         (n: number) => string;
+  ghostToken?: string;
+  onClose:     () => void;
+  onSettled:   () => void;
 }) {
   const [method, setMethod]     = useState<'upi' | 'cash' | 'manual'>('upi');
   const [note, setNote]         = useState('');
@@ -258,8 +307,18 @@ function SettleModal({ pair, members, mySplits, userId, groupId, fmt, onClose, o
     if (relevantSplits.length === 0) { addToast('No unsettled items found', 'error'); return; }
     setSettling(true);
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (ghostToken) {
+        headers['x-ghost-token'] = ghostToken;
+      } else {
+        try {
+          const { supabase } = await import('@/lib/supabaseClient');
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+        } catch {}
+      }
       const res  = await fetch(`/api/groups/${groupId}/settle`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers,
         body: JSON.stringify({ settledBy: userId, splitIds: relevantSplits.map((s: any) => s.id), settledVia: method, note: note.trim() || undefined }),
       });
       const data = await res.json();
@@ -314,19 +373,12 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [settlingPair, setSettlingPair]    = useState<NetPair | null>(null);
 
-  // ── Build request headers ────────────────────────────────────────────────────
-  // Always send userId as a query param (existing endpoints accept this).
-  // Ghost token forwarded as header when present.
-  const makeHeaders = (): HeadersInit => {
+  const makeHeaders = useCallback((): HeadersInit => {
     const h: Record<string, string> = {};
     if (ghostToken) h['x-ghost-token'] = ghostToken;
     return h;
-  };
+  }, [ghostToken]);
 
-  // ── Single load function — parallel fetch of transactions + balance ──────────
-  // The /settle endpoint fetches members from group_members JOIN profiles,
-  // which works even with zero transactions. We use those members.
-  // The /transactions endpoint returns existing expenses.
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -334,15 +386,9 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
         fetch(`/api/groups/${groupId}/transactions?userId=${userId}`, { headers: makeHeaders() }),
         fetch(`/api/groups/${groupId}/settle?userId=${userId}`,       { headers: makeHeaders() }),
       ]);
-
       const [txData, balData] = await Promise.all([txRes.json(), balRes.json()]);
-
       setTransactions(txData.transactions ?? []);
       setBalanceData(balData);
-
-      // ── Key fix: members come from the settle endpoint ─────────────────────
-      // The settle route queries group_members JOIN profiles regardless of
-      // whether any transactions exist. This always returns the full list.
       if (Array.isArray(balData.members) && balData.members.length > 0) {
         setMembers(balData.members);
       }
@@ -351,11 +397,11 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
     } finally {
       setLoading(false);
     }
-  }, [groupId, userId, ghostToken]);
+  }, [groupId, userId, makeHeaders]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Derived ──────────────────────────────────────────────────────────────────
+  // ── Net balance from net_pairs (after mutual cancellation) ─────────────────
   const myNetBalance = balanceData?.net_pairs
     ? balanceData.net_pairs.reduce((net, p) => {
         if (p.creditor === userId) return net + p.amount;
@@ -364,11 +410,21 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
       }, 0)
     : 0;
 
-  const handleExpenseAdded = () => {
-    setShowAddExpense(false);
-    loadData();
-    addToast('Expense added ✓', 'success');
-  };
+  // What others owe me in total (from net_pairs, creditor side only)
+  const totalOwedToMe = balanceData?.net_pairs
+    ? balanceData.net_pairs
+        .filter((p) => p.creditor === userId)
+        .reduce((sum, p) => sum + p.amount, 0)
+    : 0;
+
+  // What I owe others in total (from net_pairs, debtor side only)
+  const totalIOwe = balanceData?.net_pairs
+    ? balanceData.net_pairs
+        .filter((p) => p.debtor === userId)
+        .reduce((sum, p) => sum + p.amount, 0)
+    : 0;
+
+  const handleExpenseAdded = () => { setShowAddExpense(false); loadData(); addToast('Expense added ✓', 'success'); };
 
   const handleDeleteTx = async (txId: string) => {
     if (!confirm('Delete this transaction?')) return;
@@ -381,10 +437,18 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
     addToast('Transaction deleted', 'success');
   };
 
-  // ── Tab config ────────────────────────────────────────────────────────────────
+  // ── Header subtitle ────────────────────────────────────────────────────────
+  const headerSubtitle = () => {
+    if (loading) return { text: 'Loading…', color: C.text3 };
+    if (myNetBalance === 0) return { text: 'All settled up ✓', color: C.text3 };
+    if (myNetBalance > 0)   return { text: `You are owed ${fmt(myNetBalance)}`, color: C.green };
+    return { text: `You owe ${fmt(Math.abs(myNetBalance))}`, color: C.red };
+  };
+  const sub = headerSubtitle();
+
   const tabs: { id: TabId; label: string; badge?: string }[] = [
     { id: 'expenses', label: 'Expenses', badge: transactions.length ? String(transactions.length) : undefined },
-    { id: 'balances', label: 'Balances', badge: (balanceData?.my_total_owed ?? 0) > 0 ? fmt(balanceData!.my_total_owed) : undefined },
+    { id: 'balances', label: 'Balances', badge: totalIOwe > 0 ? fmt(totalIOwe) : totalOwedToMe > 0 ? fmt(totalOwedToMe) : undefined },
     { id: 'members',  label: 'Members',  badge: members.length ? String(members.length) : undefined },
   ];
 
@@ -398,15 +462,9 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
         </button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 20, fontWeight: 900, color: C.textW, letterSpacing: '-0.02em' }}>{groupName}</div>
-          <div style={{ fontSize: 12, marginTop: 2, fontWeight: 600, color: myNetBalance > 0 ? C.green : myNetBalance < 0 ? C.red : C.text3 }}>
-            {loading ? 'Loading…' : myNetBalance > 0 ? `You are owed ${fmt(myNetBalance)}` : myNetBalance < 0 ? `You owe ${fmt(Math.abs(myNetBalance))}` : 'All settled up ✓'}
-          </div>
+          <div style={{ fontSize: 12, marginTop: 2, fontWeight: 600, color: sub.color }}>{sub.text}</div>
         </div>
-        {/* Add button — always clickable; wizard shows loading if members not ready */}
-        <button
-          onClick={() => setShowAddExpense(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 99, border: 'none', background: C.accent, color: '#0a0a0a', fontSize: 13, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}
-        >
+        <button onClick={() => setShowAddExpense(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 99, border: 'none', background: C.accent, color: '#0a0a0a', fontSize: 13, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>
           <Icon name="plus" size={15} color="#0a0a0a" />
           Add
         </button>
@@ -426,52 +484,51 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
         ))}
       </div>
 
-      {/* ── Loading skeleton ──────────────────────────────────────────────── */}
       {loading && <SkeletonList />}
 
-      {/* ── EXPENSES TAB ─────────────────────────────────────────────────── */}
+      {/* ── EXPENSES TAB ──────────────────────────────────────────────────── */}
       {!loading && activeTab === 'expenses' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {transactions.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '48px 24px', background: C.surface, borderRadius: 20 }}>
               <div style={{ fontSize: 40, marginBottom: 12 }}>🧾</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: C.textW, marginBottom: 8 }}>No expenses yet</div>
-              <div style={{ fontSize: 13, color: C.text2, marginBottom: 20, lineHeight: 1.6 }}>
-                Add the first expense and split it with the group.
-              </div>
+              <div style={{ fontSize: 13, color: C.text2, marginBottom: 20, lineHeight: 1.6 }}>Add the first expense and split it with the group.</div>
               <button onClick={() => setShowAddExpense(true)} style={{ padding: '12px 24px', borderRadius: 99, border: 'none', background: C.accent, color: '#0a0a0a', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>
                 Add first expense
               </button>
             </div>
           ) : (
             transactions.map((tx) => (
-              <TransactionCard key={tx.id} tx={tx} userId={userId} fmt={fmt} onDelete={handleDeleteTx} />
+              <TransactionCard key={tx.id} tx={tx} userId={userId} members={members} fmt={fmt} onDelete={handleDeleteTx} />
             ))
           )}
         </div>
       )}
 
-      {/* ── BALANCES TAB ─────────────────────────────────────────────────── */}
+      {/* ── BALANCES TAB ──────────────────────────────────────────────────── */}
       {!loading && activeTab === 'balances' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {(balanceData?.my_total_owed ?? 0) > 0 && (
-            <div style={{ background: `${C.red}0f`, border: `1px solid ${C.red}33`, borderRadius: 14, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: 11, color: C.red, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Total you owe</div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: C.red, letterSpacing: '-0.03em' }}>{fmt(balanceData!.my_total_owed)}</div>
-              </div>
-              <div style={{ fontSize: 28 }}>💸</div>
+
+          {/* Summary strip — only show non-zero sides */}
+          {(totalIOwe > 0 || totalOwedToMe > 0) && (
+            <div style={{ display: 'grid', gridTemplateColumns: totalIOwe > 0 && totalOwedToMe > 0 ? '1fr 1fr' : '1fr', gap: 10 }}>
+              {totalIOwe > 0 && (
+                <div style={{ background: `${C.red}0f`, border: `1px solid ${C.red}33`, borderRadius: 14, padding: '14px 18px' }}>
+                  <div style={{ fontSize: 11, color: C.red, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>You owe</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: C.red, letterSpacing: '-0.03em' }}>{fmt(totalIOwe)}</div>
+                </div>
+              )}
+              {totalOwedToMe > 0 && (
+                <div style={{ background: `${C.green}0f`, border: `1px solid ${C.green}33`, borderRadius: 14, padding: '14px 18px' }}>
+                  <div style={{ fontSize: 11, color: C.green, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Owed to you</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: C.green, letterSpacing: '-0.03em' }}>{fmt(totalOwedToMe)}</div>
+                </div>
+              )}
             </div>
           )}
-          {myNetBalance > 0 && (
-            <div style={{ background: `${C.green}0f`, border: `1px solid ${C.green}33`, borderRadius: 14, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: 11, color: C.green, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Total owed to you</div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: C.green, letterSpacing: '-0.03em' }}>{fmt(myNetBalance)}</div>
-              </div>
-              <div style={{ fontSize: 28 }}>🤑</div>
-            </div>
-          )}
+
+          {/* Net pair rows */}
           {!balanceData?.net_pairs?.length ? (
             <div style={{ textAlign: 'center', padding: '40px 24px', background: C.surface, borderRadius: 20 }}>
               <div style={{ fontSize: 36, marginBottom: 10 }}>🎉</div>
@@ -487,14 +544,13 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
         </div>
       )}
 
-      {/* ── MEMBERS TAB ──────────────────────────────────────────────────── */}
+      {/* ── MEMBERS TAB ───────────────────────────────────────────────────── */}
       {!loading && activeTab === 'members' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {members.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 24px', background: C.surface, borderRadius: 20 }}>
               <div style={{ fontSize: 36, marginBottom: 10 }}>👥</div>
               <div style={{ fontSize: 15, color: C.text2 }}>No members found</div>
-              <div style={{ fontSize: 12, color: C.text3, marginTop: 6 }}>This may be a data sync issue — try refreshing.</div>
             </div>
           ) : (
             <>
@@ -509,7 +565,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
                   : 0;
                 return (
                   <div key={member.id} style={{ background: C.surface, borderRadius: 14, padding: '14px 16px', border: isMe ? `1px solid ${C.accent}44` : `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 14, boxShadow: C.shadowSm }}>
-                    <MemberAvatar member={member} size={44} colorIndex={i} />
+                    <MemberAvatar profile={member} size={44} colorIndex={i} />
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 15, fontWeight: 700, color: C.textW }}>{isMe ? 'You' : displayName(member)}</span>
@@ -525,7 +581,6 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
                   </div>
                 );
               })}
-              {/* Invite hint */}
               <div style={{ background: C.surface2, borderRadius: 14, padding: '14px 16px', border: `1px dashed ${C.border2}`, display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 44, height: 44, borderRadius: '50%', background: C.surface, border: `1.5px dashed ${C.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name="plus" size={18} color={C.text3} />
@@ -540,7 +595,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
         </div>
       )}
 
-      {/* ── Add expense sheet ─────────────────────────────────────────────── */}
+      {/* ── Add expense ────────────────────────────────────────────────────── */}
       {showAddExpense && (
         members.length > 0 ? (
           <AddGroupExpense
@@ -555,18 +610,16 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
             onAdded={handleExpenseAdded}
           />
         ) : (
-          /* Members not loaded yet — show a simple loading sheet */
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setShowAddExpense(false)}>
             <div style={{ background: C.surface, borderRadius: '24px 24px 0 0', padding: '32px 24px 48px', maxWidth: 480, width: '100%', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
               <div style={{ fontSize: 14, color: C.text2, marginBottom: 8 }}>Loading group members…</div>
-              <div style={{ fontSize: 12, color: C.text3 }}>If this persists, go back and reopen the group.</div>
               <button onClick={() => setShowAddExpense(false)} style={{ marginTop: 20, padding: '12px 28px', borderRadius: 99, border: `1px solid ${C.border2}`, background: 'transparent', color: C.text2, fontSize: 14, cursor: 'pointer' }}>Close</button>
             </div>
           </div>
         )
       )}
 
-      {/* ── Settle modal ──────────────────────────────────────────────────── */}
+      {/* ── Settle modal ───────────────────────────────────────────────────── */}
       {settlingPair && balanceData && (
         <SettleModal
           pair={settlingPair}
@@ -574,6 +627,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
           mySplits={balanceData.my_splits}
           userId={userId}
           groupId={groupId}
+          ghostToken={ghostToken}
           fmt={fmt}
           onClose={() => setSettlingPair(null)}
           onSettled={() => { setSettlingPair(null); loadData(); }}
