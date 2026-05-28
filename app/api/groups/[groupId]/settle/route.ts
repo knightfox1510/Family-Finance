@@ -2,9 +2,14 @@
 // Handles settlement between group members.
 // GET:  returns the net balance matrix for all members in a group
 // POST: marks specific splits as settled
+//
+// Ghost token support:
+//   Ghost users send x-ghost-token header. Their userId is resolved from the JWT.
+//   Ghosts can GET balances and POST settlements (same as real members).
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient }  from '@supabase/supabase-js';
+import { jwtVerify }     from 'jose';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,16 +17,46 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
+const GHOST_SECRET = new TextEncoder().encode(
+  process.env.GHOST_SESSION_SECRET ?? 'fallback-secret-change-in-prod'
+);
+
+async function resolveGhostToken(token: string): Promise<string | null> {
+  try {
+    const { payload } = await jwtVerify(token, GHOST_SECRET);
+    const userId = payload.sub as string;
+    if (!userId) return null;
+    const { data } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', userId)
+      .single();
+    return data?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveUserId(request: Request, fallbackParam?: string | null): Promise<string | null> {
+  const ghostToken = request.headers.get('x-ghost-token');
+  if (ghostToken) return resolveGhostToken(ghostToken);
+  if (fallbackParam) return fallbackParam;
+  const authHeader = request.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const { data: { user } } = await supabase.auth.getUser(authHeader.slice(7));
+    return user?.id ?? null;
+  }
+  return null;
+}
+
 // ── GET /api/groups/[groupId]/settle?userId=xxx ──────────────────────────────
-// Returns:
-// - balances: who owes whom how much (net per pair)
-// - my_unsettled: this user's specific unsettled split rows
 export async function GET(
   request: Request,
   { params }: { params: { groupId: string } }
 ) {
   const { groupId } = params;
-  const userId      = new URL(request.url).searchParams.get('userId');
+  const urlUserId   = new URL(request.url).searchParams.get('userId');
+  const userId      = await resolveUserId(request, urlUserId);
 
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
 
@@ -51,7 +86,7 @@ export async function GET(
     `)
     .eq('group_id', groupId);
 
-  // Fetch this user's specific unsettled splits (what they owe others)
+  // Fetch this user's unsettled splits (what they owe others)
   const { data: mySplits } = await supabase
     .from('transaction_splits')
     .select(`
@@ -78,7 +113,6 @@ export async function GET(
     .eq('group_transactions.is_deleted', false);
 
   // Compute simplified net balance pairs
-  // A positive balance[A][B] means B owes A
   const balanceMap: Record<string, Record<string, number>> = {};
   (balances ?? []).forEach((b: any) => {
     if (!balanceMap[b.creditor_id]) balanceMap[b.creditor_id] = {};
@@ -108,9 +142,9 @@ export async function GET(
   });
 
   return NextResponse.json({
-    net_pairs:  netPairs,
-    members:    (members ?? []).map((m: any) => m.profiles).filter(Boolean),
-    my_splits:  mySplits ?? [],
+    net_pairs:     netPairs,
+    members:       (members ?? []).map((m: any) => m.profiles).filter(Boolean),
+    my_splits:     mySplits ?? [],
     my_total_owed: (mySplits ?? []).reduce(
       (sum: number, s: any) => sum + Number(s.share_amount), 0
     ),
@@ -125,12 +159,24 @@ export async function GET(
 //   settledVia: 'upi' | 'cash' | 'manual',
 //   note:       string (optional)
 // }
+// Ghost users: send x-ghost-token header. settledBy must match ghost's resolved userId.
 export async function POST(
   request: Request,
   { params }: { params: { groupId: string } }
 ) {
   try {
-    const { groupId }                           = params;
+    const { groupId } = params;
+
+    // Resolve caller identity
+    const ghostToken = request.headers.get('x-ghost-token');
+    let callerId: string | null = null;
+    if (ghostToken) {
+      callerId = await resolveGhostToken(ghostToken);
+      if (!callerId) {
+        return NextResponse.json({ error: 'Invalid or expired ghost token' }, { status: 401 });
+      }
+    }
+
     const { settledBy, splitIds, settledVia = 'manual', note } = await request.json();
 
     if (!settledBy || !splitIds?.length) {
@@ -140,12 +186,19 @@ export async function POST(
       );
     }
 
+    // If ghost: ensure settledBy matches resolved ghost userId (prevent spoofing)
+    if (callerId && callerId !== settledBy) {
+      return NextResponse.json({ error: 'settledBy must match authenticated user' }, { status: 403 });
+    }
+
+    const resolvedUserId = callerId ?? settledBy;
+
     // Verify membership
     const { data: member } = await supabase
       .from('group_members')
       .select('id')
       .eq('group_id', groupId)
-      .eq('user_id', settledBy)
+      .eq('user_id', resolvedUserId)
       .single();
 
     if (!member) return NextResponse.json({ error: 'Not a member' }, { status: 403 });
@@ -158,7 +211,7 @@ export async function POST(
         group_transactions!inner ( group_id )
       `)
       .in('id', splitIds)
-      .eq('user_id', settledBy)
+      .eq('user_id', resolvedUserId)
       .eq('group_transactions.group_id', groupId);
 
     if (fetchError) {
@@ -186,11 +239,10 @@ export async function POST(
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
-    // Return updated balance for this group
     const { data: remainingUnsettled } = await supabase
       .from('transaction_splits')
       .select('id, share_amount')
-      .eq('user_id', settledBy)
+      .eq('user_id', resolvedUserId)
       .eq('is_settled', false);
 
     return NextResponse.json({
