@@ -150,9 +150,26 @@ export function AddGroupExpense({
     try {
       const splits = buildSplits();
 
-      // ── Build headers — include ghost token when present ──────────────────
+      // ── Build headers ─────────────────────────────────────────────────────
+      // Ghost users: send x-ghost-token header
+      // Regular users: send Authorization: Bearer <session token>
+      // The transactions route's resolveUserId requires one of these.
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (ghostToken) headers['x-ghost-token'] = ghostToken;
+      if (ghostToken) {
+        headers['x-ghost-token'] = ghostToken;
+      } else {
+        // Get the current session access token from Supabase client
+        try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const { supabase } = await import('@/lib/supabaseClient');
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            headers['Authorization'] = `Bearer ${session.access_token}`;
+          }
+        } catch {
+          // If we can't get the token, fall through — userId in body may still work
+        }
+      }
 
       const res = await fetch(`/api/groups/${groupId}/transactions`, {
         method:  'POST',
@@ -258,7 +275,7 @@ export function AddGroupExpense({
 
             {splitType === 'equal' && (
               <div>
-                <div style={{ fontSize: 11, color: C.text3, marginBottom: 10 }}>Tap to include/exclude members</div>
+                <div style={{ fontSize: 11, color: C.text3, marginBottom: 10 }}>Tap to include or exclude members</div>
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                   {members.map((m, i) => (
                     <MemberAvatar key={m.id} member={m} colorIndex={i} selected={includedMembers.has(m.id)} size={48}
