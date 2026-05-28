@@ -2,15 +2,138 @@
 // Handles expense logging for a specific group.
 // POST: creates a group_transaction + individual transaction_splits
 // GET:  returns paginated transactions with split details
+//
+// Ghost token support:
+//   Ghost users send header x-ghost-token = <signed JWT from WhatsApp OTP flow>
+//   The token is verified, and the ghost's userId is extracted from the DB.
+//   Ghost users can GET (view) and POST (add expenses) — same as real members.
 
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient }  from '@supabase/supabase-js';
+import { SignJWT, jwtVerify } from 'jose';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { persistSession: false } }
 );
+
+const GHOST_SECRET = new TextEncoder().encode(
+  process.env.GHOST_SESSION_SECRET ?? 'fallback-secret-change-in-prod'
+);
+
+// ── Ghost token resolution ───────────────────────────────────────────────────
+// Returns the userId if the ghost token is valid, null otherwise.
+async function resolveGhostToken(token: string): Promise<string | null> {
+  try {
+    const { payload } = await jwtVerify(token, GHOST_SECRET);
+    const userId = payload.sub as string;
+    if (!userId) return null;
+
+    // Confirm this user still exists and is a ghost
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, is_ghost')
+      .eq('id', userId)
+      .single();
+
+    return data?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Auth helper — resolves userId from either session cookie OR ghost token ──
+async function resolveUserId(request: Request): Promise<string | null> {
+  // Prefer ghost token header (ghost users have no Supabase session)
+  const ghostToken = request.headers.get('x-ghost-token');
+  if (ghostToken) return resolveGhostToken(ghostToken);
+
+  // Fallback: regular auth cookie via Authorization header
+  const authHeader = request.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const { data: { user } } = await supabase.auth.getUser(token);
+    return user?.id ?? null;
+  }
+
+  return null;
+}
+
+// ── WhatsApp notification helper ─────────────────────────────────────────────
+async function notifyGroupMembers(
+  groupId:     string,
+  addedByName: string,
+  description: string,
+  totalAmount: number,
+  currency:    string,
+  skipUserId:  string,   // Don't notify the person who added
+) {
+  try {
+    // Fetch all members with phone numbers (excluding adder)
+    const { data: members } = await supabase
+      .from('group_members')
+      .select(`
+        user_id,
+        profiles ( phone_number, display_name, ghost_name )
+      `)
+      .eq('group_id', groupId)
+      .neq('user_id', skipUserId);
+
+    if (!members?.length) return;
+
+    const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
+    const accessToken   = process.env.META_ACCESS_TOKEN;
+    const templateName  = process.env.META_EXPENSE_TEMPLATE_NAME ?? 'group_expense_added';
+
+    if (!phoneNumberId || !accessToken) return; // WA not configured, skip silently
+
+    const fmt = (n: number) =>
+      new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
+
+    for (const m of members) {
+      const profile = (m as any).profiles;
+      const phone   = profile?.phone_number;
+      if (!phone) continue;
+
+      // Normalize phone to E.164 (strip leading 0, add +91 for India if bare 10-digit)
+      const e164 = phone.startsWith('+')
+        ? phone.replace(/\s/g, '')
+        : `+91${phone.replace(/\D/g, '').slice(-10)}`;
+
+      const recipientName = profile?.display_name || profile?.ghost_name || 'there';
+
+      await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+        method:  'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to:                e164,
+          type:              'template',
+          template: {
+            name:     templateName,
+            language: { code: 'en' },
+            components: [{
+              type:       'body',
+              parameters: [
+                { type: 'text', text: recipientName },
+                { type: 'text', text: addedByName },
+                { type: 'text', text: description },
+                { type: 'text', text: fmt(totalAmount) },
+              ],
+            }],
+          },
+        }),
+      });
+    }
+  } catch (e) {
+    // Notifications are best-effort — never let them break the main flow
+    console.error('[WA notify] failed:', e);
+  }
+}
 
 // ── GET /api/groups/[groupId]/transactions ───────────────────────────────────
 export async function GET(
@@ -19,9 +142,14 @@ export async function GET(
 ) {
   const { groupId } = params;
   const url         = new URL(request.url);
-  const userId      = url.searchParams.get('userId');
   const page        = parseInt(url.searchParams.get('page') ?? '0', 10);
   const pageSize    = 20;
+
+  // Support both userId query param (regular users) and ghost token header
+  let userId = url.searchParams.get('userId');
+  if (!userId) {
+    userId = await resolveUserId(request);
+  }
 
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
 
@@ -82,13 +210,32 @@ export async function GET(
 //     { userId: string, amount?: number, itemName?: string }
 //   ]
 // }
+// Ghost users: send x-ghost-token header instead of Authorization
 export async function POST(
   request: Request,
   { params }: { params: { groupId: string } }
 ) {
   try {
     const { groupId } = params;
-    const body        = await request.json();
+
+    // ── Resolve caller identity (real user OR ghost) ────────────────────────
+    const ghostToken = request.headers.get('x-ghost-token');
+    let callerId: string | null = null;
+
+    if (ghostToken) {
+      callerId = await resolveGhostToken(ghostToken);
+      if (!callerId) {
+        return NextResponse.json({ error: 'Invalid or expired ghost token' }, { status: 401 });
+      }
+    } else {
+      callerId = await resolveUserId(request);
+    }
+
+    if (!callerId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    const body = await request.json();
 
     const {
       paidBy,
@@ -99,13 +246,15 @@ export async function POST(
       notes       = '',
       receiptUrl  = null,
       splits      = [],
-      createdBy,
+      createdBy,   // may be omitted — fall back to callerId
     } = body;
 
+    const resolvedCreatedBy = createdBy ?? callerId;
+
     // ── Validation ─────────────────────────────────────────────────────────
-    if (!paidBy || !description?.trim() || !totalAmount || !createdBy) {
+    if (!paidBy || !description?.trim() || !totalAmount) {
       return NextResponse.json(
-        { error: 'paidBy, description, totalAmount, and createdBy are required' },
+        { error: 'paidBy, description, and totalAmount are required' },
         { status: 400 }
       );
     }
@@ -118,12 +267,12 @@ export async function POST(
       return NextResponse.json({ error: 'At least one split participant required' }, { status: 400 });
     }
 
-    // Verify creator is a group member
+    // Verify creator is a group member (use callerId, not body's createdBy, to prevent spoofing)
     const { data: member } = await supabase
       .from('group_members')
       .select('id')
       .eq('group_id', groupId)
-      .eq('user_id', createdBy)
+      .eq('user_id', callerId)
       .single();
 
     if (!member) {
@@ -135,7 +284,6 @@ export async function POST(
 
     if (splitType === 'equal') {
       const perPerson = totalAmount / splits.length;
-      // Use banker's rounding to avoid penny discrepancies
       const base      = Math.floor(perPerson * 100) / 100;
       const remainder = Math.round((totalAmount - base * splits.length) * 100);
 
@@ -146,7 +294,6 @@ export async function POST(
       }));
 
     } else if (splitType === 'custom') {
-      // Validate custom amounts sum to total
       const sum = splits.reduce((acc: number, s: any) => acc + Number(s.amount ?? 0), 0);
       if (Math.abs(sum - totalAmount) > 0.02) {
         return NextResponse.json(
@@ -154,7 +301,6 @@ export async function POST(
           { status: 400 }
         );
       }
-
       computedSplits = splits.map((s: any) => ({
         userId:      s.userId,
         itemName:    'Custom Share',
@@ -162,7 +308,6 @@ export async function POST(
       }));
 
     } else if (splitType === 'itemized') {
-      // Each split has a specific item — amounts can vary, total must still match
       const sum = splits.reduce((acc: number, s: any) => acc + Number(s.amount ?? 0), 0);
       if (Math.abs(sum - totalAmount) > 0.02) {
         return NextResponse.json(
@@ -170,7 +315,6 @@ export async function POST(
           { status: 400 }
         );
       }
-
       computedSplits = splits.map((s: any) => ({
         userId:      s.userId,
         itemName:    s.itemName ?? 'Item',
@@ -190,7 +334,7 @@ export async function POST(
         category,
         notes:        notes.trim() || null,
         receipt_url:  receiptUrl,
-        created_by:   createdBy,
+        created_by:   resolvedCreatedBy,
       })
       .select()
       .single();
@@ -205,7 +349,6 @@ export async function POST(
       user_id:        s.userId,
       item_name:      s.itemName,
       share_amount:   s.shareAmount,
-      // The payer's own split is pre-settled (they already paid)
       is_settled:     s.userId === paidBy,
       settled_at:     s.userId === paidBy ? new Date().toISOString() : null,
       settled_via:    s.userId === paidBy ? 'direct_payment' : null,
@@ -216,12 +359,11 @@ export async function POST(
       .insert(splitRows);
 
     if (splitError) {
-      // Rollback transaction if splits fail
       await supabase.from('group_transactions').delete().eq('id', transaction.id);
       return NextResponse.json({ error: splitError.message }, { status: 500 });
     }
 
-    // ── Return enriched transaction ─────────────────────────────────────────
+    // ── Return enriched transaction ────────────────────────────────────────
     const { data: enriched } = await supabase
       .from('group_transactions')
       .select(`
@@ -238,6 +380,31 @@ export async function POST(
       `)
       .eq('id', transaction.id)
       .single();
+
+    // ── Fire WhatsApp notifications async (best-effort) ───────────────────
+    // Fetch payer name for notification copy
+    const { data: payerProfile } = await supabase
+      .from('profiles')
+      .select('display_name, ghost_name')
+      .eq('id', paidBy)
+      .single();
+    const payerName = payerProfile?.display_name || payerProfile?.ghost_name || 'Someone';
+
+    // Fetch group currency
+    const { data: group } = await supabase
+      .from('groups')
+      .select('currency')
+      .eq('id', groupId)
+      .single();
+
+    notifyGroupMembers(
+      groupId,
+      payerName,
+      description.trim(),
+      totalAmount,
+      group?.currency ?? 'INR',
+      callerId,
+    ); // intentionally not awaited
 
     return NextResponse.json({ transaction: enriched ?? transaction });
 
@@ -260,7 +427,6 @@ export async function DELETE(
       return NextResponse.json({ error: 'transactionId and userId required' }, { status: 400 });
     }
 
-    // Only the creator or a group admin can delete
     const { data: tx } = await supabase
       .from('group_transactions')
       .select('created_by, paid_by')
