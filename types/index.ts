@@ -166,6 +166,7 @@ export type ViewId =
   | 'goals'
   | 'loans'
   | 'insights'
+  | 'groups'
   | 'settings';
 
 export interface NavItem {
