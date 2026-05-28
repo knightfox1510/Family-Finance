@@ -143,18 +143,25 @@ const clearWizard = async (phone: string) => {
 };
 
 // ─── GET handler — Meta webhook verification challenge ────────────────────────
+// ─── GET handler — Meta webhook verification challenge ────────────────────────
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const mode      = searchParams.get('hub.mode');
   const token     = searchParams.get('hub.verify_token');
   const challenge = searchParams.get('hub.challenge');
 
-  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-    console.log('WhatsApp webhook verified');
-    return new Response(challenge, { status: 200 });
+  // Hardcoded fallback logic checking both your environment variable AND your manual token
+  if (mode === 'subscribe' && (token === process.env.WHATSAPP_VERIFY_TOKEN || token === 'chillarflow-wa-2026')) {
+    console.log('WhatsApp webhook verified successfully');
+    return new NextResponse(challenge, {
+      status: 200,
+      headers: { 'Content-Type': 'text/plain' },
+    });
   }
-  return new Response('Verification failed', { status: 403 });
+  
+  return new NextResponse('Verification failed', { status: 403 });
 }
+
 
 // ─── POST handler — incoming messages ─────────────────────────────────────────
 export async function POST(request: Request) {
