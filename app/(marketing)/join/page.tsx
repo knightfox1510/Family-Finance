@@ -4,8 +4,9 @@
 //   1. Valid invite — show group preview + join/signup CTA
 //   2. Invalid/expired — clear error state
 //   3. Loading — skeleton preview
-
 'use client';
+
+export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
