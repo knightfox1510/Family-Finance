@@ -19,13 +19,17 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: '#09090b',
+  themeColor: '#0a0a0a',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme="obsidian" suppressHydrationWarning>
       <head>
+        {/* iOS Touch Icons and Basic Startup Launch Handshakes */}
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <link rel="apple-touch-startup-image" href="/icon-512.png" />
+        
         {/* No-flash: read theme from localStorage before React hydrates */}
         <script
           dangerouslySetInnerHTML={{
@@ -33,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               try {
                 var t = localStorage.getItem('cf_theme') || 'obsidian';
                 document.documentElement.setAttribute('data-theme', t);
-                document.documentElement.style.background = t === 'pearl' ? '#fafafa' : '#09090b';
+                document.documentElement.style.background = t === 'pearl' ? '#f5f5f5' : '#0a0a0a';
               } catch(e) {}
             `,
           }}
