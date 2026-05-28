@@ -2,24 +2,26 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabaseClient';
 import { CoinMark } from '@/components/marketing/CoinMark';
 
 export default function AuthPage() {
-  const [loading, setLoading]   = useState(false);
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false); // default = sign in
-  const [error, setError]       = useState<string | null>(null);
-  const [mode, setMode]         = useState<'create' | 'join'>('create');
+  const router = useRouter();
+
+  const [loading, setLoading]       = useState(false);
+  const [email, setEmail]           = useState('');
+  const [password, setPassword]     = useState('');
+  const [isSignUp, setIsSignUp]     = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+  const [mode, setMode]             = useState<'create' | 'join'>('create');
   const [inviteCode, setInviteCode] = useState('');
 
-const handleAuth = async (e: React.FormEvent) => {
-  e.preventDefault();
-  console.log('handleAuth fired', { email, isSignUp }); // add this
-  setLoading(true);
-  setError(null);
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
     try {
       if (isSignUp) {
@@ -28,6 +30,7 @@ const handleAuth = async (e: React.FormEvent) => {
         }
 
         const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+        console.log('signUp result:', { authData, authError });
         if (authError) throw authError;
 
         const userId = authData.user?.id;
@@ -99,11 +102,20 @@ const handleAuth = async (e: React.FormEvent) => {
           localStorage.setItem('cf_partner_role', assignedRole);
         }
 
+        // ✅ Redirect after successful sign-up
+        router.push('/dashboard');
+
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        console.log('signIn result:', { data, signInError });
         if (signInError) throw signInError;
+
+        // ✅ Redirect after successful sign-in
+        router.push('/dashboard');
       }
+
     } catch (err: any) {
+      console.error('Auth error:', err.message);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -111,40 +123,37 @@ const handleAuth = async (e: React.FormEvent) => {
   };
 
   return (
-    <div 
-      style={{ 
+    <div
+      style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: '100dvh',       
+        minHeight: '100dvh',
         width: '100vw',
-        padding: '24px 20px',      
+        padding: '24px 20px',
         boxSizing: 'border-box',
-        background: 'var(--bg)',     
-        position: 'fixed',         
+        background: 'var(--bg)',
+        position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
       }}
     >
-      
-      {/* Main Container Core Auth Module Card */}
       <div className="cf-card animate-fade-up" style={{ width: '100%', maxWidth: 400, padding: '44px 32px 40px', border: '1px solid var(--border)', position: 'relative' }}>
-        
-        {/* PREMIUM EXPLICIT EXIT COMPONENT: Positioned cleanly at the upper right corner */}
-        <Link 
-          href="/" 
-          style={{ 
-            position: 'absolute', 
-            top: '20px', 
-            right: '20px', 
-            textDecoration: 'none', 
-            color: 'var(--text3)', 
-            fontSize: '24px', 
-            fontWeight: 300, 
-            lineHeight: 1, 
+
+        <Link
+          href="/"
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            textDecoration: 'none',
+            color: 'var(--text3)',
+            fontSize: '24px',
+            fontWeight: 300,
+            lineHeight: 1,
             padding: '4px',
             transition: 'color 0.15s ease'
           }}
@@ -154,7 +163,6 @@ const handleAuth = async (e: React.FormEvent) => {
           &times;
         </Link>
 
-        {/* Brand System Title Header Area */}
         <div className="text-center" style={{ marginBottom: 32 }}>
           <div className="flex justify-between items-center" style={{ justifyContent: 'center', marginBottom: 16 }}>
             <CoinMark size={48} color="var(--accent)" />
@@ -165,7 +173,6 @@ const handleAuth = async (e: React.FormEvent) => {
           </p>
         </div>
 
-        {/* Runtime Operational Error Alert Feedback Block */}
         {error && (
           <div className="animate-fade-in" style={{ background: 'var(--red-bg)', color: 'var(--red)', border: '1px solid rgba(255,77,77,0.2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', fontSize: 13, marginBottom: 20, lineHeight: 1.4 }}>
             ⚠️ {error}
@@ -174,7 +181,6 @@ const handleAuth = async (e: React.FormEvent) => {
 
         <form onSubmit={handleAuth} className="flex flex-col" style={{ gap: 20 }}>
 
-          {/* Interactive Dynamic Context Multi-Setup Toggle Block */}
           {isSignUp && (
             <div className="cf-card-inset flex flex-col" style={{ padding: 16, gap: 12, border: '1px solid var(--border)' }}>
               <label className="t-caption" style={{ color: 'var(--text3)' }}>
@@ -191,7 +197,6 @@ const handleAuth = async (e: React.FormEvent) => {
             </div>
           )}
 
-          {/* Email Form Field Block */}
           <div className="flex flex-col" style={{ gap: 6 }}>
             <label htmlFor="email" className="t-caption" style={{ color: 'var(--text2)' }}>
               Account Email Address
@@ -209,7 +214,6 @@ const handleAuth = async (e: React.FormEvent) => {
             />
           </div>
 
-          {/* Password Form Field Block */}
           <div className="flex flex-col" style={{ gap: 6 }}>
             <label htmlFor="password" className="t-caption" style={{ color: 'var(--text2)' }}>
               Secret Password Keys
@@ -228,7 +232,6 @@ const handleAuth = async (e: React.FormEvent) => {
             />
           </div>
 
-          {/* Conditional Multi-tier Connection Invite Route Input Block */}
           {isSignUp && mode === 'join' && (
             <div className="animate-fade-in flex flex-col" style={{ gap: 6 }}>
               <label htmlFor="inviteCode" className="t-caption" style={{ color: 'var(--teal)' }}>
@@ -251,7 +254,6 @@ const handleAuth = async (e: React.FormEvent) => {
             </div>
           )}
 
-          {/* Central Submission Execution Button */}
           <button
             type="submit"
             disabled={loading}
@@ -271,7 +273,6 @@ const handleAuth = async (e: React.FormEvent) => {
           </button>
         </form>
 
-        {/* Dynamic Context Entry Path Link Swapper */}
         <div className="text-center" style={{ marginTop: 24 }}>
           <button
             onClick={() => { setIsSignUp(!isSignUp); setError(null); }}
@@ -282,7 +283,7 @@ const handleAuth = async (e: React.FormEvent) => {
           </button>
         </div>
       </div>
-      
+
     </div>
   );
 }
