@@ -258,7 +258,7 @@ export function AddGroupExpense({
 
             {splitType === 'equal' && (
               <div>
-                <div style={{ fontSize: 11, color: C.text3, marginBottom: 10 }}>Tap to include or exclude members</div>
+                <div style={{ fontSize: 11, color: C.text3, marginBottom: 10 }}>Tap to include/exclude members</div>
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                   {members.map((m, i) => (
                     <MemberAvatar key={m.id} member={m} colorIndex={i} selected={includedMembers.has(m.id)} size={48}
