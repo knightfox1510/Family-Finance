@@ -278,12 +278,16 @@ if (loading || !data) {
   return (
     <div className="cf-loader-page animate-fade-in">
       <div className="cf-loader-logo">
-        {/* Vector Alternative: Uses your native theme tokens instead of an emoji */}
-        <Icon name="wallet" size={44} color="var(--accent)" style={{ zIndex: 3 }} />
+        {/* 🌟 Custom App Icon Implementation */}
+        <img 
+          src="/icon-192.png" 
+          alt="ChillarFlow Logo"
+          style={{ width: 48, height: 48, zIndex: 3, objectFit: 'contain' }} 
+        />
         <div className="cf-loader-ring" />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
         <div style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>
           ChillarFlow
         </div>
