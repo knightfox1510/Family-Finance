@@ -1,16 +1,15 @@
-// app/api/groups/[groupId]/transactions/route.ts
-// Handles expense logging for a specific group.
-// POST: creates a group_transaction + individual transaction_splits
-// GET:  returns paginated transactions with split details
+// app/api/groups/[groupId]/settle/route.ts
+// Handles settlement between group members.
+// GET:  returns the net balance matrix for all members in a group
+// POST: marks specific splits as settled
 //
 // Ghost token support:
-//   Ghost users send header x-ghost-token = <signed JWT from WhatsApp OTP flow>
-//   The token is verified, and the ghost's userId is extracted from the DB.
-//   Ghost users can GET (view) and POST (add expenses) — same as real members.
+//   Ghost users send x-ghost-token header. Their userId is resolved from the JWT.
+//   Ghosts can GET balances and POST settlements (same as real members).
 
 import { NextResponse } from 'next/server';
 import { createClient }  from '@supabase/supabase-js';
-import { SignJWT, jwtVerify } from 'jose';
+import { jwtVerify }     from 'jose';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,134 +21,42 @@ const GHOST_SECRET = new TextEncoder().encode(
   process.env.GHOST_SESSION_SECRET ?? 'fallback-secret-change-in-prod'
 );
 
-// ── Ghost token resolution ───────────────────────────────────────────────────
-// Returns the userId if the ghost token is valid, null otherwise.
 async function resolveGhostToken(token: string): Promise<string | null> {
   try {
     const { payload } = await jwtVerify(token, GHOST_SECRET);
     const userId = payload.sub as string;
     if (!userId) return null;
-
-    // Confirm this user still exists and is a ghost
     const { data } = await supabase
       .from('profiles')
-      .select('id, is_ghost')
+      .select('id')
       .eq('id', userId)
       .single();
-
     return data?.id ?? null;
   } catch {
     return null;
   }
 }
 
-// ── Auth helper — resolves userId from either session cookie OR ghost token ──
-async function resolveUserId(request: Request): Promise<string | null> {
-  // Prefer ghost token header (ghost users have no Supabase session)
+async function resolveUserId(request: Request, fallbackParam?: string | null): Promise<string | null> {
   const ghostToken = request.headers.get('x-ghost-token');
   if (ghostToken) return resolveGhostToken(ghostToken);
-
-  // Fallback: regular auth cookie via Authorization header
+  if (fallbackParam) return fallbackParam;
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    const { data: { user } } = await supabase.auth.getUser(token);
+    const { data: { user } } = await supabase.auth.getUser(authHeader.slice(7));
     return user?.id ?? null;
   }
-
   return null;
 }
 
-// ── WhatsApp notification helper ─────────────────────────────────────────────
-async function notifyGroupMembers(
-  groupId:     string,
-  addedByName: string,
-  description: string,
-  totalAmount: number,
-  currency:    string,
-  skipUserId:  string,   // Don't notify the person who added
-) {
-  try {
-    // Fetch all members with phone numbers (excluding adder)
-    const { data: members } = await supabase
-      .from('group_members')
-      .select(`
-        user_id,
-        profiles ( phone_number, display_name, ghost_name )
-      `)
-      .eq('group_id', groupId)
-      .neq('user_id', skipUserId);
-
-    if (!members?.length) return;
-
-    const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
-    const accessToken   = process.env.META_ACCESS_TOKEN;
-    const templateName  = process.env.META_EXPENSE_TEMPLATE_NAME ?? 'group_expense_added';
-
-    if (!phoneNumberId || !accessToken) return; // WA not configured, skip silently
-
-    const fmt = (n: number) =>
-      new Intl.NumberFormat('en-IN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
-
-    for (const m of members) {
-      const profile = (m as any).profiles;
-      const phone   = profile?.phone_number;
-      if (!phone) continue;
-
-      // Normalize phone to E.164 (strip leading 0, add +91 for India if bare 10-digit)
-      const e164 = phone.startsWith('+')
-        ? phone.replace(/\s/g, '')
-        : `+91${phone.replace(/\D/g, '').slice(-10)}`;
-
-      const recipientName = profile?.display_name || profile?.ghost_name || 'there';
-
-      await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to:                e164,
-          type:              'template',
-          template: {
-            name:     templateName,
-            language: { code: 'en' },
-            components: [{
-              type:       'body',
-              parameters: [
-                { type: 'text', text: recipientName },
-                { type: 'text', text: addedByName },
-                { type: 'text', text: description },
-                { type: 'text', text: fmt(totalAmount) },
-              ],
-            }],
-          },
-        }),
-      });
-    }
-  } catch (e) {
-    // Notifications are best-effort — never let them break the main flow
-    console.error('[WA notify] failed:', e);
-  }
-}
-
-// ── GET /api/groups/[groupId]/transactions ───────────────────────────────────
+// ── GET /api/groups/[groupId]/settle?userId=xxx ──────────────────────────────
 export async function GET(
   request: Request,
   { params }: { params: { groupId: string } }
 ) {
   const { groupId } = params;
-  const url         = new URL(request.url);
-  const page        = parseInt(url.searchParams.get('page') ?? '0', 10);
-  const pageSize    = 20;
-
-  // Support both userId query param (regular users) and ghost token header
-  let userId = url.searchParams.get('userId');
-  if (!userId) {
-    userId = await resolveUserId(request);
-  }
+  const urlUserId   = new URL(request.url).searchParams.get('userId');
+  const userId      = await resolveUserId(request, urlUserId);
 
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
 
@@ -161,56 +68,98 @@ export async function GET(
     .eq('user_id', userId)
     .single();
 
-  if (!member) return NextResponse.json({ error: 'Not a member of this group' }, { status: 403 });
+  if (!member) return NextResponse.json({ error: 'Not a member' }, { status: 403 });
 
-  // Fetch transactions with splits and payer profile
-  const { data: transactions, error, count } = await supabase
-    .from('group_transactions')
+  // Fetch net balances from the pre-computed view
+  const { data: balances } = await supabase
+    .from('group_net_balances')
+    .select('*')
+    .eq('group_id', groupId);
+
+  // Fetch all members for the balance matrix display
+  const { data: members } = await supabase
+    .from('group_members')
     .select(`
-      *,
-      payer:profiles!group_transactions_paid_by_fkey (
-        id, display_name, ghost_name, is_ghost
-      ),
-      transaction_splits (
-        id, user_id, item_name, share_amount, is_settled, settled_at, settled_via,
-        profiles!transaction_splits_user_id_fkey (
-          id, display_name, ghost_name, is_ghost
+      user_id,
+      role,
+      profiles (id, display_name, ghost_name, is_ghost)
+    `)
+    .eq('group_id', groupId);
+
+  // Fetch this user's unsettled splits (what they owe others)
+  const { data: mySplits } = await supabase
+    .from('transaction_splits')
+    .select(`
+      id,
+      share_amount,
+      item_name,
+      is_settled,
+      transaction_id,
+      group_transactions!inner (
+        id,
+        description,
+        total_amount,
+        category,
+        created_at,
+        paid_by,
+        payer:profiles!group_transactions_paid_by_fkey (
+          id, display_name, ghost_name
         )
       )
-    `, { count: 'exact' })
-    .eq('group_id', groupId)
-    .eq('is_deleted', false)
-    .order('created_at', { ascending: false })
-    .range(page * pageSize, (page + 1) * pageSize - 1);
+    `)
+    .eq('user_id', userId)
+    .eq('is_settled', false)
+    .eq('group_transactions.group_id', groupId)
+    .eq('group_transactions.is_deleted', false);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Compute simplified net balance pairs
+  const balanceMap: Record<string, Record<string, number>> = {};
+  (balances ?? []).forEach((b: any) => {
+    if (!balanceMap[b.creditor_id]) balanceMap[b.creditor_id] = {};
+    balanceMap[b.creditor_id][b.debtor_id] =
+      (balanceMap[b.creditor_id]?.[b.debtor_id] ?? 0) + Number(b.total_owed);
+  });
+
+  // Simplify: cancel out A→B and B→A to get net direction
+  const netPairs: { creditor: string; debtor: string; amount: number }[] = [];
+  const processed = new Set<string>();
+
+  Object.entries(balanceMap).forEach(([creditorId, debtors]) => {
+    Object.entries(debtors).forEach(([debtorId, amount]) => {
+      const pairKey = [creditorId, debtorId].sort().join('_');
+      if (processed.has(pairKey)) return;
+      processed.add(pairKey);
+
+      const reverse = balanceMap[debtorId]?.[creditorId] ?? 0;
+      const net     = amount - reverse;
+
+      if (net > 0.01) {
+        netPairs.push({ creditor: creditorId, debtor: debtorId, amount: net });
+      } else if (net < -0.01) {
+        netPairs.push({ creditor: debtorId, debtor: creditorId, amount: -net });
+      }
+    });
+  });
 
   return NextResponse.json({
-    transactions: transactions ?? [],
-    total:        count ?? 0,
-    page,
-    has_more:     (count ?? 0) > (page + 1) * pageSize,
+    net_pairs:     netPairs,
+    members:       (members ?? []).map((m: any) => m.profiles).filter(Boolean),
+    my_splits:     mySplits ?? [],
+    my_total_owed: (mySplits ?? []).reduce(
+      (sum: number, s: any) => sum + Number(s.share_amount), 0
+    ),
   });
 }
 
-// ── POST /api/groups/[groupId]/transactions ──────────────────────────────────
+// ── POST /api/groups/[groupId]/settle ────────────────────────────────────────
 // Body:
 // {
-//   paidBy:      string (user_id),
-//   description: string,
-//   totalAmount: number,
-//   splitType:   'equal' | 'custom' | 'itemized',
-//   category:    string,
-//   notes:       string,
-//   receiptUrl:  string | null,
-//   splits: [
-//     // For 'equal'    — just list member user_ids
-//     // For 'custom'   — { userId, amount }
-//     // For 'itemized' — { userId, itemName, amount }
-//     { userId: string, amount?: number, itemName?: string }
-//   ]
+//   settledBy:  string (user_id doing the settling),
+//   splitIds:   string[] (specific transaction_split IDs to mark settled),
+//   settledVia: 'upi' | 'cash' | 'manual',
+//   note:       string (optional)
 // }
-// Ghost users: send x-ghost-token header instead of Authorization
+// Ghost users: send x-ghost-token header. settledBy must match ghost's resolved userId.
 export async function POST(
   request: Request,
   { params }: { params: { groupId: string } }
@@ -218,241 +167,90 @@ export async function POST(
   try {
     const { groupId } = params;
 
-    // ── Resolve caller identity (real user OR ghost) ────────────────────────
+    // Resolve caller identity
     const ghostToken = request.headers.get('x-ghost-token');
     let callerId: string | null = null;
-
     if (ghostToken) {
       callerId = await resolveGhostToken(ghostToken);
       if (!callerId) {
         return NextResponse.json({ error: 'Invalid or expired ghost token' }, { status: 401 });
       }
-    } else {
-      callerId = await resolveUserId(request);
     }
 
-    if (!callerId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    const { settledBy, splitIds, settledVia = 'manual', note } = await request.json();
 
-    const body = await request.json();
-
-    const {
-      paidBy,
-      description,
-      totalAmount,
-      splitType   = 'equal',
-      category    = 'Miscellaneous',
-      notes       = '',
-      receiptUrl  = null,
-      splits      = [],
-      createdBy,   // may be omitted — fall back to callerId
-    } = body;
-
-    const resolvedCreatedBy = createdBy ?? callerId;
-
-    // ── Validation ─────────────────────────────────────────────────────────
-    if (!paidBy || !description?.trim() || !totalAmount) {
+    if (!settledBy || !splitIds?.length) {
       return NextResponse.json(
-        { error: 'paidBy, description, and totalAmount are required' },
+        { error: 'settledBy and splitIds required' },
         { status: 400 }
       );
     }
 
-    if (totalAmount <= 0) {
-      return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
+    // If ghost: ensure settledBy matches resolved ghost userId (prevent spoofing)
+    if (callerId && callerId !== settledBy) {
+      return NextResponse.json({ error: 'settledBy must match authenticated user' }, { status: 403 });
     }
 
-    if (splits.length === 0) {
-      return NextResponse.json({ error: 'At least one split participant required' }, { status: 400 });
-    }
+    const resolvedUserId = callerId ?? settledBy;
 
-    // Verify creator is a group member (use callerId, not body's createdBy, to prevent spoofing)
+    // Verify membership
     const { data: member } = await supabase
       .from('group_members')
       .select('id')
       .eq('group_id', groupId)
-      .eq('user_id', callerId)
+      .eq('user_id', resolvedUserId)
       .single();
 
-    if (!member) {
-      return NextResponse.json({ error: 'Not a member of this group' }, { status: 403 });
-    }
+    if (!member) return NextResponse.json({ error: 'Not a member' }, { status: 403 });
 
-    // ── Compute split amounts ───────────────────────────────────────────────
-    let computedSplits: { userId: string; itemName: string; shareAmount: number }[] = [];
-
-    if (splitType === 'equal') {
-      const perPerson = totalAmount / splits.length;
-      const base      = Math.floor(perPerson * 100) / 100;
-      const remainder = Math.round((totalAmount - base * splits.length) * 100);
-
-      computedSplits = splits.map((s: any, i: number) => ({
-        userId:      s.userId,
-        itemName:    'Shared Cost',
-        shareAmount: i < remainder ? base + 0.01 : base,
-      }));
-
-    } else if (splitType === 'custom') {
-      const sum = splits.reduce((acc: number, s: any) => acc + Number(s.amount ?? 0), 0);
-      if (Math.abs(sum - totalAmount) > 0.02) {
-        return NextResponse.json(
-          { error: `Custom split amounts (₹${sum.toFixed(2)}) must equal total (₹${totalAmount.toFixed(2)})` },
-          { status: 400 }
-        );
-      }
-      computedSplits = splits.map((s: any) => ({
-        userId:      s.userId,
-        itemName:    'Custom Share',
-        shareAmount: Number(s.amount),
-      }));
-
-    } else if (splitType === 'itemized') {
-      const sum = splits.reduce((acc: number, s: any) => acc + Number(s.amount ?? 0), 0);
-      if (Math.abs(sum - totalAmount) > 0.02) {
-        return NextResponse.json(
-          { error: `Itemized amounts (₹${sum.toFixed(2)}) must equal total (₹${totalAmount.toFixed(2)})` },
-          { status: 400 }
-        );
-      }
-      computedSplits = splits.map((s: any) => ({
-        userId:      s.userId,
-        itemName:    s.itemName ?? 'Item',
-        shareAmount: Number(s.amount),
-      }));
-    }
-
-    // ── Insert transaction ─────────────────────────────────────────────────
-    const { data: transaction, error: txError } = await supabase
-      .from('group_transactions')
-      .insert({
-        group_id:     groupId,
-        paid_by:      paidBy,
-        description:  description.trim(),
-        total_amount: totalAmount,
-        split_type:   splitType,
-        category,
-        notes:        notes.trim() || null,
-        receipt_url:  receiptUrl,
-        created_by:   resolvedCreatedBy,
-      })
-      .select()
-      .single();
-
-    if (txError || !transaction) {
-      return NextResponse.json({ error: txError?.message ?? 'Failed to create transaction' }, { status: 500 });
-    }
-
-    // ── Insert splits ──────────────────────────────────────────────────────
-    const splitRows = computedSplits.map((s) => ({
-      transaction_id: transaction.id,
-      user_id:        s.userId,
-      item_name:      s.itemName,
-      share_amount:   s.shareAmount,
-      is_settled:     s.userId === paidBy,
-      settled_at:     s.userId === paidBy ? new Date().toISOString() : null,
-      settled_via:    s.userId === paidBy ? 'direct_payment' : null,
-    }));
-
-    const { error: splitError } = await supabase
+    // Verify all splits belong to this user and this group
+    const { data: splits, error: fetchError } = await supabase
       .from('transaction_splits')
-      .insert(splitRows);
-
-    if (splitError) {
-      await supabase.from('group_transactions').delete().eq('id', transaction.id);
-      return NextResponse.json({ error: splitError.message }, { status: 500 });
-    }
-
-    // ── Return enriched transaction ────────────────────────────────────────
-    const { data: enriched } = await supabase
-      .from('group_transactions')
       .select(`
-        *,
-        payer:profiles!group_transactions_paid_by_fkey (
-          id, display_name, ghost_name
-        ),
-        transaction_splits (
-          id, user_id, item_name, share_amount, is_settled,
-          profiles!transaction_splits_user_id_fkey (
-            id, display_name, ghost_name
-          )
-        )
+        id, user_id,
+        group_transactions!inner ( group_id )
       `)
-      .eq('id', transaction.id)
-      .single();
+      .in('id', splitIds)
+      .eq('user_id', resolvedUserId)
+      .eq('group_transactions.group_id', groupId);
 
-    // ── Fire WhatsApp notifications async (best-effort) ───────────────────
-    // Fetch payer name for notification copy
-    const { data: payerProfile } = await supabase
-      .from('profiles')
-      .select('display_name, ghost_name')
-      .eq('id', paidBy)
-      .single();
-    const payerName = payerProfile?.display_name || payerProfile?.ghost_name || 'Someone';
-
-    // Fetch group currency
-    const { data: group } = await supabase
-      .from('groups')
-      .select('currency')
-      .eq('id', groupId)
-      .single();
-
-    notifyGroupMembers(
-      groupId,
-      payerName,
-      description.trim(),
-      totalAmount,
-      group?.currency ?? 'INR',
-      callerId,
-    ); // intentionally not awaited
-
-    return NextResponse.json({ transaction: enriched ?? transaction });
-
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
-
-// ── DELETE /api/groups/[groupId]/transactions ────────────────────────────────
-// Body: { transactionId, userId }
-// Soft-delete only. Hard deletes blocked — settlement history must persist.
-export async function DELETE(
-  request: Request,
-  { params }: { params: { groupId: string } }
-) {
-  try {
-    const { transactionId, userId } = await request.json();
-
-    if (!transactionId || !userId) {
-      return NextResponse.json({ error: 'transactionId and userId required' }, { status: 400 });
+    if (fetchError) {
+      return NextResponse.json({ error: fetchError.message }, { status: 500 });
     }
 
-    const { data: tx } = await supabase
-      .from('group_transactions')
-      .select('created_by, paid_by')
-      .eq('id', transactionId)
-      .single();
-
-    const { data: membership } = await supabase
-      .from('group_members')
-      .select('role')
-      .eq('group_id', params.groupId)
-      .eq('user_id', userId)
-      .single();
-
-    const isOwner = tx?.created_by === userId || tx?.paid_by === userId;
-    const isAdmin = membership?.role === 'admin';
-
-    if (!isOwner && !isAdmin) {
-      return NextResponse.json({ error: 'Only the creator or group admin can delete transactions' }, { status: 403 });
+    if (!splits || splits.length !== splitIds.length) {
+      return NextResponse.json(
+        { error: 'Some splits are invalid or do not belong to you' },
+        { status: 400 }
+      );
     }
 
-    await supabase
-      .from('group_transactions')
-      .update({ is_deleted: true })
-      .eq('id', transactionId);
+    // Mark all as settled
+    const { error: updateError } = await supabase
+      .from('transaction_splits')
+      .update({
+        is_settled:  true,
+        settled_at:  new Date().toISOString(),
+        settled_via: note ? `${settledVia}: ${note}` : settledVia,
+      })
+      .in('id', splitIds);
 
-    return NextResponse.json({ ok: true });
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    const { data: remainingUnsettled } = await supabase
+      .from('transaction_splits')
+      .select('id, share_amount')
+      .eq('user_id', resolvedUserId)
+      .eq('is_settled', false);
+
+    return NextResponse.json({
+      ok:               true,
+      settled_count:    splitIds.length,
+      remaining_splits: remainingUnsettled?.length ?? 0,
+    });
+
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
