@@ -111,7 +111,7 @@ export default function AuthPage() {
         if (signInError) throw signInError;
 
         // ✅ Redirect after successful sign-in
-        router.push('/dashboard');
+        router.push('/app');
       }
 
     } catch (err: any) {
