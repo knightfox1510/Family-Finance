@@ -863,3 +863,13 @@ html { background: #0a0a0a; }
   flex-direction: column;
   gap: 20px;
 }
+
+/* Rotates the refresh vector while background synchronization is active */
+.cf-refresh-overlay .cf-loader-logo svg {
+  animation: svgSpin 1.4s linear infinite;
+}
+
+@keyframes svgSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
