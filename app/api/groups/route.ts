@@ -33,12 +33,13 @@ export async function GET(request: Request) {
     .select('*')
     .in('id', groupIds)
     .eq('is_archived', false)           // active groups only
-    .order('last_activity', { ascending: false });
+    .order('created_at', { ascending: false });   // last_activity col optional
 
   if (grpErr) return NextResponse.json({ error: grpErr.message }, { status: 500 });
 
   // Enrich each group with member list and net balance for current user
   const enriched = await Promise.all((groups ?? []).map(async (g) => {
+    // Wrap entire enrichment so one failing group doesn't break the whole list
     // Members
     const { data: memberRows } = await supabase
       .from('group_members')
@@ -70,12 +71,16 @@ export async function GET(request: Request) {
     return {
       ...g,
       members,
-      member_count: members.length,
-      net_balance:  Math.round(net * 100) / 100,
+      member_count:  members.length,
+      net_balance:   Math.round(net * 100) / 100,
+      last_activity: g.last_activity ?? g.created_at,
     };
   }));
 
-  return NextResponse.json({ groups: enriched });
+  // Filter out any null entries from enrichment failures
+  const validGroups = enriched.filter(Boolean);
+
+  return NextResponse.json({ groups: validGroups });
 }
 
 // ── POST /api/groups ────────────────────────────────────────────────────────
