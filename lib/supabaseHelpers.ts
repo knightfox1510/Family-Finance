@@ -219,7 +219,9 @@ export async function loadData(userId: string): Promise<AppData> {
     };
   } catch (err) {
     console.error('loadData error:', err);
-    return seedData();
+    // Re-throw so the caller can handle it — don't silently return empty data
+    // for real errors. The caller (page.tsx) should show an error state.
+    throw err;
   }
 }
 
