@@ -4,13 +4,13 @@
 //   2. Reads groups.simplify_debts to toggle debt simplification
 //   3. Member query uses direct profiles lookup (no FK join) — ghost users visible
 //   4. Real names resolved from household_settings when display_name is a role string
-//   5. Ghost token: supports both hand-rolled HMAC and jose JWT formats
+//   5. Ghost token: HMAC signature is now verified before trusting profileId (Fix 8)
 
-import { NextResponse }       from 'next/server';
-import { logActivity }        from '@/lib/logActivity';
-import { createClient }       from '@supabase/supabase-js';
-import { jwtVerify }          from 'jose';
-import { computeNetDebts }    from '@/lib/debtEngine';
+import { NextResponse }    from 'next/server';
+import { logActivity }     from '@/lib/logActivity';
+import { createClient }    from '@supabase/supabase-js';
+import { computeNetDebts } from '@/lib/debtEngine';
+import { resolveGhostUserId } from '@/lib/ghostToken';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,39 +18,10 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-const GHOST_SECRET = new TextEncoder().encode(
-  process.env.GHOST_SESSION_SECRET ?? 'fallback-secret-change-in-prod'
-);
-
-// ── Ghost token resolution (supports both token formats) ─────────────────────
-async function resolveGhostToken(token: string): Promise<string | null> {
-  // Format 1: hand-rolled HMAC (from whatsapp-otp/verify route)
-  try {
-    const [payloadB64] = token.split('.');
-    if (payloadB64) {
-      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
-      if (payload.profileId) {
-        const { data } = await supabase.from('profiles').select('id').eq('id', payload.profileId).single();
-        if (data?.id) return data.id;
-      }
-    }
-  } catch {}
-
-  // Format 2: jose JWT
-  try {
-    const { payload } = await jwtVerify(token, GHOST_SECRET);
-    const userId = payload.sub as string;
-    if (!userId) return null;
-    const { data } = await supabase.from('profiles').select('id').eq('id', userId).single();
-    return data?.id ?? null;
-  } catch {
-    return null;
-  }
-}
-
 async function resolveUserId(request: Request, fallback?: string | null): Promise<string | null> {
   const ghostToken = request.headers.get('x-ghost-token');
-  if (ghostToken) return resolveGhostToken(ghostToken);
+  if (ghostToken) return resolveGhostUserId(ghostToken, supabase);
+
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const { data: { user } } = await supabase.auth.getUser(authHeader.slice(7));
@@ -76,7 +47,6 @@ export async function GET(
   if (!member) return NextResponse.json({ error: 'Not a member' }, { status: 403 });
 
   // ── Fetch group config (simplify_debts toggle) ────────────────────────────
-  // Graceful: if the column doesn't exist yet (migration pending), default to false
   let shouldSimplify = false;
   try {
     const { data: groupConfig, error: cfgErr } = await supabase
@@ -158,10 +128,10 @@ export async function GET(
     .eq('group_transactions.is_deleted', false);
 
   return NextResponse.json({
-    net_pairs:     netPairs,
+    net_pairs:      netPairs,
     members,
-    my_splits:     mySplits ?? [],
-    my_total_owed: (mySplits ?? []).reduce((sum: number, s: any) => sum + Number(s.share_amount), 0),
+    my_splits:      mySplits ?? [],
+    my_total_owed:  (mySplits ?? []).reduce((sum: number, s: any) => sum + Number(s.share_amount), 0),
     simplify_debts: shouldSimplify,
   });
 }
@@ -173,11 +143,12 @@ export async function POST(
 ) {
   try {
     const { groupId } = params;
-    const ghostToken  = request.headers.get('x-ghost-token');
+
+    const ghostToken = request.headers.get('x-ghost-token');
     let callerId: string | null = null;
 
     if (ghostToken) {
-      callerId = await resolveGhostToken(ghostToken);
+      callerId = await resolveGhostUserId(ghostToken, supabase);
       if (!callerId) return NextResponse.json({ error: 'Invalid or expired ghost token' }, { status: 401 });
     } else {
       callerId = await resolveUserId(request);
@@ -213,8 +184,11 @@ export async function POST(
     const { data: remainingUnsettled } = await supabase
       .from('transaction_splits').select('id, share_amount').eq('user_id', resolvedUserId).eq('is_settled', false);
 
-    // Log settlement activity
-    logActivity(groupId, resolvedUserId, 'SETTLE_DEBT', 'Recorded a settlement of ' + splitIds.length + ' item' + (splitIds.length !== 1 ? 's' : ''), { split_ids: splitIds, method: settledVia });
+    logActivity(
+      groupId, resolvedUserId, 'SETTLE_DEBT',
+      'Recorded a settlement of ' + splitIds.length + ' item' + (splitIds.length !== 1 ? 's' : ''),
+      { split_ids: splitIds, method: settledVia }
+    );
 
     return NextResponse.json({ ok: true, settled_count: splitIds.length, remaining_splits: remainingUnsettled?.length ?? 0 });
   } catch (err: any) {
