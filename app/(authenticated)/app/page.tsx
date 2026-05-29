@@ -40,6 +40,7 @@ import { Goals }            from '@/components/dashboard/Goals';
 import { LoanTracker }      from '@/components/dashboard/LoanTracker';
 import { AIInsights }       from '@/components/dashboard/AIInsights';
 import { Settings }         from '@/components/dashboard/Settings';
+import { Home }             from '@/components/dashboard/Home';
 
 // ─── Utility ─────────────────────────────────────────────────────────────────
 function today() {
@@ -85,8 +86,8 @@ export default function App() {
   const [loading, setLoading]         = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const [view, setView]               = useState<ViewId>('dashboard');
-  const [prevView, setPrevView]       = useState<ViewId>('dashboard');
+  const [view, setView]               = useState<ViewId>('home');
+  const [prevView, setPrevView]       = useState<ViewId>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile]       = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
@@ -306,9 +307,9 @@ if (loading || !data) {
   const isJointMode = mode === 'joint';
 
   const primaryNavItems = [
-    { id: 'dashboard', label: 'Home',      icon: 'home' },
-    { id: 'expenses',  label: 'Expenses', icon: 'list' },
-    { id: 'add',       label: 'Add',      icon: 'plus' },
+    { id: 'home',     label: 'Home',     icon: 'home' },
+    { id: 'expenses', label: 'Expenses', icon: 'list' },
+    { id: 'add',      label: 'Add',      icon: 'plus' },
     isSolo
       ? { id: 'goals',  label: 'Goals',  icon: 'target' }
       : { id: 'settle', label: 'Settle', icon: 'refresh' },
@@ -324,16 +325,17 @@ if (loading || !data) {
   const p2pPendingCount  = partnerCalculations.pendingPartnerItems.length;
 
   const moreNavItems = [
-    { id: 'income',    label: 'Income',        icon: 'trendUp',  subtitle: 'Inflow dashboard · partner split' },
-    { id: 'groups',    label: 'Groups',        icon: 'users',    subtitle: 'Split with friends · group trips' },
+    { id: 'income',       label: 'Income',        icon: 'trendUp',  subtitle: 'Inflow dashboard · partner split' },
+    { id: 'groups',       label: 'Groups',        icon: 'users',    subtitle: 'Split with friends · group trips' },
     ...(isJointMode ? [{ id: 'contributions', label: 'Contributions', icon: 'wallet', subtitle: 'Monthly joint-pool entry' }] : []),
     ...(isSolo
-      ? [{ id: 'settle', label: 'Settle', icon: 'refresh', subtitle: p2pPendingCount > 0 ? `${p2pPendingCount} pending` : 'All settled' }]
-      : [{ id: 'goals',  label: 'Goals',  icon: 'target',  subtitle: activeGoalCount > 0 ? `${activeGoalCount} active · ${fmt$(goalsSavedTotal)} saved` : 'No active goals' }]
+      ? [{ id: 'settle',    label: 'Settle',        icon: 'refresh',  subtitle: p2pPendingCount > 0 ? `${p2pPendingCount} pending` : 'All settled' }]
+      : [{ id: 'goals',     label: 'Goals',         icon: 'target',   subtitle: activeGoalCount > 0 ? `${activeGoalCount} active · ${fmt$(goalsSavedTotal)} saved` : 'No active goals' }]
     ),
-    { id: 'loans',    label: 'Loans & EMI',   icon: 'bank',      subtitle: activeLoanCount > 0 ? `${activeLoanCount} active · ${fmt$(monthlyEmiTotal)}/mo` : 'No active EMIs' },
-    { id: 'insights', label: 'AI Insights',   icon: 'sparkles', subtitle: 'Personalised analysis · monthly read' },
-    { id: 'settings', label: 'Settings',      icon: 'settings', subtitle: 'Household, data, notifications' },
+    { id: 'loans',        label: 'Loans & EMI',   icon: 'bank',      subtitle: activeLoanCount > 0 ? `${activeLoanCount} active · ${fmt$(monthlyEmiTotal)}/mo` : 'No active EMIs' },
+    { id: 'dashboard',    label: 'Stats',          icon: 'chart',    subtitle: 'Trends · allocation · deep analytics' },
+    { id: 'insights',     label: 'AI Insights',   icon: 'sparkles', subtitle: 'Personalised analysis · monthly read' },
+    { id: 'settings',     label: 'Settings',      icon: 'settings', subtitle: 'Household, data, notifications' },
   ];
 
   // ── Layout ────────────────────────────────────────────────────────────────
@@ -384,7 +386,10 @@ if (loading || !data) {
 
           {/* Nav items */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '20px 12px', flex: 1, overflowY: 'auto' }}>
-            {nav.map((n) => (
+            {[
+              { id: 'home', label: 'Home', icon: 'home' },
+              ...nav.map((n) => n.id === 'dashboard' ? { ...n, label: 'Stats' } : n),
+            ].map((n) => (
               <button
                 key={n.id}
                 onClick={() => setView(n.id)}
@@ -464,7 +469,7 @@ if (loading || !data) {
               </div>
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontSize: 18, color: C.textW, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.02em' }}>
-                  {nav.find((n) => n.id === view)?.label ?? 'ChillarFlow'}
+                  {view === 'home' ? 'ChillarFlow' : view === 'dashboard' ? 'Stats' : nav.find((n) => n.id === view)?.label ?? 'ChillarFlow'}
                 </div>
                 <div style={{ fontSize: 10, color: C.text3, fontWeight: 500, lineHeight: 1, marginTop: 3 }}>
                   {data?.settings?.partnerAName ?? ''}{data?.settings?.partnerBName ? ` & ${data.settings.partnerBName}` : ''}
@@ -497,7 +502,7 @@ if (loading || !data) {
           {!isMobile && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 12 }}>
               <h2 style={{ color: C.textW, fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: -0.5 }}>
-                {nav.find((n) => n.id === view)?.label ?? ''}
+                {view === 'home' ? 'ChillarFlow' : view === 'dashboard' ? 'Stats' : nav.find((n) => n.id === view)?.label ?? ''}
               </h2>
               {view !== 'add' && view !== 'settings' && (
                 <button
@@ -520,6 +525,15 @@ if (loading || !data) {
           )}
 
           {/* View router */}
+          {view === 'home' && (
+            <Home
+              data={data}
+              fmt={fmt$}
+              onNavigate={(v) => setView(v as ViewId)}
+              session={session}
+              onAddExpense={() => { setPrevView(view); setView('add'); }}
+            />
+          )}
           {view === 'dashboard' && (
             <Dashboard data={data} onAddExpense={actions.addExpense} fmt={fmt$} />
           )}
