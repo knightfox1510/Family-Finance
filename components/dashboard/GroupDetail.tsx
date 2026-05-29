@@ -548,10 +548,11 @@ function FlagSheet({ tx, groupId, userId, ghostToken, onClose, onFlagged }: {
       const res  = await fetch('/api/groups/' + groupId + '/transactions/' + tx.id + '/flag', {
         method: 'POST', headers: h, body: JSON.stringify({ userId, reason: reason.trim() || null }),
       });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error ?? 'Could not flag'); return; }
+      let data: any = {};
+      try { data = await res.json(); } catch {}
+      if (!res.ok) { setError(data.error ?? 'Could not flag (status ' + res.status + ')'); return; }
       onFlagged();
-    } catch { setError('Something went wrong'); } finally { setSaving(false); }
+    } catch (e: any) { setError(e?.message ?? 'Something went wrong'); } finally { setSaving(false); }
   };
 
   return (
