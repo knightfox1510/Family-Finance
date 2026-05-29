@@ -156,18 +156,9 @@ export interface ImportPayload {
 // ---------------------------------------------------------------------------
 // UI helpers
 // ---------------------------------------------------------------------------
-export type ViewId =
-  | 'dashboard'
-  | 'add'
-  | 'income'
-  | 'expenses'
-  | 'settle'
-  | 'contributions'
-  | 'goals'
-  | 'loans'
-  | 'insights'
-  | 'groups'
-  | 'settings';
+export type ViewId = 'home' | 'dashboard' | 'add' | 'expenses' | 'income'
+  | 'settle' | 'groups' | 'contributions' | 'goals'
+  | 'loans' | 'insights' | 'settings';
 
 export interface NavItem {
   id: ViewId;
