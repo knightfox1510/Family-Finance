@@ -21,3 +21,4 @@ jobs:
       run: |
         npm run build
         npx playwright test
+        # push trigger force update
