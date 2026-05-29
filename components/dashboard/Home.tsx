@@ -355,17 +355,25 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
   const isSolo    = mode === 'solo';
   const hasPartner = mode === 'joint' || mode === 'split';
 
-  const [activeRole, setActiveRole] = useState<'Partner A' | 'Partner B'>('Partner A');
-
-  // Read active device profile role matching Settings' storage key
-  useEffect(() => {
+  // Initialize directly from data.currentUserRole (comes from DB profile display_name)
+  // localStorage is only used as an override when the user has explicitly switched roles
+  const [activeRole, setActiveRole] = useState<'Partner A' | 'Partner B'>(() => {
     if (typeof window !== 'undefined') {
-      const savedRole = localStorage.getItem('active_partner_role') as 'Partner A' | 'Partner B' | null;
-      if (savedRole === 'Partner A' || savedRole === 'Partner B') {
-        setActiveRole(savedRole);
-      } else if (data.currentUserRole === 'Partner A' || data.currentUserRole === 'Partner B') {
-        setActiveRole(data.currentUserRole);
-      }
+      const saved = localStorage.getItem('active_partner_role');
+      if (saved === 'Partner A' || saved === 'Partner B') return saved;
+    }
+    return (data.currentUserRole === 'Partner B' ? 'Partner B' : 'Partner A');
+  });
+ 
+  // Keep in sync if data changes (e.g. after settings save)
+  useEffect(() => {
+    const fromStorage = typeof window !== 'undefined'
+      ? localStorage.getItem('active_partner_role')
+      : null;
+    if (fromStorage === 'Partner A' || fromStorage === 'Partner B') {
+      setActiveRole(fromStorage);
+    } else {
+      setActiveRole(data.currentUserRole === 'Partner B' ? 'Partner B' : 'Partner A');
     }
   }, [data.currentUserRole]);
 
