@@ -8,6 +8,7 @@
 // The only time we do a full loadData() is on first mount and after
 // joinHousehold (which changes the household entirely).
 
+// ─── lib/supabaseHelpers.ts ───────────────────────────────────────────────────
 import { supabase } from '@/lib/supabaseClient';
 import type {
   AppData, Expense, Contribution, Goal, Loan, Settings, SettleTrack,
@@ -18,7 +19,6 @@ import { DEFAULT_SETTINGS } from '@/constants';
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Maps display name ↔ system key ("Partner A" / "Partner B") */
 export function toSystemKey(
   val: string,
   settings: Pick<Settings, 'partnerAName' | 'partnerBName'>,
@@ -28,7 +28,6 @@ export function toSystemKey(
   return val;
 }
 
-/** Maps system key → display name */
 export function toDisplayName(
   val: string,
   settings: Pick<Settings, 'partnerAName' | 'partnerBName'>,
@@ -78,13 +77,14 @@ export async function loadData(userId: string): Promise<AppData> {
       }
     }
 
-    // Parallel fetches
-    const [gl, ln, cb, st, currentProfileRow] = await Promise.all([
+    // Parallel fetches (added profileRow for avatar patch)
+    const [gl, ln, cb, st, currentProfileRow, profileRow] = await Promise.all([
       supabase.from('goals').select('*').eq('household_id', hId),
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
       supabase.from('household_settings').select('*').eq('household_id', hId),
       supabase.from('profiles').select('telegram_username, display_name').eq('id', userId).single(),
+      supabase.from('profiles').select('avatar_url').eq('id', userId).single(),
     ]);
 
     // Resolve settings
@@ -105,10 +105,6 @@ export async function loadData(userId: string): Promise<AppData> {
       unpacked = cloudSettingsRow;
     }
 
-    // setupComplete = true only if the user has explicitly completed the wizard.
-    // New users have no household_settings row, so this will be false → wizard shows.
-    // Existing users who signed up before this feature also get false once,
-    // then wizard shows once and marks them complete.
     const setupComplete: boolean = Boolean(
       cloudSettingsRow && (unpacked.setupComplete === true || unpacked.setup_complete === true)
     );
@@ -129,22 +125,6 @@ export async function loadData(userId: string): Promise<AppData> {
     const toUI = (val: string) => toDisplayName(val, settings);
 
     const expenses: Expense[] = allTransactions.map((r: any) => {
-      // ── Backward-compatible settlement mapping ─────────────────────────────
-      // Old system used: to_settle (bool), settled (bool), settled_with (string)
-      // New system adds: settle_track ('none'|'joint'|'partner'), split_mode,
-      //                  partner_a_share, partner_b_share
-      //
-      // Rules:
-      //  1. If settle_track is set, trust it. It's the authoritative new value.
-      //  2. If settle_track is null/missing, derive it from old columns:
-      //       to_settle=true  → 'joint'  (was flagged for joint reimbursement)
-      //       otherwise       → 'none'
-      //  3. toSettle (UI flag for "pending in settle queue") = true when:
-      //       - settle_track is 'joint' (new), OR
-      //       - to_settle is true (old), AND not yet settled
-      //  4. Partner-track items are NEVER in the joint settle queue (toSettle=false)
-      //     — they appear in the partner ledger instead.
-
       const rawSettleTrack = r.settle_track;
       const settleTrack: SettleTrack =
         rawSettleTrack === 'joint'   ? 'joint'   :
@@ -154,8 +134,6 @@ export async function loadData(userId: string): Promise<AppData> {
 
       const isSettled = r.settled === true || r.settled === 'true';
 
-      // toSettle = "show in the joint settlement queue"
-      // partner-track items never appear there
       const toSettle =
         !isSettled &&
         settleTrack !== 'partner' &&
@@ -237,6 +215,7 @@ export async function loadData(userId: string): Promise<AppData> {
       contributions,
       settings,
       currentUserRole: currentProfileRow.data?.display_name ?? 'Partner A',
+      profile: { avatar_url: profileRow?.data?.avatar_url ?? null }, // Attached to the returned AppData
     };
   } catch (err) {
     console.error('loadData error:', err);
@@ -244,9 +223,6 @@ export async function loadData(userId: string): Promise<AppData> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Seed (empty state for first-time users)
-// ---------------------------------------------------------------------------
 export function seedData(): AppData {
   return {
     householdId: '',
@@ -256,32 +232,17 @@ export function seedData(): AppData {
     loans: [],
     settings: DEFAULT_SETTINGS,
     currentUserRole: 'Partner A',
+    profile: { avatar_url: null },
   };
 }
 
-// ---------------------------------------------------------------------------
-// Targeted write helpers
-// Each returns { error } so the hook can handle UI feedback.
-// ---------------------------------------------------------------------------
-
-export async function dbAddExpense(
-  tx: Expense, // <-- Change Omit<Expense, never> to just Expense
-  householdId: string,
-  settings: Settings,
-) {
+export async function dbAddExpense(tx: Expense, householdId: string, settings: Settings) {
   const row = expenseToRow(tx, householdId, settings);
   return supabase.from('transactions').insert([row]);
 }
 
-export async function dbUpdateExpense(
-  id: string,
-  updated: Partial<Expense>,
-  settings: Settings,
-) {
-  return supabase
-    .from('transactions')
-    .update(expenseFieldsToRow(updated, settings))
-    .eq('id', id);
+export async function dbUpdateExpense(id: string, updated: Partial<Expense>, settings: Settings) {
+  return supabase.from('transactions').update(expenseFieldsToRow(updated, settings)).eq('id', id);
 }
 
 export async function dbDeleteExpense(id: string) {
@@ -296,34 +257,19 @@ export async function dbBulkUpdate(ids: string[], fields: Record<string, unknown
   return supabase.from('transactions').update(fields).in('id', ids);
 }
 
-export async function dbUpsertContribution(
-  c: Contribution,
-  householdId: string,
-) {
+export async function dbUpsertContribution(c: Contribution, householdId: string) {
   return supabase.from('contributions').upsert(
     { id: c.id, household_id: householdId, month: c.month, partner_a_amount: c.partnerA, partner_b_amount: c.partnerB },
     { onConflict: 'household_id,month' },
   );
 }
 
-export async function dbSaveSettings(
-  s: Settings,
-  householdId: string,
-  userId: string,
-) {
-  const deviceRole =
-    typeof window !== 'undefined'
-      ? (localStorage.getItem('active_partner_role') ?? 'Partner A')
-      : 'Partner A';
+export async function dbSaveSettings(s: Settings, householdId: string, userId: string) {
+  const deviceRole = typeof window !== 'undefined' ? (localStorage.getItem('active_partner_role') ?? 'Partner A') : 'Partner A';
 
   const [settingsResult, profileResult] = await Promise.all([
-    supabase.from('household_settings').upsert(
-      { household_id: householdId, settings_data: s },
-      { onConflict: 'household_id' },
-    ),
-    supabase.from('profiles')
-      .update({ display_name: deviceRole, telegram_username: s.telegramUsername })
-      .eq('id', userId),
+    supabase.from('household_settings').upsert({ household_id: householdId, settings_data: s }, { onConflict: 'household_id' }),
+    supabase.from('profiles').update({ display_name: deviceRole, telegram_username: s.telegramUsername }).eq('id', userId),
   ]);
 
   return settingsResult.error ?? profileResult.error ?? null;
@@ -353,10 +299,6 @@ export async function dbDeleteLoan(id: string) {
   return supabase.from('loans').delete().eq('id', id);
 }
 
-// ---------------------------------------------------------------------------
-// Row mappers (AppData shape → Supabase column names)
-// ---------------------------------------------------------------------------
-
 function expenseToRow(e: Expense, householdId: string, settings: Settings) {
   return {
     id: e.id,
@@ -366,10 +308,7 @@ function expenseToRow(e: Expense, householdId: string, settings: Settings) {
     category: e.category,
     type: e.type,
     account_used: toSystemKey(e.account, settings),
-    
-    // Add the ?? '' fallback here:
     added_by: toSystemKey(e.addedBy ?? '', settings),
-    
     note: e.note,
     settled: e.settled,
     settled_with: e.settledFor ? toSystemKey(e.settledFor, settings) : null,
@@ -451,9 +390,6 @@ function loanFieldsToRow(l: Partial<Loan>) {
   return row;
 }
 
-// ---------------------------------------------------------------------------
-// Tiny utilities used internally
-// ---------------------------------------------------------------------------
 function todayMonthKey(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
