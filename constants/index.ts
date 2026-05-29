@@ -156,7 +156,7 @@ export const HEX = {
 // Household mode meta (labels shown in the setup wizard and settings)
 // ---------------------------------------------------------------------------
 export const HOUSEHOLD_MODE_META: Record<
-  HouseholdMode,
+  Exclude<HouseholdMode, 'split'>,
   { label: string; description: string; icon: string; detail: string[]; bestFor: string }
 > = {
   joint: {
