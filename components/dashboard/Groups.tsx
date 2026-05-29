@@ -411,7 +411,7 @@ export function Groups({ data, session, fmt }: Props) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <MemberCluster members={g.members} total={g.member_count} />
-                <span style={{ fontSize: 11, color: C.text3 }}>{relativeTime(g.last_activity)}</span>
+                <span style={{ fontSize: 11, color: C.text3 }}>{relativeTime(g.last_activity ?? g.created_at)}</span>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 {/* Copy invite */}
