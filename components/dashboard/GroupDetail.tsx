@@ -1149,7 +1149,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
       {showSettings && (
         <GroupSettingsSheet groupId={groupId} userId={userId} userRole={userRole} groupName={groupName} members={members} simplifyDebts={simplifyDebts}
           onClose={() => setShowSettings(false)}
-          onSaved={(v) => { setSimplifyDebts(v); }}   {/* no loadData — avoids overriding saved value */}
+          onSaved={(v) => { setSimplifyDebts(v); }}
         />
       )}
 
