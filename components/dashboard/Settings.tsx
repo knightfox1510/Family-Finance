@@ -300,8 +300,10 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
     if (data?.settings) setS(JSON.parse(JSON.stringify(data.settings)));
   }, [data.settings]);
 
-  const modes: HouseholdMode[]  = ['joint', 'separate', 'solo'];
-  const partnerB                = hasPartnerB(s.householdMode);
+  const modes: HouseholdMode[] = ['joint', 'separate', 'solo'];
+  // and on the mode row:
+  const active = (s.householdMode ?? 'solo') === m;
+  const partnerB = hasPartnerB(s.householdMode ?? 'solo');
   const currentCloudRole        = data.currentUserRole ?? 'Partner A';
   const telegramHandle          = (s.telegramUsername ?? '').trim();
   const telegramLinked          = telegramHandle.length > 0;
