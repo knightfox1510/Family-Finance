@@ -18,6 +18,13 @@ export type ViewId =
   | 'insights'
   | 'settings';
 
+
+export interface NavItem {
+  id: ViewId;
+  label: string;
+  icon: string;
+}
+
 // ─── Household ────────────────────────────────────────────────────────────────
 // 'separate' = two partners, no joint pool
 // 'joint'    = two partners + shared joint account
