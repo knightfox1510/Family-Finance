@@ -1,5 +1,5 @@
 'use client';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import type { AppData, ViewId } from '@/types';
 import { C } from '@/constants';
 import { Icon } from '@/components/ui/Icon';
@@ -355,18 +355,31 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
   const isSolo    = mode === 'solo';
   const hasPartner = mode === 'joint' || mode === 'split';
 
-  const names = {
-    a: data.settings.partnerAName || 'You',
-    b: data.settings.partnerBName || 'Partner',
-  };
+  const [activeRole, setActiveRole] = useState<'Partner A' | 'Partner B'>('Partner A');
 
-  // Derive first name from settings or email
-  const firstName = (() => {
-    const n = names.a || '';
-    if (n) return n.split(' ')[0];
+  // Read active device profile role matching Settings' storage key
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedRole = localStorage.getItem('active_partner_role') as 'Partner A' | 'Partner B' | null;
+      if (savedRole === 'Partner A' || savedRole === 'Partner B') {
+        setActiveRole(savedRole);
+      } else if (data.currentUserRole === 'Partner A' || data.currentUserRole === 'Partner B') {
+        setActiveRole(data.currentUserRole);
+      }
+    }
+  }, [data.currentUserRole]);
+
+  // Derive display name based on active device profile 
+  const firstName = useMemo(() => {
+    if (activeRole === 'Partner B' && hasPartner) {
+      return (data.settings.partnerBName || 'Partner').split(' ')[0];
+    }
+    if (data.settings.partnerAName) {
+      return data.settings.partnerAName.split(' ')[0];
+    }
     const email = session?.user?.email ?? '';
     return email.split('@')[0] || 'there';
-  })();
+  }, [activeRole, hasPartner, data.settings.partnerAName, data.settings.partnerBName, session]);
 
   const groups = (data as any).groups ?? [];
 
@@ -416,8 +429,6 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
   }, [data, cmk, groups]);
 
   // ── Section card definitions ────────────────────────────────────────────────
-  // visibility: 'all' | 'household' | 'ghost' | 'partner'
-  // Cast after .filter() — avoids TypeScript widening view literals to string.
   type SectionDef = { icon: string; label: string; sub: string; color: string; view: ViewId; wide?: boolean; badge?: string; show: boolean };
   const sections = ([
     {
