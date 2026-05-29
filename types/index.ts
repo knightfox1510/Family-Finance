@@ -193,4 +193,5 @@ export interface AppData {
   loans: Loan[];
   groups?: Group[];
   currentUserRole?: 'Partner A' | 'Partner B';
+  profile?: { avatar_url: string | null }; // Added via Avatar upload patch
 }
