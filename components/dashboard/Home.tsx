@@ -498,7 +498,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
       label: 'AI Insights',
       sub: 'Spending patterns · Smart nudges',
       color: C.teal,
-      view: 'ai',
+      view: 'insights',
       wide: true,
       show: !isGhost || data.expenses.length > 0,
     },
