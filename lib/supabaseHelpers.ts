@@ -265,7 +265,7 @@ export function seedData(): AppData {
 // ---------------------------------------------------------------------------
 
 export async function dbAddExpense(
-  tx: Omit<Expense, never>,
+  tx: Expense, // <-- Change Omit<Expense, never> to just Expense
   householdId: string,
   settings: Settings,
 ) {
