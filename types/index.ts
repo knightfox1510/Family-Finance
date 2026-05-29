@@ -23,18 +23,16 @@ import { ToastContainer, BottomNav, QuickTray, addToast } from '@/components/ui/
 
 import { C, navForMode } from '@/constants';
 import { Icon } from '@/components/ui/Icon';
-import type { AppData, ViewId, HouseholdMode } from '@/types';
+import type AppData from '@/types';
+import type { ViewId, HouseholdMode } from '@/types';
 
 // ─── View imports ─────────────────────────────────────────────────────────────
-// Each of these was previously inlined in the 5900-line file.
-// Move them to their own files, e.g. components/Dashboard.tsx, etc.
-// The import paths below are the target structure.
 import { Dashboard }        from '@/components/dashboard/Dashboard';
 import { AddExpense }       from '@/components/dashboard/AddExpense';
 import { IncomeTracker }    from '@/components/dashboard/IncomeTracker';
 import { ExpenseList }      from '@/components/dashboard/ExpenseList';
 import { SettleDashboard }  from '@/components/dashboard/SettleDashboard';
-import { Groups }  from '@/components/dashboard/Groups';
+import { Groups }           from '@/components/dashboard/Groups';
 import { Contributions }    from '@/components/dashboard/Contributions';
 import { Goals }            from '@/components/dashboard/Goals';
 import { LoanTracker }      from '@/components/dashboard/LoanTracker';
@@ -81,23 +79,23 @@ function exportToExcel(data: AppData) {
 
 // ─── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [session, setSession]         = useState<any>(null);
-  const [data, setData]               = useState<AppData | null>(null);
-  const [loading, setLoading]         = useState(true);
+  const [session, setSession]           = useState<any>(null);
+  const [data, setData]                 = useState<AppData | null>(null);
+  const [loading, setLoading]           = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const [view, setView]               = useState<ViewId>('home');
-  const [prevView, setPrevView]       = useState<ViewId>('home');
+  const [view, setView]         = useState<ViewId>('home');
+  const [prevView, setPrevView] = useState<ViewId>('home');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile]       = useState(false);
   const [privacyMode, setPrivacyMode] = useState(false);
   const [showMore, setShowMore]       = useState(false);
   const [planInfo, setPlanInfo] = useState<{ plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string } | undefined>(undefined);
+
   // Theme — start with server-safe default, then read localStorage client-side
   const [theme, setTheme] = useState('obsidian');
 
   React.useEffect(() => {
-    // Read persisted theme on mount and apply
     const saved = localStorage.getItem('cf_theme') || 'obsidian';
     setTheme(saved);
     document.documentElement.setAttribute('data-theme', saved);
@@ -108,20 +106,19 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', t);
     localStorage.setItem('cf_theme', t);
   };
+
   const [duplicateData, setDuplicateData] = useState<any>(null);
 
-  // addToast is imported as a standalone function from ui.tsx (ToastContainer handles display)
-
   // ── Auth ──────────────────────────────────────────────────────────────────
-useEffect(() => {
-  supabase.auth.getUser().then(({ data: { user } }) => {
-    setSession(user ? { user } : null);
-  });
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-    setSession(session);
-  });
-  return () => subscription.unsubscribe();
-}, []);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setSession(user ? { user } : null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (session) {
@@ -137,13 +134,13 @@ useEffect(() => {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // ── Invite link redirect — reads ?group= param and opens Groups tab ──────────
-useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('group')) {
-    setView('groups');
-  }
-}, []);
+  // ── Invite link redirect — reads ?group= param and opens Groups tab ───────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('group')) {
+      setView('groups');
+    }
+  }, []);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const actions = useActions({ data: data!, setData: setData as any, session, addToast });
@@ -173,7 +170,7 @@ useEffect(() => {
     return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
   }, [actions, addToast]);
 
-  // ── Manual refresh (escape hatch for edge cases) ──────────────────────────
+  // ── Manual refresh ────────────────────────────────────────────────────────
   const handleManualRefresh = async () => {
     if (!session || isRefreshing) return;
     setIsRefreshing(true);
@@ -185,7 +182,7 @@ useEffect(() => {
     }
   };
 
-  // ── Partner calculations ───────────────────────────────────────────────────
+  // ── Partner calculations ──────────────────────────────────────────────────
   const partnerCalculations = useMemo(() => {
     if (!data) return { p2pNetBalance: 0, pendingPartnerItems: [] };
     const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
@@ -235,7 +232,7 @@ useEffect(() => {
     return { p2pNetBalance, pendingPartnerItems };
   }, [data?.expenses, data?.settings.partnerAName, data?.settings.partnerBName]);
 
-  // ── Plan info loader (hooks must be above all conditional returns) ──────────
+  // ── Plan info loader ──────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!data?.householdId) return;
     import('@/lib/planUtils').then(({ getUsageSummary }) => {
@@ -249,17 +246,17 @@ useEffect(() => {
     });
   }, [data?.householdId]);
 
-  // ── First-time setup wizard ────────────────────────────────────────────────
+  // ── First-time setup wizard ───────────────────────────────────────────────
   const needsSetup = data && !data.settings.setupComplete;
 
   const handleSetupComplete = async (mode: HouseholdMode, nameA: string, nameB: string, telegramUsername?: string) => {
     if (!data) return;
     const updatedSettings = {
       ...data.settings,
-      householdMode:   mode,
-      partnerAName:    nameA,
-      partnerBName:    nameB || 'Partner B',
-      setupComplete:   true,
+      householdMode:  mode,
+      partnerAName:   nameA,
+      partnerBName:   nameB || 'Partner B',
+      setupComplete:  true,
       ...(telegramUsername ? { telegramUsername } : {}),
     };
     await actions.saveSettings(updatedSettings);
@@ -272,35 +269,30 @@ useEffect(() => {
   };
 
   // ── Guards ────────────────────────────────────────────────────────────────
-
-
-  //  NEW NATIVE-FEELING PRE-HYDRATION LOADER STATE
-if (loading || !data) {
-  return (
-    <div className="cf-loader-page animate-fade-in">
-      {/* 🌟 Unified vector container with absolute safety margins */}
-      <div className="cf-loader-logo">
-        <Icon name="wallet" size={40} color="var(--accent)" style={{ zIndex: 3 }} />
-        <div className="cf-loader-ring" />
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
-        <div style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>
-          ChillarFlow
+  if (loading || !data) {
+    return (
+      <div className="cf-loader-page animate-fade-in">
+        <div className="cf-loader-logo">
+          <Icon name="wallet" size={40} color="var(--accent)" style={{ zIndex: 3 }} />
+          <div className="cf-loader-ring" />
         </div>
-        <div style={{ color: 'var(--text2)', fontSize: 13, fontWeight: 500, opacity: 0.7 }}>
-          Syncing household configurations…
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
+          <div style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>
+            ChillarFlow
+          </div>
+          <div style={{ color: 'var(--text2)', fontSize: 13, fontWeight: 500, opacity: 0.7 }}>
+            Syncing household configurations…
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
   if (needsSetup) {
     return <SetupWizard onComplete={handleSetupComplete} />;
   }
 
-  // ── Derive nav based on mode ───────────────────────────────────────────────
+  // ── Derive nav based on mode ──────────────────────────────────────────────
   const mode        = data.settings.householdMode ?? 'joint';
   const nav         = navForMode(mode);
   const isSolo      = mode === 'solo';
@@ -318,24 +310,24 @@ if (loading || !data) {
 
   const fmt$ = (n: number) => fmt(n, data.settings.currency, privacyMode);
 
-  const activeGoalCount  = data.goals.filter((g: any) => !g.completed).length;
-  const goalsSavedTotal  = data.goals.reduce((s: number, g: any) => s + Number(g.current ?? 0), 0);
-  const activeLoanCount  = data.loans?.length ?? 0;
-  const monthlyEmiTotal  = (data.loans ?? []).reduce((s: number, l: any) => s + Number(l.emi ?? l.monthlyPayment ?? 0), 0);
-  const p2pPendingCount  = partnerCalculations.pendingPartnerItems.length;
+  const activeGoalCount = data.goals.filter((g: any) => !g.completed).length;
+  const goalsSavedTotal = data.goals.reduce((s: number, g: any) => s + Number(g.current ?? 0), 0);
+  const activeLoanCount = data.loans?.length ?? 0;
+  const monthlyEmiTotal = (data.loans ?? []).reduce((s: number, l: any) => s + Number(l.emi ?? l.monthlyPayment ?? 0), 0);
+  const p2pPendingCount = partnerCalculations.pendingPartnerItems.length;
 
   const moreNavItems = [
-    { id: 'income',       label: 'Income',        icon: 'trendUp',  subtitle: 'Inflow dashboard · partner split' },
-    { id: 'groups',       label: 'Groups',        icon: 'users',    subtitle: 'Split with friends · group trips' },
+    { id: 'income',        label: 'Income',        icon: 'trendUp',  subtitle: 'Inflow dashboard · partner split' },
+    { id: 'groups',        label: 'Groups',        icon: 'users',    subtitle: 'Split with friends · group trips' },
     ...(isJointMode ? [{ id: 'contributions', label: 'Contributions', icon: 'wallet', subtitle: 'Monthly joint-pool entry' }] : []),
     ...(isSolo
-      ? [{ id: 'settle',    label: 'Settle',        icon: 'refresh',  subtitle: p2pPendingCount > 0 ? `${p2pPendingCount} pending` : 'All settled' }]
-      : [{ id: 'goals',     label: 'Goals',         icon: 'target',   subtitle: activeGoalCount > 0 ? `${activeGoalCount} active · ${fmt$(goalsSavedTotal)} saved` : 'No active goals' }]
+      ? [{ id: 'settle', label: 'Settle', icon: 'refresh', subtitle: p2pPendingCount > 0 ? `${p2pPendingCount} pending` : 'All settled' }]
+      : [{ id: 'goals',  label: 'Goals',  icon: 'target',  subtitle: activeGoalCount > 0 ? `${activeGoalCount} active · ${fmt$(goalsSavedTotal)} saved` : 'No active goals' }]
     ),
-    { id: 'loans',        label: 'Loans & EMI',   icon: 'bank',      subtitle: activeLoanCount > 0 ? `${activeLoanCount} active · ${fmt$(monthlyEmiTotal)}/mo` : 'No active EMIs' },
-    { id: 'dashboard',    label: 'Stats',          icon: 'chart',    subtitle: 'Trends · allocation · deep analytics' },
-    { id: 'insights',     label: 'AI Insights',   icon: 'sparkles', subtitle: 'Personalised analysis · monthly read' },
-    { id: 'settings',     label: 'Settings',      icon: 'settings', subtitle: 'Household, data, notifications' },
+    { id: 'loans',     label: 'Loans & EMI', icon: 'bank',     subtitle: activeLoanCount > 0 ? `${activeLoanCount} active · ${fmt$(monthlyEmiTotal)}/mo` : 'No active EMIs' },
+    { id: 'dashboard', label: 'Stats',       icon: 'chart',    subtitle: 'Trends · allocation · deep analytics' },
+    { id: 'insights',  label: 'AI Insights', icon: 'sparkles', subtitle: 'Personalised analysis · monthly read' },
+    { id: 'settings',  label: 'Settings',    icon: 'settings', subtitle: 'Household, data, notifications' },
   ];
 
   // ── Layout ────────────────────────────────────────────────────────────────
@@ -447,7 +439,7 @@ if (loading || !data) {
       {/* MAIN CONTENT AREA */}
       <div style={{ flex: 1, position: 'relative', height: isMobile ? 'calc(100vh - 70px)' : '100vh', overflowY: 'auto' }}>
 
-        {/* Mobile top header — CRED style */}
+        {/* Mobile top header */}
         {isMobile && (
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -524,7 +516,7 @@ if (loading || !data) {
             </div>
           )}
 
-          {/* View router */}
+          {/* ── View router ──────────────────────────────────────────────── */}
           {view === 'home' && (
             <Home
               data={data}
@@ -576,9 +568,7 @@ if (loading || !data) {
           {view === 'settle' && mode !== 'solo' && (
             <SettleDashboard data={data} fmt={fmt$} onBulkSettle={actions.bulkSettle} partnerCalculations={partnerCalculations} actions={actions} />
           )}
-
           {view === 'groups' && <Groups data={data} session={session} fmt={fmt$} />}
-          
           {view === 'contributions' && mode === 'joint' && (
             <Contributions data={data} onUpdate={actions.updateContrib} fmt={fmt$} />
           )}
@@ -646,7 +636,7 @@ if (loading || !data) {
                   const isLast   = i === moreNavItems.length - 1;
                   return (
                     <button key={n.id}
-                      onClick={() => { setView(n.id as any); setShowMore(false); }}
+                      onClick={() => { setView(n.id as ViewId); setShowMore(false); }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 16,
                         width: '100%', background: 'transparent', border: 'none',
@@ -730,7 +720,7 @@ if (loading || !data) {
               const isActive = view === n.id && !showMore;
               return (
                 <button key={n.id}
-                  onClick={() => { setView(n.id as any); setShowMore(false); }}
+                  onClick={() => { setView(n.id as ViewId); setShowMore(false); }}
                   style={{
                     flex: 1, background: 'transparent', border: 'none', cursor: 'pointer',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
@@ -757,14 +747,12 @@ if (loading || !data) {
         </>
       )}
 
-{isRefreshing && (
+      {isRefreshing && (
         <div className="cf-refresh-overlay animate-fade-in">
-          {/* 🌟 Clean vector container with safe padding bounds */}
           <div className="cf-loader-logo">
             <Icon name="sync" size={40} color="var(--accent)" style={{ zIndex: 3 }} />
             <div className="cf-loader-ring" />
           </div>
-          
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
             <div style={{ color: 'var(--accent)', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
               Updating Ledger Matrices
