@@ -1,8 +1,10 @@
-// components/dashboard/Groups.tsx — Phase 2 + all UX fixes applied
+// components/dashboard/Groups.tsx — with all Phase A/B patches applied
 // Fix 1:  Entire card is tappable (stopPropagation on action buttons)
 // Fix 8:  Suggestion chips clear description field
-// Fix 12: AvatarStack uses actual member initials, not A/B/C placeholders
-// Fix DM: Responsive modals — bottom sheet on mobile, centered dialog on desktop
+// Fix 12: AvatarStack uses actual member initials
+// Phase A: Archive group + ArchivedGroupsSection
+// Phase B: ghostToken passed to GroupDetail
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -68,36 +70,17 @@ function useIsMobile() {
   return isMobile;
 }
 
-// Fix 12: uses actual member initials from real member data
 function MemberCluster({ members, total }: { members: GroupMember[]; total: number }) {
   const shown = members.slice(0, 4);
   return (
     <div style={{ display: 'flex', alignItems: 'center' }}>
       {shown.map((m, i) => (
-        <div
-          key={m.id}
-          title={memberName(m)}
-          style={{
-            width: 26, height: 26, borderRadius: '50%',
-            background: AVATAR_COLORS[i % AVATAR_COLORS.length],
-            border: `2px solid ${C.surface}`,
-            marginLeft: i > 0 ? -8 : 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 10, fontWeight: 800, color: '#0a0a0a',
-            zIndex: shown.length - i, position: 'relative', flexShrink: 0,
-          }}
-        >
+        <div key={m.id} title={memberName(m)} style={{ width: 26, height: 26, borderRadius: '50%', background: AVATAR_COLORS[i % AVATAR_COLORS.length], border: `2px solid ${C.surface}`, marginLeft: i > 0 ? -8 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#0a0a0a', zIndex: shown.length - i, position: 'relative', flexShrink: 0 }}>
           {memberName(m).charAt(0).toUpperCase()}
         </div>
       ))}
       {total > 4 && (
-        <div style={{
-          width: 26, height: 26, borderRadius: '50%',
-          background: C.surface2, border: `2px solid ${C.surface}`,
-          marginLeft: -8, zIndex: 0, position: 'relative',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 9, fontWeight: 700, color: C.text3,
-        }}>
+        <div style={{ width: 26, height: 26, borderRadius: '50%', background: C.surface2, border: `2px solid ${C.surface}`, marginLeft: -8, zIndex: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: C.text3 }}>
           +{total - 4}
         </div>
       )}
@@ -120,68 +103,17 @@ function EmptyGroups({ onCreateClick }: { onCreateClick: () => void }) {
   );
 }
 
-// ── Responsive modal shell ────────────────────────────────────────────────────
-// Mobile: slides up from bottom as a sheet
-// Desktop: centered dialog with all-rounded corners
 function ModalShell({ onClose, isMobile, children, width = 480 }: {
-  onClose:  () => void;
-  isMobile: boolean;
-  children: React.ReactNode;
-  width?:   number;
+  onClose: () => void; isMobile: boolean; children: React.ReactNode; width?: number;
 }) {
-  const desktopDialog: React.CSSProperties = {
-    background:   C.surface,
-    borderRadius: 24,
-    padding:      '28px 28px 32px',
-    width:        '100%',
-    maxWidth:     width,
-    boxShadow:    '0 24px 80px rgba(0,0,0,0.6)',
-    position:     'relative',
-  };
-
-  const mobileSheet: React.CSSProperties = {
-    background:   C.surface,
-    borderRadius: '24px 24px 0 0',
-    padding:      '20px 24px 40px',
-    width:        '100%',
-    maxWidth:     width,
-    boxShadow:    '0 -16px 60px rgba(0,0,0,0.6)',
-    maxHeight:    '92vh',
-    overflowY:    'auto',
-  };
-
+  const desktopDialog: React.CSSProperties = { background: C.surface, borderRadius: 24, padding: '28px 28px 32px', width: '100%', maxWidth: width, boxShadow: '0 24px 80px rgba(0,0,0,0.6)', position: 'relative' };
+  const mobileSheet:   React.CSSProperties = { background: C.surface, borderRadius: '24px 24px 0 0', padding: '20px 24px 40px', width: '100%', maxWidth: width, boxShadow: '0 -16px 60px rgba(0,0,0,0.6)', maxHeight: '92vh', overflowY: 'auto' };
   return (
-    <div
-      style={{
-        position:        'fixed',
-        inset:           0,
-        background:      isMobile ? 'rgba(0,0,0,0.80)' : 'rgba(0,0,0,0.55)',
-        zIndex:          9999,
-        display:         'flex',
-        alignItems:      isMobile ? 'flex-end' : 'center',
-        justifyContent:  'center',
-        padding:         isMobile ? 0 : 24,
-      }}
-      onClick={onClose}
-    >
+    <div style={{ position: 'fixed', inset: 0, background: isMobile ? 'rgba(0,0,0,0.80)' : 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 24 }} onClick={onClose}>
       <div style={isMobile ? mobileSheet : desktopDialog} onClick={(e) => e.stopPropagation()}>
-        {/* Mobile drag handle */}
-        {isMobile && (
-          <div style={{ width: 36, height: 4, background: C.border, borderRadius: 99, margin: '0 auto 20px' }} />
-        )}
-        {/* Desktop close button */}
+        {isMobile && <div style={{ width: 36, height: 4, background: C.border, borderRadius: 99, margin: '0 auto 20px' }} />}
         {!isMobile && (
-          <button
-            onClick={onClose}
-            style={{
-              position:   'absolute', top: 16, right: 16,
-              width:      32, height: 32, borderRadius: '50%',
-              border:     'none', background: C.surface2,
-              color:      C.text2, cursor: 'pointer',
-              display:    'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize:   18, lineHeight: 1,
-            }}
-          >
+          <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, width: 32, height: 32, borderRadius: '50%', border: 'none', background: C.surface2, color: C.text2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, lineHeight: 1 }}>
             ×
           </button>
         )}
@@ -192,9 +124,7 @@ function ModalShell({ onClose, isMobile, children, width = 480 }: {
 }
 
 function CreateGroupModal({ onClose, onCreated, userId }: {
-  onClose:   () => void;
-  onCreated: (group: Group, inviteUrl: string) => void;
-  userId:    string;
+  onClose: () => void; onCreated: (group: Group, inviteUrl: string) => void; userId: string;
 }) {
   const isMobile          = useIsMobile();
   const [name, setName]   = useState('');
@@ -203,108 +133,42 @@ function CreateGroupModal({ onClose, onCreated, userId }: {
   const [error, setError] = useState<string | null>(null);
 
   const SUGGESTIONS = [
-    { label: 'Goa Trip 🏖️',     desc: 'Beach trip expenses' },
-    { label: 'Flat 4B 🏠',       desc: 'Monthly household bills' },
-    { label: 'Office Lunch 🍱',  desc: 'Team lunch splits' },
-    { label: 'Weekend Trek 🏕️',  desc: 'Trek gear & food' },
-    { label: 'Book Club 📚',     desc: 'Books & meetup costs' },
+    { label: 'Goa Trip 🏖️' }, { label: 'Flat 4B 🏠' }, { label: 'Office Lunch 🍱' },
+    { label: 'Weekend Trek 🏕️' }, { label: 'Book Club 📚' },
   ];
 
   const handleCreate = async () => {
     if (!name.trim()) return;
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const res  = await fetch('/api/groups', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body:   JSON.stringify({ name: name.trim(), description: desc.trim() || undefined, createdBy: userId }),
-      });
+      const res  = await fetch('/api/groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), description: desc.trim() || undefined, createdBy: userId }) });
       const data = await res.json();
       if (!res.ok) { setError(data.error); return; }
       onCreated(data.group, data.invite_url);
-    } catch {
-      setError('Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError('Something went wrong. Please try again.'); }
+    finally { setLoading(false); }
   };
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', background: C.surface2, border: '1.5px solid transparent',
-    borderRadius: 12, color: C.textW, fontFamily: 'inherit', fontSize: 15,
-    fontWeight: 500, padding: '12px 16px', outline: 'none', boxSizing: 'border-box',
-    transition: 'border-color 0.15s',
-  };
+  const inputStyle: React.CSSProperties = { width: '100%', background: C.surface2, border: '1.5px solid transparent', borderRadius: 12, color: C.textW, fontFamily: 'inherit', fontSize: 15, fontWeight: 500, padding: '12px 16px', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' };
 
   return (
     <ModalShell onClose={onClose} isMobile={isMobile}>
-      <div style={{ fontSize: 18, fontWeight: 800, color: C.textW, marginBottom: 16, letterSpacing: '-0.02em' }}>
-        New group
-      </div>
-
-      {/* Fix 8: tapping suggestion sets name AND clears desc so they don't mismatch */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible', paddingBottom: isMobile ? 10 : 0, marginBottom: isMobile ? 0 : 8, scrollbarWidth: 'none' as any }}>
+      <div style={{ fontSize: 18, fontWeight: 800, color: C.textW, marginBottom: 16, letterSpacing: '-0.02em' }}>New group</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible', paddingBottom: isMobile ? 10 : 0, marginBottom: 8, scrollbarWidth: 'none' as any }}>
         {SUGGESTIONS.map((s) => (
-          <button key={s.label} onClick={() => { setName(s.label); setDesc(''); }}
-            style={{
-              padding: '6px 14px', borderRadius: 99,
-              border: `1px solid ${name === s.label ? C.accent : C.border2}`,
-              background: name === s.label ? C.accentBg : C.surface2,
-              color: name === s.label ? C.accent : C.text2,
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              whiteSpace: 'nowrap' as const, flexShrink: 0,
-              transition: 'all 0.15s',
-            }}
-          >{s.label}</button>
+          <button key={s.label} onClick={() => { setName(s.label); setDesc(''); }} style={{ padding: '6px 14px', borderRadius: 99, border: `1px solid ${name === s.label ? C.accent : C.border2}`, background: name === s.label ? C.accentBg : C.surface2, color: name === s.label ? C.accent : C.text2, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0, transition: 'all 0.15s' }}>
+            {s.label}
+          </button>
         ))}
       </div>
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-          placeholder="Group name (e.g. Goa Trip)"
-          style={inputStyle}
-          onFocus={(e) => { e.currentTarget.style.borderColor = C.accent; }}
-          onBlur={(e)  => { e.currentTarget.style.borderColor = 'transparent'; }}
-        />
-        <input
-          value={desc}
-          onChange={(e) => setDesc(e.target.value)}
-          placeholder="Description (optional)"
-          style={inputStyle}
-          onFocus={(e) => { e.currentTarget.style.borderColor = C.accent; }}
-          onBlur={(e)  => { e.currentTarget.style.borderColor = 'transparent'; }}
-        />
+        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleCreate()} placeholder="Group name (e.g. Goa Trip)" style={inputStyle} onFocus={(e) => { e.currentTarget.style.borderColor = C.accent; }} onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent'; }} />
+        <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Description (optional)" style={inputStyle} onFocus={(e) => { e.currentTarget.style.borderColor = C.accent; }} onBlur={(e) => { e.currentTarget.style.borderColor = 'transparent'; }} />
       </div>
-
-      {error && (
-        <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 12, fontSize: 13, background: `${C.red}15`, border: `1px solid ${C.red}44`, color: C.red }}>
-          {error}
-        </div>
-      )}
-
+      {error && <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 12, fontSize: 13, background: `${C.red}15`, border: `1px solid ${C.red}44`, color: C.red }}>{error}</div>}
       <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-        <button
-          onClick={onClose}
-          style={{ flex: 1, padding: '13px', borderRadius: 99, border: `1px solid ${C.border2}`, background: 'transparent', color: C.text2, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleCreate}
-          disabled={!name.trim() || loading}
-          style={{
-            flex: 2, padding: '13px', borderRadius: 99, border: 'none',
-            background: name.trim() && !loading ? C.accent : C.surface2,
-            color: name.trim() && !loading ? '#0a0a0a' : C.text3,
-            fontSize: 14, fontWeight: 800,
-            cursor: name.trim() && !loading ? 'pointer' : 'not-allowed',
-            transition: 'all 0.15s',
-          }}
-        >
+        <button onClick={onClose} style={{ flex: 1, padding: '13px', borderRadius: 99, border: `1px solid ${C.border2}`, background: 'transparent', color: C.text2, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+        <button onClick={handleCreate} disabled={!name.trim() || loading} style={{ flex: 2, padding: '13px', borderRadius: 99, border: 'none', background: name.trim() && !loading ? C.accent : C.surface2, color: name.trim() && !loading ? '#0a0a0a' : C.text3, fontSize: 14, fontWeight: 800, cursor: name.trim() && !loading ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>
           {loading ? 'Creating…' : 'Create group'}
         </button>
       </div>
@@ -312,105 +176,104 @@ function CreateGroupModal({ onClose, onCreated, userId }: {
   );
 }
 
-function InviteShareModal({ inviteUrl, groupName, onClose }: {
-  inviteUrl: string;
-  groupName: string;
-  onClose:   () => void;
-}) {
+function InviteShareModal({ inviteUrl, groupName, onClose }: { inviteUrl: string; groupName: string; onClose: () => void }) {
   const isMobile      = useIsMobile();
   const [copied, setCopied] = useState(false);
-
-  const copy = () => {
-    navigator.clipboard.writeText(inviteUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-  };
-
-  const share = () => {
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      navigator.share({ title: `Join ${groupName} on ChillarFlow`, url: inviteUrl });
-    } else {
-      copy();
-    }
-  };
-
+  const copy = () => { navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 2500); };
+  const share = () => { if (typeof navigator !== 'undefined' && navigator.share) { navigator.share({ title: `Join ${groupName} on ChillarFlow`, url: inviteUrl }); } else { copy(); } };
   return (
     <ModalShell onClose={onClose} isMobile={isMobile}>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: '50%',
-          background: C.accentBg, border: `2px solid ${C.accent}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 24, margin: '0 auto 12px',
-        }}>🎉</div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: C.textW, letterSpacing: '-0.02em' }}>
-          {groupName} is ready!
-        </div>
-        <div style={{ fontSize: 13, color: C.text2, marginTop: 4 }}>
-          Share the link to invite friends
-        </div>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: C.accentBg, border: `2px solid ${C.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, margin: '0 auto 12px' }}>🎉</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: C.textW, letterSpacing: '-0.02em' }}>{groupName} is ready!</div>
+        <div style={{ fontSize: 13, color: C.text2, marginTop: 4 }}>Share the link to invite friends</div>
       </div>
-
-      <div style={{
-        background: C.surface2, borderRadius: 12, padding: '12px 16px',
-        fontSize: 13, color: C.teal, wordBreak: 'break-all' as const,
-        lineHeight: 1.5, marginBottom: 16, border: `1px solid ${C.teal}22`,
-      }}>
-        {inviteUrl}
-      </div>
-
+      <div style={{ background: C.surface2, borderRadius: 12, padding: '12px 16px', fontSize: 13, color: C.teal, wordBreak: 'break-all' as const, lineHeight: 1.5, marginBottom: 16, border: `1px solid ${C.teal}22` }}>{inviteUrl}</div>
       <div style={{ display: 'flex', gap: 10 }}>
-        <button
-          onClick={copy}
-          style={{
-            flex: 1, padding: '13px', borderRadius: 99,
-            border: `1px solid ${C.border2}`,
-            background: copied ? C.greenBg : 'transparent',
-            color: copied ? C.green : C.text1,
-            fontSize: 14, fontWeight: 700, cursor: 'pointer',
-            transition: 'all 0.15s',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          }}
-        >
+        <button onClick={copy} style={{ flex: 1, padding: '13px', borderRadius: 99, border: `1px solid ${C.border2}`, background: copied ? C.greenBg : 'transparent', color: copied ? C.green : C.text1, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           <Icon name={copied ? 'check' : 'briefcase'} size={15} color={copied ? C.green : C.text1} />
           {copied ? 'Copied!' : 'Copy link'}
         </button>
-        <button
-          onClick={share}
-          style={{
-            flex: 1, padding: '13px', borderRadius: 99, border: 'none',
-            background: C.accent, color: '#0a0a0a',
-            fontSize: 14, fontWeight: 800, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          }}
-        >
+        <button onClick={share} style={{ flex: 1, padding: '13px', borderRadius: 99, border: 'none', background: C.accent, color: '#0a0a0a', fontSize: 14, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           <Icon name="send" size={15} color="#0a0a0a" />
           Share
         </button>
       </div>
-
-      <button
-        onClick={onClose}
-        style={{
-          width: '100%', marginTop: 12, padding: '11px', borderRadius: 99,
-          border: 'none', background: 'transparent',
-          color: C.text3, fontSize: 13, fontWeight: 500, cursor: 'pointer',
-        }}
-      >
-        Done — I'll share later
-      </button>
+      <button onClick={onClose} style={{ width: '100%', marginTop: 12, padding: '11px', borderRadius: 99, border: 'none', background: 'transparent', color: C.text3, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>Done — I'll share later</button>
     </ModalShell>
   );
 }
 
+// ── Archived groups section ───────────────────────────────────────────────────
+function ArchivedGroupsSection({ userId, fmt, onSelectGroup, onUnarchive }: {
+  userId:        string;
+  fmt:           (n: number) => string;
+  onSelectGroup: (g: { id: string; name: string; currency: string }) => void;
+  onUnarchive:   (id: string, name: string) => void;
+}) {
+  const [open, setOpen]         = useState(false);
+  const [archived, setArchived] = useState<any[]>([]);
+  const [loading, setLoading]   = useState(false);
+
+  const load = async () => {
+    if (archived.length > 0) { setOpen((v) => !v); return; }
+    setLoading(true);
+    try {
+      const res  = await fetch(`/api/groups/archived?userId=${userId}`);
+      const data = await res.json();
+      setArchived(data.groups ?? []);
+      setOpen(true);
+    } catch {
+      addToast('Could not load archived groups', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (archived.length === 0 && !open) {
+    return (
+      <button onClick={load} disabled={loading} style={{ width: '100%', padding: '10px', borderRadius: 12, border: `1px dashed ${C.border2}`, background: 'transparent', color: C.text3, fontSize: 12, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <Icon name="briefcase" size={14} color={C.text3} />
+        {loading ? 'Loading…' : 'Show archived groups'}
+      </button>
+    );
+  }
+
+  return (
+    <div>
+      <button onClick={() => setOpen((v) => !v)} style={{ width: '100%', padding: '10px', borderRadius: 12, border: `1px dashed ${C.border2}`, background: 'transparent', color: C.text3, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: open ? 10 : 0 }}>
+        <Icon name="briefcase" size={14} color={C.text3} />
+        {open ? 'Hide' : 'Show'} archived groups ({archived.length})
+      </button>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {archived.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '24px', color: C.text3, fontSize: 13 }}>No archived groups yet</div>
+          )}
+          {archived.map((g: any) => (
+            <div key={g.id} style={{ background: C.surface, borderRadius: 14, padding: '14px 16px', border: `1px solid ${C.border}`, opacity: 0.75, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: C.text2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.name}</div>
+                <div style={{ fontSize: 11, color: C.text3, marginTop: 2 }}>Archived · {g.member_count} members</div>
+              </div>
+              <button onClick={() => onSelectGroup(g)} style={{ padding: '6px 12px', borderRadius: 99, border: `1px solid ${C.border2}`, background: 'transparent', color: C.text2, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>View</button>
+              <button onClick={() => onUnarchive(g.id, g.name)} style={{ padding: '6px 12px', borderRadius: 99, border: `1px solid ${C.green}44`, background: 'transparent', color: C.green, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>Restore</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Groups component ─────────────────────────────────────────────────────
 export function Groups({ data, session, fmt }: Props) {
   const [groups, setGroups]         = useState<Group[]>([]);
   const [loading, setLoading]       = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [inviteData, setInviteData] = useState<{ url: string; groupName: string } | null>(null);
   const [copiedId, setCopiedId]     = useState<string | null>(null);
-
-  // Fix 1: track which group is open
+  const [archivingId, setArchivingId] = useState<string | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<{ id: string; name: string; currency: string; ghostToken?: string } | null>(null);
 
   const userId = session?.user?.id;
@@ -431,6 +294,16 @@ export function Groups({ data, session, fmt }: Props) {
 
   useEffect(() => { loadGroups(); }, [loadGroups]);
 
+  // Auto-open group from invite link ?group= param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const groupParam = params.get('group');
+    if (groupParam && groups.length > 0) {
+      const match = groups.find((g) => g.id === groupParam);
+      if (match) setSelectedGroup({ id: match.id, name: match.name, currency: match.currency });
+    }
+  }, [groups]);
+
   const handleGroupCreated = (group: Group, inviteUrl: string) => {
     setShowCreate(false);
     setGroups((prev) => [group as unknown as Group, ...prev]);
@@ -438,13 +311,9 @@ export function Groups({ data, session, fmt }: Props) {
   };
 
   const copyGroupInvite = async (e: React.MouseEvent, groupId: string) => {
-    // Fix 1: prevent card click from firing when invite button is tapped
     e.stopPropagation();
     try {
-      const res  = await fetch('/api/groups/invite', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body:   JSON.stringify({ groupId, userId }),
-      });
+      const res  = await fetch('/api/groups/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groupId, userId }) });
       const data = await res.json();
       if (!res.ok) { addToast(data.error, 'error'); return; }
       await navigator.clipboard.writeText(data.invite_url);
@@ -456,8 +325,29 @@ export function Groups({ data, session, fmt }: Props) {
     }
   };
 
-  // Fix 1: if a group is selected, render GroupDetail instead of list
-if (selectedGroup) {
+  const archiveGroup = async (e: React.MouseEvent, group: Group) => {
+    e.stopPropagation();
+    const confirmMsg = group.net_balance !== 0
+      ? `Archive "${group.name}"? There are still unsettled balances.`
+      : `Archive "${group.name}"? It will move to your archived groups.`;
+    if (!confirm(confirmMsg)) return;
+    setArchivingId(group.id);
+    try {
+      const res = await fetch('/api/groups', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groupId: group.id, userId, is_archived: true }) });
+      if (res.ok) { setGroups((prev) => prev.filter((g) => g.id !== group.id)); addToast(`"${group.name}" archived`, 'success'); }
+      else { const d = await res.json(); addToast(d.error || 'Could not archive', 'error'); }
+    } catch { addToast('Could not archive group', 'error'); }
+    finally   { setArchivingId(null); }
+  };
+
+  const unarchiveGroup = async (groupId: string, groupName: string) => {
+    const res = await fetch('/api/groups', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groupId, userId, is_archived: false }) });
+    if (res.ok) { loadGroups(); addToast(`"${groupName}" restored`, 'success'); }
+    else { const d = await res.json(); addToast(d.error || 'Could not restore', 'error'); }
+  };
+
+  // Render GroupDetail when a group is selected
+  if (selectedGroup) {
     return (
       <GroupDetail
         groupId={selectedGroup.id}
@@ -478,10 +368,7 @@ if (selectedGroup) {
         <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.text3 }}>
           {groups.length} group{groups.length !== 1 ? 's' : ''}
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 99, border: 'none', background: C.accent, color: '#0a0a0a', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
-        >
+        <button onClick={() => setShowCreate(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', borderRadius: 99, border: 'none', background: C.accent, color: '#0a0a0a', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
           <Icon name="plus" size={15} color="#0a0a0a" />
           New group
         </button>
@@ -490,51 +377,32 @@ if (selectedGroup) {
       {/* Loading */}
       {loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[1, 2].map((i) => (
-            <div key={i} style={{ height: 100, borderRadius: 16, background: C.surface, animation: 'pulse 1.5s ease-in-out infinite' }} />
-          ))}
+          {[1, 2].map((i) => <div key={i} style={{ height: 100, borderRadius: 16, background: C.surface, opacity: 0.5 }} />)}
         </div>
       )}
 
       {/* Empty */}
       {!loading && groups.length === 0 && <EmptyGroups onCreateClick={() => setShowCreate(true)} />}
 
-      {/* Fix 1: entire card is clickable, action buttons stopPropagation */}
+      {/* Group cards */}
       {!loading && groups.map((g) => {
         const isPositive = g.net_balance > 0;
         const isSettled  = g.net_balance === 0;
-
         return (
           <div
             key={g.id}
-            onClick={() => setSelectedGroup({ id: g.id, name: g.name, currency: g.currency, ghostToken: undefined })}
-            style={{
-              background: C.surface, borderRadius: 18, padding: '16px 18px',
-              boxShadow: C.shadowSm, border: `1px solid ${C.border}`,
-              cursor: 'pointer', transition: 'transform 0.12s, box-shadow 0.12s',
-            }}
+            onClick={() => setSelectedGroup({ id: g.id, name: g.name, currency: g.currency })}
+            style={{ background: C.surface, borderRadius: 18, padding: '16px 18px', boxShadow: C.shadowSm, border: `1px solid ${C.border}`, cursor: 'pointer', transition: 'transform 0.12s, box-shadow 0.12s' }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLDivElement).style.boxShadow = C.shadowMd; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLDivElement).style.boxShadow = C.shadowSm; }}
           >
             {/* Top: name + balance */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: C.textW, letterSpacing: '-0.01em', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                  {g.name}
-                </div>
-                {g.description && (
-                  <div style={{ fontSize: 12, color: C.text3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                    {g.description}
-                  </div>
-                )}
+                <div style={{ fontSize: 16, fontWeight: 800, color: C.textW, letterSpacing: '-0.01em', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.name}</div>
+                {g.description && <div style={{ fontSize: 12, color: C.text3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.description}</div>}
               </div>
-              <div style={{
-                flexShrink: 0, marginLeft: 12, padding: '5px 12px', borderRadius: 99,
-                background: isSettled ? C.surface2 : isPositive ? C.greenBg : `${C.red}15`,
-                border: `1px solid ${isSettled ? C.border : isPositive ? C.green : C.red}44`,
-                fontSize: 13, fontWeight: 800,
-                color: isSettled ? C.text3 : isPositive ? C.green : C.red,
-              }}>
+              <div style={{ flexShrink: 0, marginLeft: 12, padding: '5px 12px', borderRadius: 99, background: isSettled ? C.surface2 : isPositive ? C.greenBg : `${C.red}15`, border: `1px solid ${isSettled ? C.border : isPositive ? C.green : C.red}44`, fontSize: 13, fontWeight: 800, color: isSettled ? C.text3 : isPositive ? C.green : C.red }}>
                 {isSettled ? 'Settled' : isPositive ? `+${fmt(g.net_balance)}` : fmt(g.net_balance)}
               </div>
             </div>
@@ -546,20 +414,15 @@ if (selectedGroup) {
                 <span style={{ fontSize: 11, color: C.text3 }}>{relativeTime(g.last_activity)}</span>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                {/* Fix 1: e.stopPropagation() so card click doesn't fire */}
-                <button
-                  onClick={(e) => copyGroupInvite(e, g.id)}
-                  title="Copy invite link"
-                  style={{
-                    width: 34, height: 34, borderRadius: 10, border: 'none',
-                    background: copiedId === g.id ? C.greenBg : C.surface2,
-                    color: copiedId === g.id ? C.green : C.text2,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', transition: 'all 0.15s',
-                  }}
-                >
+                {/* Copy invite */}
+                <button onClick={(e) => copyGroupInvite(e, g.id)} title="Copy invite link" style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: copiedId === g.id ? C.greenBg : C.surface2, color: copiedId === g.id ? C.green : C.text2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s' }}>
                   <Icon name={copiedId === g.id ? 'check' : 'send'} size={15} color={copiedId === g.id ? C.green : C.text2} />
                 </button>
+                {/* Archive */}
+                <button onClick={(e) => archiveGroup(e, g)} title="Archive group" disabled={archivingId === g.id} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: archivingId === g.id ? 'not-allowed' : 'pointer', opacity: archivingId === g.id ? 0.5 : 1, transition: 'all 0.15s' }}>
+                  <Icon name="briefcase" size={15} color={C.text3} />
+                </button>
+                {/* Open */}
                 <div style={{ padding: '0 10px', height: 34, borderRadius: 10, background: C.accentBg, color: C.accent, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
                   Open <Icon name="chevron" size={12} color={C.accent} />
                 </div>
@@ -568,6 +431,16 @@ if (selectedGroup) {
           </div>
         );
       })}
+
+      {/* Archived groups section */}
+      {!loading && (
+        <ArchivedGroupsSection
+          userId={userId}
+          fmt={fmt}
+          onSelectGroup={(g) => setSelectedGroup({ id: g.id, name: g.name, currency: g.currency })}
+          onUnarchive={unarchiveGroup}
+        />
+      )}
 
       {showCreate && <CreateGroupModal userId={userId} onClose={() => setShowCreate(false)} onCreated={handleGroupCreated} />}
       {inviteData && <InviteShareModal inviteUrl={inviteData.url} groupName={inviteData.groupName} onClose={() => setInviteData(null)} />}
