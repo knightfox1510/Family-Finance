@@ -23,6 +23,7 @@ export interface NavItem {
   id: ViewId;
   label: string;
   icon: string;
+  hideIn?: HouseholdMode[];
 }
 
 // ─── Household ────────────────────────────────────────────────────────────────
