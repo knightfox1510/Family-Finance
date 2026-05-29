@@ -78,7 +78,12 @@ function exportToExcel(data: AppData) {
 }
 
 export default function App() {
-const [view, setView]                 = useState<ViewId>('home');
+const [session, setSession]           = useState<any>(null);
+  const [data, setData]                 = useState<AppData | null>(null);
+  const [loading, setLoading]           = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const [view, setView]                 = useState<ViewId>('home');
   const [prevView, setPrevView]         = useState<ViewId>('home');
   const [sidebarOpen, setSidebarOpen]   = useState(true);
   const [isMobile, setIsMobile]         = useState(false);
