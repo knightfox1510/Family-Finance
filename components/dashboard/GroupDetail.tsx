@@ -73,8 +73,8 @@ function relTime(dateStr: string): string {
 }
 
 const CAT_EMOJI: Record<string, string> = {
-  Groceries: '🛒', 'Dining Out': '🍽\uFE0F', Travel: '\u2708\uFE0F',
-  Entertainment: '🎬', Utilities: '\u26A1', Transport: '🚗',
+  Groceries: '🛒', 'Dining Out': '🍽', Travel: '✈',
+  Entertainment: '🎬', Utilities: '⚡', Transport: '🚗',
   Alcohol: '🍻', 'Hosting Day': '🏠', Miscellaneous: '📦',
 };
 
@@ -112,7 +112,7 @@ function TransactionCard({ tx, userId, userRole, members, fmt, onDelete, onEdit,
     if (allSettled) return null;
     if (iPaid && totalOwedToMe > 0) return { text: 'you are owed ' + fmt(totalOwedToMe), color: C.green };
     if (!iPaid && mySlice && !mySlice.is_settled) return { text: 'you owe ' + fmt(mySlice.share_amount), color: C.red };
-    if (!iPaid && mySlice?.is_settled) return { text: '\u2713 you paid', color: C.green };
+    if (!iPaid && mySlice?.is_settled) return { text: '✓ you paid', color: C.green };
     return null;
   })();
 
@@ -128,7 +128,7 @@ function TransactionCard({ tx, userId, userRole, members, fmt, onDelete, onEdit,
             <div style={{ fontSize: 11, color: C.text3, marginTop: 3, display: 'flex', gap: 6, alignItems: 'center' }}>
               <span>{iPaid ? 'You paid' : displayName(tx.payer) + ' paid'}</span>
               <span>&middot;</span><span>{relTime(tx.created_at)}</span>
-              {allSettled && <><span>&middot;</span><span style={{ color: C.green, fontWeight: 700 }}>\u2713 All settled</span></>}
+              {allSettled && <><span>&middot;</span><span style={{ color: C.green, fontWeight: 700 }}>✓ All settled</span></>}
             </div>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -158,7 +158,7 @@ function TransactionCard({ tx, userId, userRole, members, fmt, onDelete, onEdit,
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: s.is_settled ? C.green : C.textW }}>{fmt(s.share_amount)}</div>
                   <div style={{ fontSize: 10, fontWeight: 700, color: s.is_settled ? C.green : C.text3, padding: '2px 8px', borderRadius: 99, background: s.is_settled ? C.greenBg : C.surface }}>
-                    {s.is_settled ? '\u2713' : 'owes'}
+                    {s.is_settled ? '✓' : 'owes'}
                   </div>
                 </div>
               );
@@ -251,7 +251,7 @@ function SettleModal({ pair, members, mySplits, userId, groupId, fmt, ghostToken
       const res  = await fetch('/api/groups/' + groupId + '/settle', { method: 'POST', headers: h, body: JSON.stringify({ settledBy: userId, splitIds: relevantSplits.map((s: any) => s.id), settledVia: method, note: note.trim() || undefined }) });
       const data = await res.json();
       if (!res.ok) { addToast(data.error, 'error'); return; }
-      addToast('Settled ' + fmt(pair.amount) + ' \u2713', 'success');
+      addToast('Settled ' + fmt(pair.amount) + ' ✓', 'success');
       onSettled();
     } catch { addToast('Could not record settlement', 'error'); } finally { setBusy(false); }
   };
@@ -268,7 +268,7 @@ function SettleModal({ pair, members, mySplits, userId, groupId, fmt, ghostToken
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           {(['upi', 'cash', 'manual'] as const).map((m) => (
             <button key={m} onClick={() => setMethod(m)} style={{ flex: 1, padding: '10px', borderRadius: 12, border: '1px solid ' + (method === m ? C.accent : C.border2), background: method === m ? C.accentBg : 'transparent', color: method === m ? C.accent : C.text2, fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize' }}>
-              {m === 'upi' ? '\u26A1 UPI' : m === 'cash' ? '💵 Cash' : '\u270F\uFE0F Manual'}
+              {m === 'upi' ? '⚡ UPI' : m === 'cash' ? '💵 Cash' : '✏ Manual'}
             </button>
           ))}
         </div>
@@ -276,7 +276,7 @@ function SettleModal({ pair, members, mySplits, userId, groupId, fmt, ghostToken
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '13px', borderRadius: 99, border: '1px solid ' + C.border2, background: 'transparent', color: C.text2, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
           <button onClick={go} disabled={busy} style={{ flex: 2, padding: '13px', borderRadius: 99, border: 'none', background: busy ? C.surface2 : C.green, color: busy ? C.text3 : '#0a0a0a', fontSize: 14, fontWeight: 800, cursor: busy ? 'not-allowed' : 'pointer' }}>
-            {busy ? 'Recording\u2026' : 'Mark ' + fmt(pair.amount) + ' settled'}
+            {busy ? 'Recording…' : 'Mark ' + fmt(pair.amount) + ' settled'}
           </button>
         </div>
       </div>
@@ -304,7 +304,7 @@ function GroupSettingsSheet({ groupId, userId, userRole, groupName, members, sim
         body: JSON.stringify({ groupId, userId, simplify_debts: simplify }),
       });
       if (!res.ok) { const d = await res.json(); addToast(d.error || 'Save failed', 'error'); return; }
-      addToast('Group settings saved \u2713', 'success');
+      addToast('Group settings saved ✓', 'success');
       onSaved(simplify);
       onClose();
     } catch { addToast('Could not save settings', 'error'); }
@@ -320,7 +320,7 @@ function GroupSettingsSheet({ groupId, userId, userRole, groupName, members, sim
       const res = await fetch('/api/groups/' + groupId + '/members', { method: 'PATCH', headers: h, body: JSON.stringify({ callerId: userId, targetUserId: targetId, role: newRole }) });
       const d   = await res.json();
       if (!res.ok) { addToast(d.error, 'error'); return; }
-      addToast(newRole === 'admin' ? 'Promoted to admin \u2713' : 'Set to member \u2713', 'success');
+      addToast(newRole === 'admin' ? 'Promoted to admin ✓' : 'Set to member ✓', 'success');
       onSaved(simplify);
     } catch { addToast('Could not update role', 'error'); } finally { setRoleChanging(null); }
   };
@@ -363,12 +363,12 @@ function GroupSettingsSheet({ groupId, userId, userRole, groupName, members, sim
               <div style={{ fontSize: 14, fontWeight: 700, color: C.textW, marginBottom: 4 }}>Debt Simplification</div>
               <div style={{ fontSize: 12, color: C.text2, lineHeight: 1.6 }}>
                 {simplify
-                  ? 'ON \u2014 Minimises total payments using multilateral netting. Best for groups with complex overlapping debts.'
-                  : 'OFF \u2014 Shows direct bilateral balances between each pair of people.'}
+                  ? 'ON — Minimises total payments using multilateral netting. Best for groups with complex overlapping debts.'
+                  : 'OFF — Shows direct bilateral balances between each pair of people.'}
               </div>
               {simplify && (
                 <div style={{ marginTop: 10, padding: '8px 12px', background: C.accentBg, borderRadius: 10, fontSize: 11, color: C.accent, lineHeight: 1.6 }}>
-                  Example: A owes B \u20b9200, B owes C \u20b9200 \u2192 simplified to A pays C \u20b9200 directly (B owes nothing).
+                  Example: A owes B ₹200, B owes C ₹200 → simplified to A pays C ₹200 directly (B owes nothing).
                 </div>
               )}
             </div>
@@ -404,7 +404,7 @@ function GroupSettingsSheet({ groupId, userId, userRole, groupName, members, sim
                           disabled={busy}
                           style={{ padding: '4px 10px', borderRadius: 99, border: '1px solid ' + C.border2, background: 'transparent', color: mRole === 'admin' ? C.text3 : C.accent, fontSize: 11, fontWeight: 600, cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.5 : 1 }}
                         >
-                          {busy && roleChanging === m.id ? '\u2026' : mRole === 'admin' ? 'Demote' : 'Make admin'}
+                          {busy && roleChanging === m.id ? '…' : mRole === 'admin' ? 'Demote' : 'Make admin'}
                         </button>
                         <button
                           onClick={() => removeMember(m.id)}
@@ -425,7 +425,7 @@ function GroupSettingsSheet({ groupId, userId, userRole, groupName, members, sim
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '13px', borderRadius: 99, border: '1px solid ' + C.border2, background: 'transparent', color: C.text2, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
           <button onClick={save} disabled={saving} style={{ flex: 2, padding: '13px', borderRadius: 99, border: 'none', background: saving ? C.surface2 : C.accent, color: saving ? C.text3 : '#0a0a0a', fontSize: 14, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer' }}>
-            {saving ? 'Saving\u2026' : 'Save Settings'}
+            {saving ? 'Saving…' : 'Save Settings'}
           </button>
         </div>
       </div>
@@ -508,7 +508,7 @@ function ActivityTab({ groupId, userId, makeHeaders, fmt }: {
 
       {hasMore && (
         <button onClick={loadMore} disabled={loading} style={{ marginTop: 10, width: '100%', padding: '12px', borderRadius: 12, border: '1px solid ' + C.border2, background: 'transparent', color: C.text2, fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}>
-          {loading ? 'Loading\u2026' : 'Load more'}
+          {loading ? 'Loading…' : 'Load more'}
         </button>
       )}
     </div>
@@ -596,7 +596,7 @@ function FlagSheet({ tx, groupId, userId, ghostToken, onClose, onFlagged }: {
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '13px', borderRadius: 99, border: '1px solid ' + C.border2, background: 'transparent', color: C.text2, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
           <button onClick={submit} disabled={saving} style={{ flex: 2, padding: '13px', borderRadius: 99, border: 'none', background: saving ? C.surface2 : C.amber, color: saving ? C.text3 : '#0a0a0a', fontSize: 14, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer' }}>
-            {saving ? 'Flagging\u2026' : 'Flag this expense'}
+            {saving ? 'Flagging…' : 'Flag this expense'}
           </button>
         </div>
       </div>
@@ -626,7 +626,7 @@ function EditExpenseSheet({ tx, groupId, members, userId, ghostToken, fmt, onClo
   const [error, setError]             = useState<string | null>(null);
 
   const CATEGORIES = ['Dining Out', 'Groceries', 'Travel', 'Entertainment', 'Alcohol', 'Hosting Day', 'Transport', 'Utilities', 'Miscellaneous'];
-  const CAT_E: Record<string, string> = { 'Dining Out': '🍽\uFE0F', Groceries: '🛒', Travel: '\u2708\uFE0F', Entertainment: '🎬', Alcohol: '🍻', 'Hosting Day': '🏠', Transport: '🚗', Utilities: '\u26A1', Miscellaneous: '📦' };
+  const CAT_E: Record<string, string> = { 'Dining Out': '🍽', Groceries: '🛒', Travel: '✈', Entertainment: '🎬', Alcohol: '🍻', 'Hosting Day': '🏠', Transport: '🚗', Utilities: '⚡', Miscellaneous: '📦' };
 
   const inp: React.CSSProperties = { width: '100%', background: C.surface2, border: '1.5px solid transparent', borderRadius: 12, color: C.textW, fontFamily: 'inherit', fontSize: 14, padding: '11px 14px', outline: 'none', boxSizing: 'border-box' };
 
@@ -663,13 +663,13 @@ function EditExpenseSheet({ tx, groupId, members, userId, ghostToken, fmt, onClo
         <div style={{ background: C.surface2, borderRadius: 16, padding: '16px', textAlign: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.text3, marginBottom: 8 }}>Amount</div>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4 }}>
-            <span style={{ fontSize: 22, fontWeight: 700, color: C.text3 }}>\u20B9</span>
+            <span style={{ fontSize: 22, fontWeight: 700, color: C.text3 }}>₹</span>
             <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal"
               style={{ background: 'transparent', border: 'none', outline: 'none', color: C.textW, fontFamily: 'inherit', fontSize: 42, fontWeight: 900, textAlign: 'center', width: 200 }} />
           </div>
           {amountChanged && (
             <div style={{ fontSize: 11, color: C.amber, marginTop: 6 }}>
-              \u26A0\uFE0F Splits will be recalculated equally between the original participants
+              ⚠ Splits will be recalculated equally between the original participants
             </div>
           )}
         </div>
@@ -710,7 +710,7 @@ function EditExpenseSheet({ tx, groupId, members, userId, ghostToken, fmt, onClo
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '13px', borderRadius: 99, border: '1px solid ' + C.border2, background: 'transparent', color: C.text2, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
           <button onClick={save} disabled={saving} style={{ flex: 2, padding: '13px', borderRadius: 99, border: 'none', background: saving ? C.surface2 : C.accent, color: saving ? C.text3 : '#0a0a0a', fontSize: 14, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer' }}>
-            {saving ? 'Saving\u2026' : 'Save changes'}
+            {saving ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       </div>
@@ -876,18 +876,34 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
         fetch('/api/groups/' + groupId + '/transactions?userId=' + userId, { headers: makeHeaders() }),
         fetch('/api/groups/' + groupId + '/settle?userId=' + userId,       { headers: makeHeaders() }),
       ]);
-      const [txData, balData] = await Promise.all([txRes.json(), balRes.json()]);
-      setTransactions(txData.transactions ?? []);
-      setBalanceData(balData);
-      if (balData.simplify_debts !== undefined) setSimplifyDebts(balData.simplify_debts);
-      if (Array.isArray(balData.members) && balData.members.length > 0) {
-        setMembers(balData.members);
-        // Extract current user's role from the member list
-        const me = balData.members.find((m: Profile) => m.id === userId);
-        if (me?.role) setUserRole(me.role as 'admin' | 'member');
+
+      // Parse each response safely so one failure doesn't block the other
+      const safe = async (r: Response) => { try { return await r.json(); } catch { return null; } };
+      const [txData, balData] = await Promise.all([safe(txRes), safe(balRes)]);
+
+      if (txData && !txData.error) {
+        setTransactions(txData.transactions ?? []);
+      } else if (txData?.error) {
+        console.error('[GroupDetail] tx error:', txData.error);
       }
-    } catch { addToast('Could not load group data', 'error'); }
-    finally { setLoading(false); }
+
+      if (balData && !balData.error) {
+        setBalanceData(balData);
+        if (balData.simplify_debts !== undefined) setSimplifyDebts(balData.simplify_debts);
+        if (Array.isArray(balData.members) && balData.members.length > 0) {
+          setMembers(balData.members);
+          const me = balData.members.find((m: Profile) => m.id === userId);
+          if (me?.role) setUserRole(me.role as 'admin' | 'member');
+        }
+      } else if (balData?.error) {
+        console.error('[GroupDetail] balance error:', balData.error);
+      }
+    } catch (e) {
+      console.error('[GroupDetail] loadData error:', e);
+      addToast('Could not load group data', 'error');
+    } finally {
+      setLoading(false);
+    }
   }, [groupId, userId, makeHeaders]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -906,7 +922,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
     return { myNetBalance, totalOwedToMe, totalIOwe, memberNetMap };
   }, [balanceData?.net_pairs, userId]);
 
-  const handleExpenseAdded = () => { setShowAddExpense(false); loadData(); addToast('Expense added \u2713', 'success'); };
+  const handleExpenseAdded = () => { setShowAddExpense(false); loadData(); addToast('Expense added ✓', 'success'); };
   const handleDeleteTx     = (txId: string) => setDeleteConfirmId(txId);
   const handleEditTx       = (tx: Transaction)   => setEditingTx(tx);
   const handleFlagTx       = (tx: Transaction)   => setFlaggingTx(tx);
@@ -938,8 +954,8 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
   };
 
   const headerSub = (() => {
-    if (loading)            return { text: 'Loading\u2026', color: C.text3 };
-    if (myNetBalance === 0) return { text: 'All settled up \u2713', color: C.text3 };
+    if (loading)            return { text: 'Loading…', color: C.text3 };
+    if (myNetBalance === 0) return { text: 'All settled up ✓', color: C.text3 };
     if (myNetBalance > 0)   return { text: 'You are owed ' + fmt(myNetBalance), color: C.green };
     return { text: 'You owe ' + fmt(Math.abs(myNetBalance)), color: C.red };
   })();
@@ -977,7 +993,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
       {simplifyDebts && !loading && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: C.accentBg, borderRadius: 12, marginBottom: 12, border: '1px solid ' + C.accent + '33' }}>
           <Icon name="sparkles" size={14} color={C.accent} />
-          <span style={{ fontSize: 12, color: C.accent, fontWeight: 600 }}>Debt simplification is ON \u2014 balances show minimum payments needed</span>
+          <span style={{ fontSize: 12, color: C.accent, fontWeight: 600 }}>Debt simplification is ON — balances show minimum payments needed</span>
         </div>
       )}
 
@@ -1121,7 +1137,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
         ) : (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={() => setShowAddExpense(false)}>
             <div style={{ background: C.surface, borderRadius: '24px 24px 0 0', padding: '32px 24px 48px', maxWidth: 480, width: '100%', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-              <div style={{ fontSize: 14, color: C.text2, marginBottom: 8 }}>Loading group members\u2026</div>
+              <div style={{ fontSize: 14, color: C.text2, marginBottom: 8 }}>Loading group members…</div>
               <button onClick={() => setShowAddExpense(false)} style={{ marginTop: 20, padding: '12px 28px', borderRadius: 99, border: '1px solid ' + C.border2, background: 'transparent', color: C.text2, fontSize: 14, cursor: 'pointer' }}>Close</button>
             </div>
           </div>
