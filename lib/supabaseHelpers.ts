@@ -366,7 +366,10 @@ function expenseToRow(e: Expense, householdId: string, settings: Settings) {
     category: e.category,
     type: e.type,
     account_used: toSystemKey(e.account, settings),
-    added_by: toSystemKey(e.addedBy, settings),
+    
+    // Add the ?? '' fallback here:
+    added_by: toSystemKey(e.addedBy ?? '', settings),
+    
     note: e.note,
     settled: e.settled,
     settled_with: e.settledFor ? toSystemKey(e.settledFor, settings) : null,
