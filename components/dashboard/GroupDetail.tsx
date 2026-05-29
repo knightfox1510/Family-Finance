@@ -303,9 +303,10 @@ function GroupSettingsSheet({ groupId, userId, userRole, groupName, members, sim
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ groupId, userId, simplify_debts: simplify }),
       });
-      if (!res.ok) { const d = await res.json(); addToast(d.error || 'Save failed', 'error'); return; }
+      const d = await res.json();
+      if (!res.ok) { addToast(d.error || 'Save failed', 'error'); return; }
       addToast('Group settings saved ✓', 'success');
-      onSaved(simplify);
+      onSaved(simplify);   // updates parent state — does NOT trigger loadData
       onClose();
     } catch { addToast('Could not save settings', 'error'); }
     finally { setSaving(false); }
@@ -1148,7 +1149,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
       {showSettings && (
         <GroupSettingsSheet groupId={groupId} userId={userId} userRole={userRole} groupName={groupName} members={members} simplifyDebts={simplifyDebts}
           onClose={() => setShowSettings(false)}
-          onSaved={(v) => { setSimplifyDebts(v); loadData(); }}
+          onSaved={(v) => { setSimplifyDebts(v); }}   {/* no loadData — avoids overriding saved value */}
         />
       )}
 
