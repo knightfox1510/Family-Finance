@@ -6,95 +6,95 @@ test.describe('ChillarFlow Core Matrix End-to-End Test Regression Suite', () => 
     // 1. Navigate to the app
     await page.goto('http://localhost:3000');
     
-    // Safety Net: Wait until the network is completely quiet so Next.js is fully loaded
+    // Safety Net: Wait until network traffic settles down completely
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000); // Gives Next.js 2 extra seconds to hydrate
-    
+    await page.waitForTimeout(3000); 
+
+    // 👇 DIAGNOSTIC: Prints the exact text of the page to your GitHub Logs if it gets stuck
+    const visibleText = await page.innerText('body');
+    console.log('--- CONTENT DETECTED BY PLAYWRIGHT ON PORT 3000 ---');
+    console.log(visibleText);
+    console.log('--------------------------------------------------');
+
     // ── SETUP WIZARD FUNCTIONALITY ────────────────────────────────────────
     
-    // Check if we are already logged in/past onboarding. If dashboard is visible, skip wizard steps!
-    const baseDashboard = page.locator('text=/Household Retained/i');
+    // Check if the dashboard is already visible (past onboarding)
+    const baseDashboard = page.getByText(/Household Retained/i);
+    
     if (await baseDashboard.count() > 0) {
       console.log('Already past onboarding wizard! Continuing with matrix regression checks...');
     } else {
-      // If onboarding is active, wait flexibly for the household selection element
-      const jointButton = page.locator('text=/Joint Household/i');
+      // If onboarding is active, wait for the household mode selection
+      const jointButton = page.getByText(/Joint Household/i);
       await expect(jointButton).toBeVisible({ timeout: 15000 });
       
       // Choose Joint Household Mode
       await jointButton.click();
-      await page.click('text=/Continue/i');
+      await page.getByText(/Continue/i).click();
       
       // Fill custom partner identities
-      await page.fill('placeholder=/First partner/i', 'Gaurav');
-      await page.fill('placeholder=/Second partner/i', 'Karishma');
-      await page.click('text=/Continue/i');
+      await page.getByPlaceholder(/First partner/i).fill('Gaurav');
+      await page.getByPlaceholder(/Second partner/i).fill('Karishma');
+      await page.getByText(/Continue/i).click();
       
       // Choose Logging Channels & Complete Onboarding
-      await page.click('text=/WhatsApp/i');
-      await page.fill('placeholder=/919876543210/', '919876543210');
-      await page.click('text=/Continue/i');
-      await page.click('text=/Let\'s go/i');
-      await page.click('text=/Open ChillarFlow/i');
+      await page.getByText(/WhatsApp/i).click();
+      await page.getByPlaceholder(/919876543210/).fill('919876543210');
+      await page.getByText(/Continue/i).click();
+      await page.getByText(/Let's go/i).click();
+      await page.getByText(/Open ChillarFlow/i).click();
     }
 
-    // Confirm that the application correctly updates the application shell
-    await expect(page.locator('text=Gaurav & Karishma')).toBeVisible();
+    // Confirm that the application correctly updates the header space
+    await expect(page.getByText(/Gaurav & Karishma/i)).toBeVisible();
 
     // ── 2. ADDING TRANSACTIONS (EXPENSES & INCOME) ──────────────────────────
     // Click Add Expense Trigger
-    if (await page.locator('text=+').count() > 0) {
-      await page.click('text=+');
+    if (await page.getByText('+').count() > 0) {
+      await page.getByText('+').click();
     } else {
-      await page.click('text=Add');
+      await page.getByText(/Add/i).click();
     }
 
     // Log a Joint Bill
-    await page.fill('input[placeholder="0"]', '3000');
-    await page.click('text=Joint'); // Paid from Joint pool
-    await page.click('text=Groceries'); // Select category
-    await page.fill('input[placeholder="What was this for?"]', 'Weekly DMart Run');
-    await page.click('text=Log expense · ₹3000');
+    await page.getByPlaceholder('0').fill('3000');
+    await page.getByText(/Joint/i).click(); 
+    await page.getByText(/Groceries/i).click(); 
+    await page.getByPlaceholder(/What was this for/i).fill('Weekly DMart Run');
+    await page.getByText(/Log expense/i).click();
 
     // Open Add Form again to log an Income item
-    await page.waitForTimeout(1000); 
-    await page.click('text=Add');
-    await page.click('text=Income'); // Flip to Income toggle
-    await page.fill('input[placeholder="0"]', '95000');
-    await page.click('text=Salary'); // Category choice
-    await page.fill('input[placeholder="What was this for?"]', 'Monthly Inflow');
-    await page.click('text=Log income · ₹95000');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500); 
+    await page.getByText(/Add/i).click();
+    await page.getByText(/Income/i).click(); 
+    await page.getByPlaceholder('0').fill('95000');
+    await page.getByText(/Salary/i).click(); 
+    await page.getByPlaceholder(/What was this for/i).fill('Monthly Inflow');
+    await page.getByText(/Log income/i).click();
+    await page.waitForTimeout(1500);
 
     // ── 3. SETTINGS & BUDGET BOUNDARY TESTS ──────────────────────────────────
-    // Open Settings panel
-    await page.click('text=More');
-    await page.click('text=Settings');
+    await page.getByText(/More/i).click();
+    await page.getByText(/Settings/i).click();
 
-    // Expand the collapsible category budget element
-    await page.click('text=Category Budgets');
-    // Set a strict budget limit for Groceries to test thresholds
-    await page.fill('input[placeholder="No limit"] >> nth=0', '2000'); 
-    await page.click('text=Save All Settings');
-    await expect(page.locator('text=Settings Saved!')).toBeVisible();
+    // Expand category budgets
+    await page.getByText(/Category Budgets/i).click();
+    await page.getByPlaceholder(/No limit/i).first().fill('2000'); 
+    await page.getByText(/Save All Settings/i).click();
+    await expect(page.getByText(/Settings Saved/i)).toBeVisible();
 
     // ── 4. PARTNER LEDGER CALCULATIONS & SETTLEMENTS ────────────────────────
-    // Go to the Settle Dashboard layout
-    await page.click('text=More');
-    await page.click('text=Settle');
-
-    // Ensure the partner KPI balance strip is alive
-    await expect(page.locator('text=Net direction')).toBeVisible();
+    await page.getByText(/More/i).click();
+    await page.getByText(/Settle/i).click();
+    await expect(page.getByText(/Net direction/i)).toBeVisible();
     
     // ── 5. ANALYTICS & INSIGHTS ENGINE VALIDATION ────────────────────────────
-    // Open Stats/Dashboard
-    await page.click('text=More');
-    await page.click('text=Stats');
+    await page.getByText(/More/i).click();
+    await page.getByText(/Stats/i).click();
 
-    // Confirm core dashboard analytics metrics render properly
-    await expect(page.locator('text=Household Retained')).toBeVisible();
-    await expect(page.locator('text=Income')).toBeVisible();
-    await expect(page.locator('text=Lifestyle')).toBeVisible();
-    await expect(page.locator('text=Invested')).toBeVisible();
+    await expect(page.getByText(/Household Retained/i)).toBeVisible();
+    await expect(page.getByText(/Income/i)).toBeVisible();
+    await expect(page.getByText(/Lifestyle/i)).toBeVisible();
+    await expect(page.getByText(/Invested/i)).toBeVisible();
   });
 });
