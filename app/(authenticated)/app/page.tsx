@@ -9,6 +9,7 @@
 // All data logic is in useActions.ts, all DB calls in supabaseHelpers.ts.
 // All types are in types/index.ts. Design tokens are in constants/index.ts.
 
+// ─── app/app/page.tsx ─────────────────────────────────────────────────────────────
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -24,6 +25,7 @@ import { ToastContainer, BottomNav, QuickTray, addToast } from '@/components/ui/
 import { C, navForMode } from '@/constants';
 import { Icon } from '@/components/ui/Icon';
 import type { AppData, ViewId, HouseholdMode } from '@/types';
+import { Avatar } from '@/components/ui/Avatar'; // Imported avatar subcomponent
 
 // ─── View imports ─────────────────────────────────────────────────────────────
 import { Dashboard }        from '@/components/dashboard/Dashboard';
@@ -39,7 +41,6 @@ import { AIInsights }       from '@/components/dashboard/AIInsights';
 import { Settings }         from '@/components/dashboard/Settings';
 import { Home }             from '@/components/dashboard/Home';
 
-// ─── Utility ─────────────────────────────────────────────────────────────────
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -76,7 +77,6 @@ function exportToExcel(data: AppData) {
   XLSX.writeFile(wb, `ChillarFlow_${today()}.xlsx`);
 }
 
-// ─── App root ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [session, setSession]           = useState<any>(null);
   const [data, setData]                 = useState<AppData | null>(null);
@@ -90,11 +90,9 @@ export default function App() {
   const [privacyMode, setPrivacyMode] = useState(false);
   const [showMore, setShowMore]       = useState(false);
   const [planInfo, setPlanInfo] = useState<{ plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string } | undefined>(undefined);
-
-  // Theme — start with server-safe default, then read localStorage client-side
   const [theme, setTheme] = useState('obsidian');
 
-  React.useEffect(() => {
+  useEffect(() => {
     const saved = localStorage.getItem('cf_theme') || 'obsidian';
     setTheme(saved);
     document.documentElement.setAttribute('data-theme', saved);
@@ -106,9 +104,6 @@ export default function App() {
     localStorage.setItem('cf_theme', t);
   };
 
-  const [duplicateData, setDuplicateData] = useState<any>(null);
-
-  // ── Auth ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setSession(user ? { user } : null);
@@ -125,7 +120,6 @@ export default function App() {
     }
   }, [session]);
 
-  // ── Mobile detection ──────────────────────────────────────────────────────
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
     check();
@@ -133,7 +127,6 @@ export default function App() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // ── Invite link redirect — reads ?group= param and opens Groups tab ───────
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('group')) {
@@ -141,10 +134,8 @@ export default function App() {
     }
   }, []);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
   const actions = useActions({ data: data!, setData: setData as any, session, addToast });
 
-  // ── Offline queue + online/offline detection ──────────────────────────────
   const [offlineQueue, setOfflineQueue] = React.useState<any[]>(() => {
     try { return JSON.parse(localStorage.getItem('cf_offline_queue') || '[]'); } catch { return []; }
   });
@@ -169,7 +160,6 @@ export default function App() {
     return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
   }, [actions, addToast]);
 
-  // ── Manual refresh ────────────────────────────────────────────────────────
   const handleManualRefresh = async () => {
     if (!session || isRefreshing) return;
     setIsRefreshing(true);
@@ -181,7 +171,6 @@ export default function App() {
     }
   };
 
-  // ── Partner calculations ──────────────────────────────────────────────────
   const partnerCalculations = useMemo(() => {
     if (!data) return { p2pNetBalance: 0, pendingPartnerItems: [] };
     const names = { a: data.settings.partnerAName, b: data.settings.partnerBName };
@@ -231,7 +220,6 @@ export default function App() {
     return { p2pNetBalance, pendingPartnerItems };
   }, [data?.expenses, data?.settings.partnerAName, data?.settings.partnerBName]);
 
-  // ── Plan info loader ──────────────────────────────────────────────────────
   React.useEffect(() => {
     if (!data?.householdId) return;
     import('@/lib/planUtils').then(({ getUsageSummary }) => {
@@ -245,7 +233,6 @@ export default function App() {
     });
   }, [data?.householdId]);
 
-  // ── First-time setup wizard ───────────────────────────────────────────────
   const needsSetup = data && !data.settings.setupComplete;
 
   const handleSetupComplete = async (mode: HouseholdMode, nameA: string, nameB: string, telegramUsername?: string) => {
@@ -267,33 +254,29 @@ export default function App() {
     setData(fresh);
   };
 
-  // ── Guards ────────────────────────────────────────────────────────────────
-if (loading || !data) {
-  return (
-    <div className="cf-loader-page animate-fade-in">
-      <div className="cf-loader-logo">
-        {/* 🪙 Official Branding: High-fidelity Vector Coin Mark */}
-        <CoinMark size={52} color="var(--accent)" variant="parent" />
-        <div className="cf-loader-ring" />
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
-        <div style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>
-          ChillarFlow
+  if (loading || !data) {
+    return (
+      <div className="cf-loader-page animate-fade-in">
+        <div className="cf-loader-logo">
+          <CoinMark size={52} color="var(--accent)" variant="parent" />
+          <div className="cf-loader-ring" />
         </div>
-        <div style={{ color: 'var(--text2)', fontSize: 13, fontWeight: 500, opacity: 0.7 }}>
-          Syncing household configurations…
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
+          <div style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>
+            ChillarFlow
+          </div>
+          <div style={{ color: 'var(--text2)', fontSize: 13, fontWeight: 500, opacity: 0.7 }}>
+            Syncing household configurations…
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
   if (needsSetup) {
     return <SetupWizard onComplete={handleSetupComplete} />;
   }
 
-  // ── Derive nav based on mode ──────────────────────────────────────────────
   const mode        = data.settings.householdMode ?? 'joint';
   const nav         = navForMode(mode);
   const isSolo      = mode === 'solo';
@@ -331,15 +314,12 @@ if (loading || !data) {
     { id: 'settings',  label: 'Settings',    icon: 'settings', subtitle: 'Household, data, notifications' },
   ];
 
-  // ── Layout ────────────────────────────────────────────────────────────────
   return (
     <div
       style={{
         background: C.bg, minHeight: '100vh',
         fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,sans-serif",
-        color: C.textW,
-        display: 'flex',
-        flexDirection: isMobile ? 'column' : 'row',
+        color: C.textW, display: 'flex', flexDirection: isMobile ? 'column' : 'row',
       }}
     >
       {/* DESKTOP SIDEBAR */}
@@ -348,13 +328,11 @@ if (loading || !data) {
           style={{
             width: sidebarOpen ? 240 : 80,
             transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
-            background: C.surface,
-            borderRight: `1px solid ${C.border}`,
+            background: C.surface, borderRight: `1px solid ${C.border}`,
             display: 'flex', flexDirection: 'column',
             position: 'sticky', top: 0, height: '100vh', overflowX: 'hidden',
           }}
         >
-          {/* Logo + toggle */}
           <div style={{
             padding: sidebarOpen ? '24px 20px' : '24px 0',
             display: 'flex', alignItems: 'center',
@@ -377,7 +355,6 @@ if (loading || !data) {
             </button>
           </div>
 
-          {/* Nav items */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '20px 12px', flex: 1, overflowY: 'auto' }}>
             {[
               { id: 'home', label: 'Home', icon: 'home' },
@@ -389,15 +366,10 @@ if (loading || !data) {
                 title={n.label}
                 style={{
                   background: view === n.id ? C.amber + '22' : 'transparent',
-                  border: 'none',
-                  color: view === n.id ? C.amber : C.text2,
-                  borderRadius: 10,
-                  padding: sidebarOpen ? '12px 16px' : '12px',
-                  cursor: 'pointer', fontSize: 14,
-                  fontWeight: view === n.id ? 700 : 600,
-                  display: 'flex', alignItems: 'center',
-                  justifyContent: sidebarOpen ? 'flex-start' : 'center',
-                  gap: 12, transition: 'all .2s', textAlign: 'left',
+                  border: 'none', color: view === n.id ? C.amber : C.text2, borderRadius: 10,
+                  padding: sidebarOpen ? '12px 16px' : '12px', cursor: 'pointer', fontSize: 14,
+                  fontWeight: view === n.id ? 700 : 600, display: 'flex', alignItems: 'center',
+                  justifyContent: sidebarOpen ? 'flex-start' : 'center', gap: 12, transition: 'all .2s', textAlign: 'left',
                 }}
               >
                 <Icon name={n.icon} size={18} color={view === n.id ? C.amber : C.text2} />
@@ -406,7 +378,6 @@ if (loading || !data) {
             ))}
           </div>
 
-          {/* Offline banner */}
           {!isOnline && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9998, background: '#f59e0b', color: '#0b0f1a', padding: '8px 16px', textAlign: 'center', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               ⚠️ You are offline. Expenses will be saved and synced when you reconnect.
@@ -414,7 +385,6 @@ if (loading || !data) {
             </div>
           )}
 
-          {/* Footer: email + privacy + logout */}
           <div style={{ padding: '0 20px 6px', fontSize: 11, color: C.text2, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {sidebarOpen ? session.user.email : ''}
           </div>
@@ -444,22 +414,24 @@ if (loading || !data) {
         {isMobile && (
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '12px 16px',
-            paddingTop: 'max(12px, env(safe-area-inset-top))',
-            borderBottom: `1px solid ${C.border}`,
-            background: C.bg, position: 'sticky', top: 0, zIndex: 50,
+            padding: '12px 16px', paddingTop: 'max(12px, env(safe-area-inset-top))',
+            borderBottom: `1px solid ${C.border}`, background: C.bg, position: 'sticky', top: 0, zIndex: 50,
           }}>
             <button
               onClick={() => { setView('settings'); setShowMore(false); }}
               style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-              <div style={{
-                width: 38, height: 38, borderRadius: '50%',
-                background: C.accentBg, border: `2px solid ${C.accent}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 15, fontWeight: 800, color: C.accent, flexShrink: 0,
-              }}>
-                {(data?.settings?.partnerAName?.[0] ?? 'C').toUpperCase()}
-              </div>
+              
+              {/* Dynamic Avatar UI Integration */}
+              <Avatar
+                profile={{
+                  id:           session?.user?.id ?? '',
+                  display_name: data?.settings?.partnerAName,
+                  avatar_url:   (data as any)?.profile?.avatar_url ?? null,
+                }}
+                size={38}
+                highlight={C.accent}
+              />
+
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontSize: 18, color: C.textW, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.02em' }}>
                   {view === 'home' ? 'ChillarFlow' : view === 'dashboard' ? 'Stats' : nav.find((n) => n.id === view)?.label ?? 'ChillarFlow'}
@@ -499,15 +471,11 @@ if (loading || !data) {
               </h2>
               {view !== 'add' && view !== 'settings' && (
                 <button
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshing}
+                  onClick={handleManualRefresh} disabled={isRefreshing}
                   style={{
                     background: 'transparent', border: `1px solid ${C.border}`,
-                    color: isRefreshing ? C.text2 : C.text1,
-                    padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    cursor: isRefreshing ? 'not-allowed' : 'pointer',
-                    opacity: isRefreshing ? 0.6 : 1,
+                    color: isRefreshing ? C.text2 : C.text1, padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                    display: 'flex', alignItems: 'center', gap: 8, cursor: isRefreshing ? 'not-allowed' : 'pointer', opacity: isRefreshing ? 0.6 : 1,
                   }}
                 >
                   <Icon name={isRefreshing ? 'clock' : 'refresh'} size={14} color={isRefreshing ? C.text2 : C.text1} />
@@ -519,52 +487,17 @@ if (loading || !data) {
 
           {/* ── View router ──────────────────────────────────────────────── */}
           {view === 'home' && (
-            <Home
-              data={data}
-              fmt={fmt$}
-              onNavigate={(v) => setView(v as ViewId)}
-              session={session}
-              onAddExpense={() => { setPrevView(view); setView('add'); }}
-            />
+            <Home data={data} fmt={fmt$} onNavigate={(v) => setView(v as ViewId)} session={session} onAddExpense={() => { setPrevView(view); setView('add'); }} />
           )}
           {view === 'dashboard' && (
             <Dashboard data={data} onAddExpense={actions.addExpense} fmt={fmt$} />
           )}
           {view === 'add' && (
-            <AddExpense
-              data={data}
-              isOnline={isOnline}
-              session={session}
-              duplicateData={duplicateData}
-              onAdd={actions.addExpense}
-              onUpdateSave={actions.updateExpense}
-              onClose={() => { setDuplicateData(null); setView(prevView); }}
-            />
+            <AddExpense data={data} isOnline={isOnline} session={session} duplicateData={duplicateData} onAdd={actions.addExpense} onUpdateSave={actions.updateExpense} onClose={() => { setDuplicateData(null); setView(prevView); }} />
           )}
           {view === 'income' && <IncomeTracker data={data} fmt={fmt$} />}
           {view === 'expenses' && (
-            <ExpenseList
-              data={data}
-              fmt={fmt$}
-              onToggleToSettle={actions.toggleToSettle}
-              onDelete={actions.deleteExpense}
-              onUpdate={actions.updateExpense}
-              onUnsettle={actions.unsettle}
-              onBulkDelete={actions.bulkDeleteExpense}
-              onBulkFlagToSettle={actions.bulkFlagToSettle}
-              onBulkMarkAsSettled={actions.bulkMarkAsSettled}
-              onBulkAssignToAccount={actions.bulkAssignToAccount}
-              onTriggerEdit={(tx: any) => {
-                setDuplicateData({ ...tx, isRecurring: tx.isRecurring ?? false, recurrenceInterval: tx.recurrenceInterval ?? 'monthly' });
-                setPrevView(view);
-                setView('add');
-              }}
-              onDuplicate={(e: any) => {
-                setDuplicateData({ ...e, date: today(), amount: String(e.amount), id: null });
-                setPrevView(view);
-                setView('add');
-              }}
-            />
+            <ExpenseList data={data} fmt={fmt$} onToggleToSettle={actions.toggleToSettle} onDelete={actions.deleteExpense} onUpdate={actions.updateExpense} onUnsettle={actions.unsettle} onBulkDelete={actions.bulkDeleteExpense} onBulkFlagToSettle={actions.bulkFlagToSettle} onBulkMarkAsSettled={actions.bulkMarkAsSettled} onBulkAssignToAccount={actions.bulkAssignToAccount} onTriggerEdit={(tx: any) => { setDuplicateData({ ...tx, isRecurring: tx.isRecurring ?? false, recurrenceInterval: tx.recurrenceInterval ?? 'monthly' }); setPrevView(view); setView('add'); }} onDuplicate={(e: any) => { setDuplicateData({ ...e, date: today(), amount: String(e.amount), id: null }); setPrevView(view); setView('add'); }} />
           )}
           {view === 'settle' && mode !== 'solo' && (
             <SettleDashboard data={data} fmt={fmt$} onBulkSettle={actions.bulkSettle} partnerCalculations={partnerCalculations} actions={actions} />
@@ -591,6 +524,7 @@ if (loading || !data) {
               onExport={() => exportToExcel(data)}
               onImport={actions.importData}
               onJoinHousehold={(id: string) => actions.joinHousehold(id, setLoading)}
+              session={session} // Session reference passed successfully here
             />
           )}
         </div>
@@ -600,15 +534,10 @@ if (loading || !data) {
           <button
             onClick={() => { setPrevView(view); setView('add'); }}
             style={{
-              position: 'fixed', bottom: 40, right: 40,
-              width: 56, height: 56, borderRadius: '50%',
-              background: C.accent,
-              color: '#0a0a0a', border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 28, fontWeight: 300,
-              boxShadow: '0 4px 20px rgba(240,180,41,0.4)',
-              zIndex: 1000,
-              transition: 'transform 0.15s, box-shadow 0.15s',
+              position: 'fixed', bottom: 40, right: 40, width: 56, height: 56, borderRadius: '50%',
+              background: C.accent, color: '#0a0a0a', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 300,
+              boxShadow: '0 4px 20px rgba(240,180,41,0.4)', zIndex: 1000, transition: 'transform 0.15s, box-shadow 0.15s',
             }}
           >
             +
@@ -619,37 +548,25 @@ if (loading || !data) {
       {/* MOBILE BOTTOM NAV */}
       {isMobile && (
         <>
-          {/* More drawer */}
           {showMore && (
-            <div style={{ position: 'fixed', inset: 0, zIndex: 950 }}
-              onClick={() => setShowMore(false)}>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 950 }} onClick={() => setShowMore(false)}>
               <div style={{
-                position: 'absolute', bottom: 72, left: 0, right: 0,
-                background: C.surface,
-                borderTop: `1px solid ${C.border}`,
-                borderRadius: '24px 24px 0 0',
-                boxShadow: '0 -16px 48px rgba(0,0,0,0.5)',
-                maxHeight: '72vh', overflowY: 'auto',
+                position: 'absolute', bottom: 72, left: 0, right: 0, background: C.surface,
+                borderTop: `1px solid ${C.border}`, borderRadius: '24px 24px 0 0',
+                boxShadow: '0 -16px 48px rgba(0,0,0,0.5)', maxHeight: '72vh', overflowY: 'auto',
               }} onClick={(e) => e.stopPropagation()}>
                 <div style={{ width: 40, height: 4, background: C.border2, borderRadius: 99, margin: '16px auto 8px' }} />
                 {(moreNavItems as any[]).map((n: any, i: number) => {
                   const isActive = view === n.id;
                   const isLast   = i === moreNavItems.length - 1;
                   return (
-                    <button key={n.id}
-                      onClick={() => { setView(n.id as ViewId); setShowMore(false); }}
+                    <button key={n.id} onClick={() => { setView(n.id as ViewId); setShowMore(false); }}
                       style={{
-                        display: 'flex', alignItems: 'center', gap: 16,
-                        width: '100%', background: 'transparent', border: 'none',
-                        borderBottom: isLast ? 'none' : `1px solid ${C.border}`,
-                        padding: '14px 20px', cursor: 'pointer', textAlign: 'left',
+                        display: 'flex', alignItems: 'center', gap: 16, width: '100%', background: 'transparent', border: 'none',
+                        borderBottom: isLast ? 'none' : `1px solid ${C.border}`, padding: '14px 20px', cursor: 'pointer', textAlign: 'left',
                         WebkitTapHighlightColor: 'transparent',
                       }}>
-                      <div style={{
-                        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                        background: isActive ? C.accentBg : C.surface2,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: isActive ? C.accentBg : C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Icon name={n.icon} size={20} color={isActive ? C.accent : C.text2} />
                       </div>
                       <div style={{ flex: 1 }}>
@@ -665,82 +582,47 @@ if (loading || !data) {
           )}
 
           <nav style={{
-            position: 'fixed', bottom: 0, left: 0, right: 0,
-            background: C.surface,
-            borderTop: `1px solid ${C.border}`,
-            display: 'flex', alignItems: 'center',
-            paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
-            paddingTop: 4,
-            zIndex: 900,
-            boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
+            position: 'fixed', bottom: 0, left: 0, right: 0, background: C.surface, borderTop: `1px solid ${C.border}`,
+            display: 'flex', alignItems: 'center', paddingBottom: 'max(8px, env(safe-area-inset-bottom))', paddingTop: 4,
+            zIndex: 900, boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
           }}>
             {primaryNavItems.map((n) => {
               if (n.id === 'add') {
                 return (
-                  <button key="add"
-                    onClick={() => { setPrevView(view); setView('add'); setShowMore(false); }}
+                  <button key="add" onClick={() => { setPrevView(view); setView('add'); setShowMore(false); }}
                     style={{
                       flex: 1, background: 'transparent', border: 'none', cursor: 'pointer',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                      padding: '2px 2px 4px',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '2px 2px 4px',
                       WebkitTapHighlightColor: 'transparent',
                     }}>
-                    <div style={{
-                      width: 52, height: 52, borderRadius: 16,
-                      background: C.accent, color: '#0a0a0a',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 26, fontWeight: 300,
-                      marginTop: -14,
-                      boxShadow: '0 4px 16px rgba(240,180,41,0.4)',
-                    }}>+</div>
-                    <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: C.accent }}>
-                      Add
-                    </span>
+                    <div style={{ width: 52, height: 52, borderRadius: 16, background: C.accent, color: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 300, marginTop: -14, boxShadow: '0 4px 16px rgba(240,180,41,0.4)' }}>+</div>
+                    <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: C.accent }}>Add</span>
                   </button>
                 );
               }
               if (n.id === 'more') {
                 return (
-                  <button key="more"
-                    onClick={() => setShowMore(!showMore)}
+                  <button key="more" onClick={() => setShowMore(!showMore)}
                     style={{
                       flex: 1, background: 'transparent', border: 'none', cursor: 'pointer',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                      padding: '8px 2px 4px', WebkitTapHighlightColor: 'transparent',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '8px 2px 4px', WebkitTapHighlightColor: 'transparent',
                     }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 12,
-                      background: showMore ? C.accentBg : 'transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      transition: 'background 0.15s',
-                    }}><Icon name="more" size={20} color={showMore ? C.accent : C.text3} /></div>
+                    <div style={{ width: 36, height: 36, borderRadius: 12, background: showMore ? C.accentBg : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}><Icon name="more" size={20} color={showMore ? C.accent : C.text3} /></div>
                     <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: showMore ? C.accent : C.text3 }}>More</span>
                   </button>
                 );
               }
               const isActive = view === n.id && !showMore;
               return (
-                <button key={n.id}
-                  onClick={() => { setView(n.id as ViewId); setShowMore(false); }}
+                <button key={n.id} onClick={() => { setView(n.id as ViewId); setShowMore(false); }}
                   style={{
                     flex: 1, background: 'transparent', border: 'none', cursor: 'pointer',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                    padding: '8px 2px 4px', WebkitTapHighlightColor: 'transparent',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '8px 2px 4px', WebkitTapHighlightColor: 'transparent',
                   }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 12,
-                    background: isActive ? C.accentBg : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'background 0.15s',
-                  }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 12, background: isActive ? C.accentBg : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}>
                     <Icon name={n.icon} size={20} color={isActive ? C.accent : C.text3} />
                   </div>
-                  <span style={{
-                    fontSize: 9, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
-                    color: isActive ? C.accent : C.text3, transition: 'color 0.15s',
-                  }}>
-                    {n.label}
-                  </span>
+                  <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: isActive ? C.accent : C.text3, transition: 'color 0.15s' }}>{n.label}</span>
                 </button>
               );
             })}
@@ -748,14 +630,12 @@ if (loading || !data) {
         </>
       )}
 
-{isRefreshing && (
+      {isRefreshing && (
         <div className="cf-refresh-overlay animate-fade-in">
           <div className="cf-loader-logo">
-            {/* 🪙 Official Branding: Hustle Step Variant for Data Syncing */}
             <CoinMark size={48} color="var(--accent)" variant="hustle" />
             <div className="cf-loader-ring" />
           </div>
-          
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
             <div style={{ color: 'var(--accent)', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
               Updating Ledger Matrices
@@ -767,7 +647,6 @@ if (loading || !data) {
         </div>
       )}
 
-      {/* Toast notifications */}
       <ToastContainer />
     </div>
   );
