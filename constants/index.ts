@@ -156,7 +156,7 @@ export const HEX = {
 // Household mode meta (labels shown in the setup wizard and settings)
 // ---------------------------------------------------------------------------
 export const HOUSEHOLD_MODE_META: Record<
-  Exclude<HouseholdMode, 'split'>,
+  HouseholdMode,
   { label: string; description: string; icon: string; detail: string[]; bestFor: string }
 > = {
   joint: {
@@ -199,6 +199,21 @@ export const HOUSEHOLD_MODE_META: Record<
       '🎯 Goals and EMI tracker work without any partner involvement',
       '❌ No settlements, no joint pool, no partner activity breakdown',
       '🔄 Can upgrade to Separate or Joint mode any time if your situation changes',
+    ],
+  },
+  // Add this legacy alias entry to satisfy the type checker across the app:
+  split: {
+    label: 'Separate Finances',
+    icon: 'user',
+    description:
+      'Two partners track their own spending independently but can still split shared expenses.',
+    bestFor: 'Couples who keep finances separate but occasionally share costs',
+    detail: [
+      '👤 Each partner tracks their own income and expenses independently',
+      '🤝 Shared costs (dinner, trips, gifts) can be split directly between partners',
+      '📊 Dashboard shows each partner\'s individual spending and retention side by side',
+      '❌ No joint pool or contribution tracking — each person manages their own account',
+      '⚖️ Settlements happen directly between partners, not via a shared pool',
     ],
   },
 };
