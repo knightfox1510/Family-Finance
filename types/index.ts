@@ -1,7 +1,6 @@
 // ─── types/index.ts ───────────────────────────────────────────────────────────
-// Central type definitions for ChillarFlow.
-// All types are named exports — import them as:
-//   import type { AppData, ViewId, HouseholdMode } from '@/types';
+// Single source of truth for all ChillarFlow types.
+// Every named export here is used by at least one component.
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
@@ -20,13 +19,20 @@ export type ViewId =
   | 'settings';
 
 // ─── Household ────────────────────────────────────────────────────────────────
-
-export type HouseholdMode = 'joint' | 'solo' | 'split';
+// 'separate' = two partners, no joint pool
+// 'joint'    = two partners + shared joint account
+// 'solo'     = single user
+// 'split'    = legacy alias used in some components
+export type HouseholdMode = 'joint' | 'separate' | 'solo' | 'split';
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 
+// 'none'  = personal, no settlement
+// 'joint' = reimburse from joint pool
+// 'partner' = direct split with partner
+// 'group'   = group expense
+export type SettleTrack = 'none' | 'joint' | 'partner' | 'group' | null;
 export type SplitMode = 'equal' | 'fixed' | 'percentage' | 'ratio';
-export type SettleTrack = 'partner' | 'group' | null;
 export type RecurrenceInterval = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface Expense {
@@ -34,7 +40,7 @@ export interface Expense {
   date: string;
   type: 'expense' | 'income';
   category: string;
-  amount: number | string;
+  amount: number;              // always numeric once persisted
   account: string;
   addedBy?: string;
   note?: string;
@@ -48,13 +54,14 @@ export interface Expense {
   isRecurring?: boolean;
   recurrenceInterval?: RecurrenceInterval;
   groupId?: string | null;
+  [key: string]: any;          // allow extra DB fields without breaking
 }
 
 // ─── Contributions ────────────────────────────────────────────────────────────
 
 export interface Contribution {
   id?: string;
-  month: string;        // "YYYY-MM"
+  month: string;               // "YYYY-MM"
   partnerA: number;
   partnerB: number;
 }
@@ -68,6 +75,20 @@ export interface Goal {
   current: number;
   completed?: boolean;
   note?: string;
+  icon?: string;
+  color?: string;
+  strategy?: string;
+  targetDate?: string;
+  partnerATarget?: number;
+  partnerBTarget?: number;
+  partnerACurrent?: number;
+  partnerBCurrent?: number;
+  paceStatus?: string;
+  monthsRemaining?: number;
+  shortfall?: number;
+  velocityA?: number;
+  velocityB?: number;
+  [key: string]: any;
 }
 
 // ─── Loans ────────────────────────────────────────────────────────────────────
@@ -75,33 +96,59 @@ export interface Goal {
 export interface Loan {
   id: string;
   name: string;
-  amount: number;
-  emi?: number;
-  monthlyPayment?: number;
-  interestRate?: number;
+  lender: string;
+  principal: number;
+  outstanding: number;
+  emi: number;
+  interestRate: number;
   startDate?: string;
-  endDate?: string;
-  lender?: string;
+  tenureMonths?: number;
+  paymentDay?: number;
+  icon?: string;
   note?: string;
+  [key: string]: any;
 }
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
+// ─── Notification settings ────────────────────────────────────────────────────
 
-export interface HouseholdSettings {
+export interface NotificationSettings {
+  enabled: boolean;
+  budgetAlert: boolean;
+  settlement: boolean;
+  newExpense: boolean;
+  budgetThreshold: number;
+}
+
+// ─── Settings (household configuration) ──────────────────────────────────────
+// Exported as both `Settings` (used in Settings.tsx) and `HouseholdSettings`
+// (used elsewhere) — they are the same shape.
+
+export interface Settings {
   householdMode: HouseholdMode | null;
   partnerAName: string;
   partnerBName: string;
   setupComplete: boolean;
   currency: string;
   telegramUsername?: string;
-  [key: string]: any;   // allow extra fields from DB without breaking
+  whatsappNumber?: string;
+  expenseCategories: string[];
+  incomeCategories: string[];
+  budgets: Record<string, number | undefined>;
+  notifications: NotificationSettings;
+  [key: string]: any;          // allow extra fields from DB
 }
+
+// Alias — some components import as HouseholdSettings, others as Settings
+export type HouseholdSettings = Settings;
 
 // ─── Groups ───────────────────────────────────────────────────────────────────
 
 export interface GroupMember {
   id: string;
-  name: string;
+  display_name?: string | null;
+  ghost_name?: string | null;
+  is_ghost?: boolean;
+  name?: string;
   email?: string;
 }
 
@@ -109,18 +156,33 @@ export interface Group {
   id: string;
   name: string;
   members: GroupMember[];
-  createdAt?: string;
+  description?: string | null;
+  currency?: string;
+  created_by?: string;
+  created_at?: string;
+  last_activity?: string;
+  member_count?: number;
+  net_balance?: number;
+  is_archived?: boolean;
   inviteCode?: string;
+}
+
+// ─── Partner calculations (used by SettleDashboard) ──────────────────────────
+
+export interface PartnerCalculations {
+  p2pNetBalance: number;
+  pendingPartnerItems: any[];
 }
 
 // ─── Root data shape ──────────────────────────────────────────────────────────
 
 export interface AppData {
   householdId: string;
-  settings: HouseholdSettings;
+  settings: Settings;
   expenses: Expense[];
   contributions: Contribution[];
   goals: Goal[];
   loans: Loan[];
   groups?: Group[];
+  currentUserRole?: 'Partner A' | 'Partner B';
 }
