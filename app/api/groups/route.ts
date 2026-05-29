@@ -144,6 +144,7 @@ export async function PATCH(request: Request) {
       .single();
 
     if (!member) {
+      console.error('[groups PATCH] membership check failed:', { groupId, userId });
       return NextResponse.json({ error: 'Not a member of this group' }, { status: 403 });
     }
 
@@ -167,18 +168,17 @@ export async function PATCH(request: Request) {
       safeUpdates.archived_at = null;
     }
 
-    const { data: updated, error: updateErr } = await supabase
+    const { error: updateErr } = await supabase
       .from('groups')
       .update(safeUpdates)
-      .eq('id', groupId)
-      .select()
-      .single();
+      .eq('id', groupId);
 
     if (updateErr) {
+      console.error('[groups PATCH] update error:', updateErr.message, { groupId, safeUpdates });
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ group: updated });
+    return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
