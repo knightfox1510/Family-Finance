@@ -1,11 +1,12 @@
 // app/api/groups/[groupId]/transactions/[txId]/route.ts
 // PATCH: edit an existing group transaction (creator or admin only)
-// GET:   fetch a single transaction
+// DELETE: soft-delete a transaction (creator or admin only)
+// Fix 8 applied: resolveGhostToken replaced with resolveGhostUserId from lib/ghostToken.ts
 
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { logActivity } from '@/lib/logActivity';
-import { jwtVerify } from 'jose';
+import { NextResponse }       from 'next/server';
+import { createClient }       from '@supabase/supabase-js';
+import { logActivity }        from '@/lib/logActivity';
+import { resolveGhostUserId } from '@/lib/ghostToken';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,33 +14,10 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-const GHOST_SECRET = new TextEncoder().encode(
-  process.env.GHOST_SESSION_SECRET ?? 'fallback-secret-change-in-prod'
-);
-
-async function resolveGhostToken(token: string): Promise<string | null> {
-  try {
-    const [payloadB64] = token.split('.');
-    if (payloadB64) {
-      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
-      if (payload.profileId) {
-        const { data } = await supabase.from('profiles').select('id').eq('id', payload.profileId).single();
-        if (data?.id) return data.id;
-      }
-    }
-  } catch {}
-  try {
-    const { payload } = await jwtVerify(token, GHOST_SECRET);
-    const userId = payload.sub as string;
-    if (!userId) return null;
-    const { data } = await supabase.from('profiles').select('id').eq('id', userId).single();
-    return data?.id ?? null;
-  } catch { return null; }
-}
-
 async function resolveUserId(request: Request, fallback?: string | null): Promise<string | null> {
   const ghostToken = request.headers.get('x-ghost-token');
-  if (ghostToken) return resolveGhostToken(ghostToken);
+  if (ghostToken) return resolveGhostUserId(ghostToken, supabase);
+
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const { data: { user } } = await supabase.auth.getUser(authHeader.slice(7));
@@ -72,14 +50,9 @@ export async function PATCH(
     if (txErr || !tx) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     if (tx.group_id !== groupId) return NextResponse.json({ error: 'Transaction not in this group' }, { status: 403 });
 
-    // Creator or admin can edit
     const isCreator = tx.created_by === callerId || tx.paid_by === callerId;
     const { data: mem } = await supabase
-      .from('group_members')
-      .select('role')
-      .eq('group_id', groupId)
-      .eq('user_id', callerId)
-      .single();
+      .from('group_members').select('role').eq('group_id', groupId).eq('user_id', callerId).single();
     const isAdmin = mem?.role === 'admin';
 
     if (!isCreator && !isAdmin) {
@@ -89,7 +62,6 @@ export async function PATCH(
       );
     }
 
-    // Build update payload
     const updates: Record<string, any> = {};
     if (description?.trim()) updates.description  = description.trim();
     if (category)             updates.category    = category;
@@ -99,18 +71,14 @@ export async function PATCH(
     if (newTotal && newTotal > 0) updates.total_amount = newTotal;
 
     const { error: updErr } = await supabase
-      .from('group_transactions')
-      .update(updates)
-      .eq('id', txId);
+      .from('group_transactions').update(updates).eq('id', txId);
 
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
     // If amount changed, rebalance unsettled splits equally
     if (newTotal && newTotal !== tx.total_amount) {
       const { data: splits } = await supabase
-        .from('transaction_splits')
-        .select('id, user_id, is_settled')
-        .eq('transaction_id', txId);
+        .from('transaction_splits').select('id, user_id, is_settled').eq('transaction_id', txId);
 
       const unsettled = (splits ?? []).filter((s) => !s.is_settled);
       if (unsettled.length > 0) {
@@ -146,7 +114,7 @@ export async function DELETE(
 ) {
   try {
     const { groupId, txId } = params;
-    const body = await request.json().catch(() => ({}));
+    const body     = await request.json().catch(() => ({}));
     const callerId = await resolveUserId(request, body.userId ?? null);
     if (!callerId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
@@ -157,20 +125,13 @@ export async function DELETE(
       .single();
 
     const { data: membership } = await supabase
-      .from('group_members')
-      .select('role')
-      .eq('group_id', groupId)
-      .eq('user_id', callerId)
-      .single();
+      .from('group_members').select('role').eq('group_id', groupId).eq('user_id', callerId).single();
 
     const isOwner = tx?.created_by === callerId || tx?.paid_by === callerId;
     const isAdmin = membership?.role === 'admin';
 
     if (!isOwner && !isAdmin) {
-      return NextResponse.json(
-        { error: 'Only the creator or group admin can delete transactions' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'Only the creator or group admin can delete transactions' }, { status: 403 });
     }
 
     await supabase.from('group_transactions').update({ is_deleted: true }).eq('id', txId);
