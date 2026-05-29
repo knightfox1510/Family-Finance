@@ -13,7 +13,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-
+import { CoinMark } from '@/components/marketing/CoinMark';
 import { supabase } from '@/lib/supabaseClient';
 
 import { loadData } from '@/lib/supabaseHelpers';
@@ -268,24 +268,26 @@ export default function App() {
   };
 
   // ── Guards ────────────────────────────────────────────────────────────────
-  if (loading || !data) {
-    return (
-      <div className="cf-loader-page animate-fade-in">
-        <div className="cf-loader-logo">
-          <Icon name="wallet" size={40} color="var(--accent)" style={{ zIndex: 3 }} />
-          <div className="cf-loader-ring" />
+if (loading || !data) {
+  return (
+    <div className="cf-loader-page animate-fade-in">
+      <div className="cf-loader-logo">
+        {/* 🪙 Official Branding: High-fidelity Vector Coin Mark */}
+        <CoinMark size={52} color="var(--accent)" variant="parent" />
+        <div className="cf-loader-ring" />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
+        <div style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>
+          ChillarFlow
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
-          <div style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>
-            ChillarFlow
-          </div>
-          <div style={{ color: 'var(--text2)', fontSize: 13, fontWeight: 500, opacity: 0.7 }}>
-            Syncing household configurations…
-          </div>
+        <div style={{ color: 'var(--text2)', fontSize: 13, fontWeight: 500, opacity: 0.7 }}>
+          Syncing household configurations…
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (needsSetup) {
     return <SetupWizard onComplete={handleSetupComplete} />;
@@ -746,12 +748,14 @@ export default function App() {
         </>
       )}
 
-      {isRefreshing && (
+{isRefreshing && (
         <div className="cf-refresh-overlay animate-fade-in">
           <div className="cf-loader-logo">
-            <Icon name="sync" size={40} color="var(--accent)" style={{ zIndex: 3 }} />
+            {/* 🪙 Official Branding: Hustle Step Variant for Data Syncing */}
+            <CoinMark size={48} color="var(--accent)" variant="hustle" />
             <div className="cf-loader-ring" />
           </div>
+          
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
             <div style={{ color: 'var(--accent)', fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>
               Updating Ledger Matrices
