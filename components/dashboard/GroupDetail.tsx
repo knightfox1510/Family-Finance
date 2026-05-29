@@ -297,22 +297,30 @@ function GroupSettingsSheet({ groupId, userId, userRole, groupName, members, sim
   const [removing, setRemoving]         = useState<string | null>(null);
   const isAdmin = userRole === 'admin';
 
-  const save = async () => {
-    setSaving(true);
+const save = async () => {
+  setSaving(true);
+  try {
+    // Build auth headers — same pattern as AddGroupExpense and SettleModal
+    const h: Record<string, string> = { 'Content-Type': 'application/json' };
     try {
-      const res  = await fetch('/api/groups', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ groupId, userId, simplify_debts: simplify }),
-      });
-      const d = await res.json();
-      if (!res.ok) { addToast(d.error || 'Save failed', 'error'); return; }
-      addToast('Group settings saved ✓', 'success');
-      onSaved(simplify);   // updates parent state — does NOT trigger loadData
-      onClose();
-    } catch { addToast('Could not save settings', 'error'); }
-    finally { setSaving(false); }
-  };
+      const { supabase } = await import('@/lib/supabaseClient');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) h['Authorization'] = `Bearer ${session.access_token}`;
+    } catch {}
+ 
+    const res  = await fetch('/api/groups', {
+      method: 'PATCH',
+      headers: h,
+      body: JSON.stringify({ groupId, userId, simplify_debts: simplify }),
+    });
+    const d = await res.json();
+    if (!res.ok) { addToast(d.error || 'Save failed', 'error'); return; }
+    addToast('Group settings saved ✓', 'success');
+    onSaved(simplify);
+    onClose();
+  } catch { addToast('Could not save settings', 'error'); }
+  finally { setSaving(false); }
+};
 
 
   const changeRole = async (targetId: string, newRole: 'admin' | 'member') => {
