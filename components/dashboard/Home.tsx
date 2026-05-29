@@ -415,12 +415,9 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
 
   // ── Section card definitions ────────────────────────────────────────────────
   // visibility: 'all' | 'household' | 'ghost' | 'partner'
-  const sections: {
-    emoji: string; label: string; sub: string;
-    color: string; view: ViewId; wide?: boolean;
-    badge?: string;
-    show: boolean;
-  }[] = [
+  // Cast after .filter() — avoids TypeScript widening view literals to string.
+  type SectionDef = { emoji: string; label: string; sub: string; color: string; view: ViewId; wide?: boolean; badge?: string; show: boolean };
+  const sections = ([
     {
       emoji: '💳',
       label: 'Expenses',
@@ -502,7 +499,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
       wide: true,
       show: !isGhost || data.expenses.length > 0,
     },
-  ].filter((s) => s.show);
+  ] as SectionDef[]).filter((s) => s.show);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 16 }}>
