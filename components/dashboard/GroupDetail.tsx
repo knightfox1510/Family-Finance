@@ -73,9 +73,9 @@ function relTime(dateStr: string): string {
 }
 
 const CAT_EMOJI: Record<string, string> = {
-  Groceries: '\u{1F6D2}', 'Dining Out': '\u{1F37D}\uFE0F', Travel: '\u2708\uFE0F',
-  Entertainment: '\u{1F3AC}', Utilities: '\u26A1', Transport: '\u{1F697}',
-  Alcohol: '\u{1F37B}', 'Hosting Day': '\u{1F3E0}', Miscellaneous: '\u{1F4E6}',
+  Groceries: '🛒', 'Dining Out': '🍽\uFE0F', Travel: '\u2708\uFE0F',
+  Entertainment: '🎬', Utilities: '\u26A1', Transport: '🚗',
+  Alcohol: '🍻', 'Hosting Day': '🏠', Miscellaneous: '📦',
 };
 
 const ACTION_ICON: Record<string, string> = {
@@ -121,7 +121,7 @@ function TransactionCard({ tx, userId, userRole, members, fmt, onDelete, onEdit,
       <div style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => setExpanded((e) => !e)}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
-            {CAT_EMOJI[tx.category] ?? '\u{1F4E6}'}
+            {CAT_EMOJI[tx.category] ?? '📦'}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.textW, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.description}</div>
@@ -268,7 +268,7 @@ function SettleModal({ pair, members, mySplits, userId, groupId, fmt, ghostToken
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           {(['upi', 'cash', 'manual'] as const).map((m) => (
             <button key={m} onClick={() => setMethod(m)} style={{ flex: 1, padding: '10px', borderRadius: 12, border: '1px solid ' + (method === m ? C.accent : C.border2), background: method === m ? C.accentBg : 'transparent', color: method === m ? C.accent : C.text2, fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize' }}>
-              {m === 'upi' ? '\u26A1 UPI' : m === 'cash' ? '\u{1F4B5} Cash' : '\u270F\uFE0F Manual'}
+              {m === 'upi' ? '\u26A1 UPI' : m === 'cash' ? '💵 Cash' : '\u270F\uFE0F Manual'}
             </button>
           ))}
         </div>
@@ -471,7 +471,7 @@ function ActivityTab({ groupId, userId, makeHeaders, fmt }: {
   if (activities.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '40px 24px', background: C.surface, borderRadius: 20 }}>
-        <div style={{ fontSize: 36, marginBottom: 10 }}>\u{1F4CB}</div>
+        <div style={{ fontSize: 36, marginBottom: 10 }}>📋</div>
         <div style={{ fontSize: 15, fontWeight: 700, color: C.textW, marginBottom: 6 }}>No activity yet</div>
         <div style={{ fontSize: 13, color: C.text2 }}>Actions in this group will appear here.</div>
       </div>
@@ -626,7 +626,7 @@ function EditExpenseSheet({ tx, groupId, members, userId, ghostToken, fmt, onClo
   const [error, setError]             = useState<string | null>(null);
 
   const CATEGORIES = ['Dining Out', 'Groceries', 'Travel', 'Entertainment', 'Alcohol', 'Hosting Day', 'Transport', 'Utilities', 'Miscellaneous'];
-  const CAT_E: Record<string, string> = { 'Dining Out': '\u{1F37D}\uFE0F', Groceries: '\u{1F6D2}', Travel: '\u2708\uFE0F', Entertainment: '\u{1F3AC}', Alcohol: '\u{1F37B}', 'Hosting Day': '\u{1F3E0}', Transport: '\u{1F697}', Utilities: '\u26A1', Miscellaneous: '\u{1F4E6}' };
+  const CAT_E: Record<string, string> = { 'Dining Out': '🍽\uFE0F', Groceries: '🛒', Travel: '\u2708\uFE0F', Entertainment: '🎬', Alcohol: '🍻', 'Hosting Day': '🏠', Transport: '🚗', Utilities: '\u26A1', Miscellaneous: '📦' };
 
   const inp: React.CSSProperties = { width: '100%', background: C.surface2, border: '1.5px solid transparent', borderRadius: 12, color: C.textW, fontFamily: 'inherit', fontSize: 14, padding: '11px 14px', outline: 'none', boxSizing: 'border-box' };
 
@@ -686,7 +686,7 @@ function EditExpenseSheet({ tx, groupId, members, userId, ghostToken, fmt, onClo
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {CATEGORIES.map((cat) => (
               <button key={cat} onClick={() => setCategory(cat)} style={{ padding: '6px 12px', borderRadius: 99, border: '1px solid ' + (category === cat ? C.accent : C.border2), background: category === cat ? C.accentBg : 'transparent', color: category === cat ? C.accent : C.text2, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                {CAT_E[cat] ?? '\u{1F4E6}'} {cat}
+                {CAT_E[cat] ?? '📦'} {cat}
               </button>
             ))}
           </div>
@@ -1000,7 +1000,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {transactions.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '48px 24px', background: C.surface, borderRadius: 20 }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>\u{1F9FE}</div>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🧾</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: C.textW, marginBottom: 8 }}>No expenses yet</div>
               <div style={{ fontSize: 13, color: C.text2, marginBottom: 20, lineHeight: 1.6 }}>Add the first expense and split it with the group.</div>
               <button onClick={() => setShowAddExpense(true)} style={{ padding: '12px 24px', borderRadius: 99, border: 'none', background: C.accent, color: '#0a0a0a', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>Add first expense</button>
@@ -1069,7 +1069,7 @@ export function GroupDetail({ groupId, groupName, currency, userId, ghostToken, 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {members.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 24px', background: C.surface, borderRadius: 20 }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>\u{1F465}</div>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>👥</div>
               <div style={{ fontSize: 15, color: C.text2 }}>No members found</div>
             </div>
           ) : (
