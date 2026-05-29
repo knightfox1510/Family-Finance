@@ -1,10 +1,12 @@
 // app/api/groups/[groupId]/transactions/[txId]/flag/route.ts
 // POST: flag a transaction for review (any member)
 // DELETE: unflag/resolve a flagged transaction (admin or creator only)
+// Fix 8 applied: ghost token now verified via resolveGhostUserId from lib/ghostToken.ts
 
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { logActivity }  from '@/lib/logActivity';
+import { NextResponse }       from 'next/server';
+import { createClient }       from '@supabase/supabase-js';
+import { logActivity }        from '@/lib/logActivity';
+import { resolveGhostUserId } from '@/lib/ghostToken';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,16 +16,8 @@ const supabase = createClient(
 
 async function resolveUserId(request: Request, fallback: string | null): Promise<string | null> {
   const ghostToken = request.headers.get('x-ghost-token');
-  if (ghostToken) {
-    try {
-      const [p64] = ghostToken.split('.');
-      const payload = JSON.parse(Buffer.from(p64, 'base64url').toString('utf8'));
-      if (payload.profileId) {
-        const { data } = await supabase.from('profiles').select('id').eq('id', payload.profileId).single();
-        if (data?.id) return data.id;
-      }
-    } catch {}
-  }
+  if (ghostToken) return resolveGhostUserId(ghostToken, supabase);
+
   const auth = request.headers.get('authorization');
   if (auth?.startsWith('Bearer ')) {
     const { data: { user } } = await supabase.auth.getUser(auth.slice(7));
@@ -33,7 +27,6 @@ async function resolveUserId(request: Request, fallback: string | null): Promise
 }
 
 // ── POST — flag a transaction for review ──────────────────────────────────────
-// Body: { userId, reason }
 export async function POST(
   request: Request,
   { params }: { params: { groupId: string; txId: string } }
@@ -46,19 +39,17 @@ export async function POST(
     const callerId = await resolveUserId(request, bodyUserId ?? null);
     if (!callerId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-    // Must be a group member
     const { data: mem } = await supabase
       .from('group_members').select('id').eq('group_id', groupId).eq('user_id', callerId).single();
     if (!mem) return NextResponse.json({ error: 'Not a member' }, { status: 403 });
 
-    // Fetch transaction
     const { data: tx } = await supabase
-      .from('group_transactions').select('id, group_id, description, created_by, paid_by, is_flagged')
+      .from('group_transactions')
+      .select('id, group_id, description, created_by, paid_by, is_flagged')
       .eq('id', txId).eq('is_deleted', false).single();
     if (!tx || tx.group_id !== groupId) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
     if (tx.is_flagged) return NextResponse.json({ error: 'Already flagged' }, { status: 409 });
 
-    // Can't flag your own transaction
     if (tx.created_by === callerId || tx.paid_by === callerId) {
       return NextResponse.json({ error: 'You cannot flag your own transaction' }, { status: 400 });
     }
@@ -72,7 +63,6 @@ export async function POST(
 
     if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
 
-    // Fetch flagger name for activity log
     const { data: flagger } = await supabase.from('profiles')
       .select('display_name, ghost_name').eq('id', callerId).single();
     const flaggerName = flagger?.display_name || flagger?.ghost_name || 'Someone';
@@ -103,8 +93,7 @@ export async function DELETE(
     const { data: mem } = await supabase
       .from('group_members').select('role').eq('group_id', groupId).eq('user_id', callerId).single();
     const { data: tx } = await supabase
-      .from('group_transactions').select('id, group_id, description, created_by, paid_by')
-      .eq('id', txId).single();
+      .from('group_transactions').select('id, group_id, description, created_by, paid_by').eq('id', txId).single();
 
     if (!tx || tx.group_id !== groupId) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
 
