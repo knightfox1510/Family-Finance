@@ -159,7 +159,7 @@ export function AvatarUpload({ profile, onUploaded }: AvatarUploadProps) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 13, fontWeight: 800, border: '2px solid #0a0a0a',
         }}>
-          {uploading ? '\u2026' : '\u270F'}
+          {uploading ? '…' : '✏'}
         </div>
       </div>
 
@@ -172,7 +172,7 @@ export function AvatarUpload({ profile, onUploaded }: AvatarUploadProps) {
       />
 
       <div style={{ fontSize: 11, color: '#888', textAlign: 'center', lineHeight: 1.5 }}>
-        {uploading ? 'Uploading\u2026' : 'Tap to change photo \u00B7 max 2\u202FMB'}
+        {uploading ? 'Uploading…' : 'Tap to change photo · max 2 MB'}
       </div>
 
       {error && (
