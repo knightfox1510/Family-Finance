@@ -80,8 +80,11 @@ export function calcPartnerBalance(
   expenses.forEach((t) => {
     if (t.settled || t.settleTrack !== 'partner') return;
     const amount = Number(t.amount);
-    const shareA = t.splitMode === 'equal' ? amount * 0.5 : amount * t.partnerAShare;
-    const shareB = t.splitMode === 'equal' ? amount * 0.5 : amount * t.partnerBShare;
+    
+    // Add the nullish coalescing operator (?? 0) to both lines below:
+    const shareA = t.splitMode === 'equal' ? amount * 0.5 : amount * (t.partnerAShare ?? 0);
+    const shareB = t.splitMode === 'equal' ? amount * 0.5 : amount * (t.partnerBShare ?? 0);
+    
     if (t.addedBy === 'Partner A') net += shareB;
     else if (t.addedBy === 'Partner B') net -= shareA;
   });
