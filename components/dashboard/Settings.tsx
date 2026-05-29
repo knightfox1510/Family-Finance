@@ -553,7 +553,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             {s.partnerAName || 'You'}{partnerB && s.partnerBName ? ` & ${s.partnerBName}` : ''}
           </div>
           <div style={{ fontSize: 12, color: C.text2, marginTop: 2 }}>
-            {HOUSEHOLD_MODE_META[s.householdMode]?.label ?? 'Household'} · {householdId.slice(0, 8)}…
+            {HOUSEHOLD_MODE_META[s.householdMode ?? 'solo']?.label ?? 'Household'} · {householdId.slice(0, 8)}…
           </div>
         </div>
         {planInfo?.plan === 'pro' && (
@@ -671,7 +671,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
 
       {/* ── 4. Household Mode (collapsible) ──────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-        <SectionHeader id="mode" title="Household Mode" badge={HOUSEHOLD_MODE_META[s.householdMode]?.label ?? ''} />
+        <SectionHeader id="mode" title="Household Mode" badge={HOUSEHOLD_MODE_META[s.householdMode ?? 'solo']?.label ?? ''} />
         {openSection === 'mode' && (
           <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
             <p style={{ color: C.text3, fontSize: 13, margin: '14px 0', lineHeight: 1.5 }}>
