@@ -811,7 +811,7 @@ html { background: #0a0a0a; }
 }
 
 
-/* ─── Premium Loader State ────────────────────────────────────────────── */
+/* ─── Premium Loader State (Bulletproof Isolation Architecture) ──────── */
 .cf-loader-page {
   min-height: 100vh;
   background: var(--bg);
@@ -819,34 +819,52 @@ html { background: #0a0a0a; }
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  gap: 24px;
+  padding: 24px;
+  box-sizing: border-box;
 }
 
+/* Structural container layout space box bounds */
 .cf-loader-logo {
-  position: relative;
-  font-size: 56px;
-  z-index: 2;
+  position: relative;     /* 🔒 Standard relative baseline mapping parameters */
+  width: 100px;           /* Strict footprint dimensions width */
+  height: 100px;          /* Strict footprint dimensions height */
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 32px;    /* 🚀 Pushes your layout typography cleanly downwards */
+  flex-shrink: 0;
 }
 
+/* Absolute breathing rings pinned within the parent box boundaries */
 .cf-loader-ring {
   position: absolute;
-  width: 96px;
-  height: 96px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;              /* 🔒 Locked precisely inside the 100x100 parent boundaries */
   border-radius: 50%;
   background: var(--accent-bg);
   border: 1px solid var(--accent);
   opacity: 0.2;
   z-index: 1;
-  animation: premiumPulse 2s infinite ease-in-out;
+  pointer-events: none;
+  animation: premiumPulse 2.2s infinite ease-in-out;
 }
 
 @keyframes premiumPulse {
-  0% { transform: scale(0.85); opacity: 0.4; box-shadow: 0 0 0 0 var(--accent-glow); }
-  70% { transform: scale(1.15); opacity: 0.9; box-shadow: 0 0 0 24px rgba(0,0,0,0); }
-  100% { transform: scale(0.85); opacity: 0.4; box-shadow: 0 0 0 0 rgba(0,0,0,0); }
+  0% { 
+    transform: scale(0.8); 
+    opacity: 0.5; 
+  }
+  50% { 
+    transform: scale(1.15); /* Controlled outer scaling boundary ensures no layout clipping */
+    opacity: 0.8; 
+    box-shadow: 0 0 0 16px rgba(0,0,0,0);
+  }
+  100% { 
+    transform: scale(0.8); 
+    opacity: 0.5; 
+  }
 }
 
 /* ─── Premium Manual Refresh Overlay ──────────────────────────────────── */
@@ -854,7 +872,7 @@ html { background: #0a0a0a; }
   position: fixed;
   inset: 0;
   background: rgba(10, 10, 10, 0.7); /* Deep overlay backdrop fade */
-  backdrop-filter: blur(4px);         /* Blurs the underlying dashboard components */
+  backdrop-filter: blur(4px);         /* Blurs underlying dashboard components */
   -webkit-backdrop-filter: blur(4px); /* Safari support */
   z-index: 9999;                      /* Renders above bottom bars and drawers */
   display: flex;
@@ -864,17 +882,17 @@ html { background: #0a0a0a; }
   gap: 20px;
 }
 
-/* Automatically rotates the sync vector while your background update runs */
+/* Rotates the brand CoinMark smoothly during active data synchronization layers */
 .cf-refresh-overlay .cf-loader-logo svg {
-  animation: svgSpin 1.4s linear infinite;
+  animation: coinMarkSpin 1.8s linear infinite;
 }
 
-@keyframes svgSpin {
+@keyframes coinMarkSpin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
 
-/* Gives a smooth, continuous micro-rotation effect to your custom brand asset logo image */
+/* Gives a smooth, continuous micro-rotation effect to custom brand asset logo images if fallback is used */
 .spinning-logo {
   animation: logoSpin 2.5s linear infinite;
 }
