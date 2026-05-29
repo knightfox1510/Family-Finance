@@ -203,7 +203,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
         <button onClick={onClose}
           style={{ background: C.surface2, border: 'none', color: C.text2, width: 34, height: 34, borderRadius: '50%',
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', flexShrink: 0 }}>
-          <Icon name="more" size={16} color={C.text2} />
+          <Icon name="close" size={16} color={C.text2} />
         </button>
       </div>
 
