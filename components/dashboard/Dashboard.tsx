@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import type { AppData } from '@/types';
 import { C, INVESTMENT_CATS } from '@/constants';
+import { Avatar } from '@/components/ui/Avatar';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 function today() { return new Date().toISOString().slice(0, 10); }
@@ -78,17 +79,6 @@ function AllocLegend({ items }: { items: { label: string; color: string; pct: nu
 // ─── Partner avatar circle ────────────────────────────────────────────────────
 const PARTNER_COLORS = ['var(--purple)', 'var(--blue)'] as const;
 
-function Avatar({ name, color }: { name: string; color: string }) {
-  return (
-    <div style={{
-      width: 30, height: 30, borderRadius: '50%', background: color, flexShrink: 0,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#0a0a0a', fontWeight: 900, fontSize: 13,
-    }}>
-      {name[0].toUpperCase()}
-    </div>
-  );
-}
 
 export function Dashboard({ data, onAddExpense, fmt }: Props) {
   const [showAudit, setShowAudit] = useState(false);
@@ -396,7 +386,7 @@ export function Dashboard({ data, onAddExpense, fmt }: Props) {
                   {/* Header with avatar */}
                   <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Avatar name={p.name} color={p.color} />
+                      <Avatar profile={{ id: '', display_name: p.name, avatar_url: null }} size={30} />
                       <div style={{ fontSize: 14, fontWeight: 800, color: C.textW }}>{p.name}</div>
                     </div>
                     {p.income > 0 && (
