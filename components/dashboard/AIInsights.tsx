@@ -32,20 +32,22 @@ export function AIInsights({ data, fmt }: Props) {
     const mk = monthKey(today());
     const monthExp = data.expenses.filter((e) => monthKey(e.date) === mk);
     const catTotals: Record<string, number> = {};
-    monthExp.forEach((e) => { catTotals[e.category] = (catTotals[e.category] || 0) + e.amount; });
+    monthExp.forEach((e) => {
+      catTotals[e.category] = (catTotals[e.category] || 0) + Number(e.amount);
+    });
     const contrib = data.contributions.find((c) => c.month === mk) || { partnerA: 0, partnerB: 0 };
-    const totalEMI = data.loans.reduce((s, l) => s + l.emi, 0);
+    const totalEMI = data.loans.reduce((s, l) => s + Number(l.emi ?? 0), 0);
     const TIMING = `CONTEXT: Salary inflows arrive end-of-month. Mid-month balance dips are normal — evaluate with this in mind.`;
     const GOALS_STR = data.goals.map((g) => `${g.name}: ${((g.current/g.target)*100).toFixed(0)}%`).join(', ');
 
     const prompts: Record<string, string> = {
-      monthly: `You are a personal finance advisor for a couple in India. Couple: ${names.a} and ${names.b}. Month: ${monthLabel(mk)}. Contributions — ${names.a}: ₹${contrib.partnerA}, ${names.b}: ₹${contrib.partnerB}. Category spending: ${JSON.stringify(catTotals)}. EMI: ₹${totalEMI}. Goals: ${GOALS_STR}. Budgets: ${JSON.stringify(data.settings.budgets)}. ${TIMING} Write a 3-4 paragraph monthly summary: spending health, notable patterns, budget tracking, one recommendation. No bullet points.`,
-      anomalies: `Financial analyst. Identify 3-4 unusual spending patterns or budget overruns. Names: ${names.a}, ${names.b}. This month: ${JSON.stringify(catTotals)}. Budgets: ${JSON.stringify(data.settings.budgets)}. EMI: ₹${totalEMI}. ${TIMING} Be concrete with numbers. Clear paragraphs.`,
-      advice: `Personal finance advisor. Give 4-5 specific, actionable pieces of advice. Joint contributions: ₹${contrib.partnerA + contrib.partnerB}. Spending: ${JSON.stringify(catTotals)}. Loans: ${data.loans.map((l) => `${l.name}: ₹${l.outstanding} @ ${l.interestRate}%`).join('; ')}. Goals: ${GOALS_STR}. ${TIMING} Reference specific numbers. Clear paragraphs.`,
-      loans: `Debt management expert. Loans: ${data.loans.map((l) => `${l.name}: Principal ₹${l.principal}, Outstanding ₹${l.outstanding}, EMI ₹${l.emi}/mo @ ${l.interestRate}%`).join('\n')}. Total EMI: ₹${totalEMI}. Monthly contribution: ₹${contrib.partnerA + contrib.partnerB}. Cover: prepayment priority, debt-to-income health, time to debt freedom, one interest-reduction strategy.`,
+      monthly: `You are a personal finance advisor for a couple in India. Couple: ${names.a} and ${names.b}. Month: ${monthLabel(mk)}. Contributions — ${names.a}: ₹${contrib.partnerA}, ${names.b}: ₹${contrib.partnerB}. Category spending: ${JSON.stringify(catTotals)}. EMI: ₹${totalEMI}. Goals: ${GOALS_STR}. Budgets: ${JSON.stringify((data.settings as any).budgets)}. ${TIMING} Write a 3-4 paragraph monthly summary: spending health, notable patterns, budget tracking, one recommendation. No bullet points.`,
+      anomalies: `Financial analyst. Identify 3-4 unusual spending patterns or budget overruns. Names: ${names.a}, ${names.b}. This month: ${JSON.stringify(catTotals)}. Budgets: ${JSON.stringify((data.settings as any).budgets)}. EMI: ₹${totalEMI}. ${TIMING} Be concrete with numbers. Clear paragraphs.`,
+      advice: `Personal finance advisor. Give 4-5 specific, actionable pieces of advice. Joint contributions: ₹${contrib.partnerA + contrib.partnerB}. Spending: ${JSON.stringify(catTotals)}. Loans: ${data.loans.map((l) => `${l.name}: ₹${(l as any).outstanding} @ ${l.interestRate}%`).join('; ')}. Goals: ${GOALS_STR}. ${TIMING} Reference specific numbers. Clear paragraphs.`,
+      loans: `Debt management expert. Loans: ${data.loans.map((l) => `${l.name}: Principal ₹${(l as any).principal}, Outstanding ₹${(l as any).outstanding}, EMI ₹${Number(l.emi ?? 0)}/mo @ ${l.interestRate}%`).join('\n')}. Total EMI: ₹${totalEMI}. Monthly contribution: ₹${contrib.partnerA + contrib.partnerB}. Cover: prepayment priority, debt-to-income health, time to debt freedom, one interest-reduction strategy.`,
       runway: `Cash-flow analyst. Names: ${names.a}, ${names.b}. Spending: ${JSON.stringify(catTotals)}. EMI: ₹${totalEMI}. ${TIMING} Assess liquid buffer longevity and cash velocity. Project upcoming cycles. Clear paragraphs.`,
-      milestones: `Wealth consultant. Goals: ${data.goals.map((g) => `${g.name}: Target ₹${g.target}, Saved ₹${g.current}, ${names.a} target ₹${g.partnerATarget} saved ₹${g.partnerACurrent}, ${names.b} target ₹${g.partnerBTarget} saved ₹${g.partnerBCurrent}, pace: ${g.paceStatus}, ${g.monthsRemaining} mo left`).join('\n')}. Audit completion tracks, flag misalignments, suggest reallocation strategies.`,
-      discretionary: `Expense coach. Spending: ${JSON.stringify(catTotals)}. Budgets: ${JSON.stringify(data.settings.budgets)}. Separate Fixed (Rent, Utilities, EMI, Insurance) from Discretionary (Dining, Coffee, Entertainment, Apparel). Flag categories approaching limits. Suggest adjustments to reclaim capital for investments.`,
+      milestones: `Wealth consultant. Goals: ${data.goals.map((g) => `${g.name}: Target ₹${g.target}, Saved ₹${g.current}`).join('\n')}. Audit completion tracks, flag misalignments, suggest reallocation strategies.`,
+      discretionary: `Expense coach. Spending: ${JSON.stringify(catTotals)}. Budgets: ${JSON.stringify((data.settings as any).budgets)}. Separate Fixed (Rent, Utilities, EMI, Insurance) from Discretionary (Dining, Coffee, Entertainment, Apparel). Flag categories approaching limits. Suggest adjustments to reclaim capital for investments.`,
     };
 
     try {
