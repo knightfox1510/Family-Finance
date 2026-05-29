@@ -118,6 +118,7 @@ const [session, setSession]           = useState<any>(null);
   useEffect(() => {
     if (session) {
       loadData(session.user.id).then((d) => { setData(d); setLoading(false); });
+      .catch((err) => { console.error(err); setLoadError(true); setLoading(false); });
     }
   }, [session]);
 
