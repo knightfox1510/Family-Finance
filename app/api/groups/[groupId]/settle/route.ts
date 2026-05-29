@@ -7,6 +7,7 @@
 //   5. Ghost token: supports both hand-rolled HMAC and jose JWT formats
 
 import { NextResponse }       from 'next/server';
+import { logActivity }        from '@/lib/logActivity';
 import { createClient }       from '@supabase/supabase-js';
 import { jwtVerify }          from 'jose';
 import { computeNetDebts }    from '@/lib/debtEngine';
@@ -75,9 +76,13 @@ export async function GET(
   if (!member) return NextResponse.json({ error: 'Not a member' }, { status: 403 });
 
   // ── Fetch group config (simplify_debts toggle) ────────────────────────────
-  const { data: groupConfig } = await supabase
-    .from('groups').select('simplify_debts').eq('id', groupId).single();
-  const shouldSimplify = groupConfig?.simplify_debts ?? false;
+  // Graceful: if the column doesn't exist yet (migration pending), default to false
+  let shouldSimplify = false;
+  try {
+    const { data: groupConfig, error: cfgErr } = await supabase
+      .from('groups').select('simplify_debts').eq('id', groupId).single();
+    if (!cfgErr && groupConfig?.simplify_debts != null) shouldSimplify = groupConfig.simplify_debts;
+  } catch {}
 
   // ── Fetch members (direct query — works for ghost profiles) ──────────────
   const { data: memberRows } = await supabase
@@ -207,6 +212,9 @@ export async function POST(
 
     const { data: remainingUnsettled } = await supabase
       .from('transaction_splits').select('id, share_amount').eq('user_id', resolvedUserId).eq('is_settled', false);
+
+    // Log settlement activity
+    logActivity(groupId, resolvedUserId, 'SETTLE_DEBT', 'Recorded a settlement of ' + splitIds.length + ' item' + (splitIds.length !== 1 ? 's' : ''), { split_ids: splitIds, method: settledVia });
 
     return NextResponse.json({ ok: true, settled_count: splitIds.length, remaining_splits: remainingUnsettled?.length ?? 0 });
   } catch (err: any) {
