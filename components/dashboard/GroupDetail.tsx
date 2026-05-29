@@ -101,6 +101,8 @@ function TransactionCard({ tx, userId, userRole, members, fmt, onDelete, onEdit,
 }) {
   const [expanded, setExpanded] = useState(false);
   const iPaid       = tx.paid_by === userId || tx.payer?.id === userId;
+  // Prefer resolved name from members array (settle route resolves role strings like 'Partner A')
+  const payerProfile = members.find((m) => m.id === tx.paid_by) ?? tx.payer ?? null;
   const mySlice     = tx.transaction_splits.find((s) => s.user_id === userId);
   const othersOwing = iPaid ? tx.transaction_splits.filter((s) => s.user_id !== userId && !s.is_settled) : [];
   const totalOwedToMe = othersOwing.reduce((s, x) => s + x.share_amount, 0);
@@ -126,7 +128,7 @@ function TransactionCard({ tx, userId, userRole, members, fmt, onDelete, onEdit,
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.textW, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.description}</div>
             <div style={{ fontSize: 11, color: C.text3, marginTop: 3, display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span>{iPaid ? 'You paid' : displayName(tx.payer) + ' paid'}</span>
+              <span>{iPaid ? 'You paid' : displayName(payerProfile) + ' paid'}</span>
               <span>&middot;</span><span>{relTime(tx.created_at)}</span>
               {allSettled && <><span>&middot;</span><span style={{ color: C.green, fontWeight: 700 }}>✓ All settled</span></>}
             </div>
