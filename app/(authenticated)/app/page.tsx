@@ -78,22 +78,15 @@ function exportToExcel(data: AppData) {
 }
 
 export default function App() {
-  const [session, setSession]           = useState<any>(null);
-  const [data, setData]                 = useState<AppData | null>(null);
-  const [loading, setLoading]           = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const [view, setView]         = useState<ViewId>('home');
-  const [prevView, setPrevView] = useState<ViewId>('home');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [isMobile, setIsMobile]       = useState(false);
-  const [privacyMode, setPrivacyMode] = useState(false);
-  const [showMore, setShowMore]       = useState(false);
-  const [planInfo, setPlanInfo] = useState<{ plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string } | undefined>(undefined);
-  const [theme, setTheme] = useState('obsidian');
-
+const [view, setView]                 = useState<ViewId>('home');
+  const [prevView, setPrevView]         = useState<ViewId>('home');
+  const [sidebarOpen, setSidebarOpen]   = useState(true);
+  const [isMobile, setIsMobile]         = useState(false);
+  const [privacyMode, setPrivacyMode]   = useState(false);
+  const [showMore, setShowMore]         = useState(false);
+  const [planInfo, setPlanInfo]         = useState<{ plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string } | undefined>(undefined);
+  const [theme, setTheme]               = useState('obsidian');
   const [duplicateData, setDuplicateData] = useState<any>(null);
-const [prevView, setPrevView] = useState<ViewId>('home');
 
   useEffect(() => {
     const saved = localStorage.getItem('cf_theme') || 'obsidian';
