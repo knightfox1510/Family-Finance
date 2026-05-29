@@ -1,15 +1,11 @@
 // app/api/groups/[groupId]/transactions/route.ts
-// FIXED: resolveUserId now also accepts createdBy/userId from request body/query
-// as a fallback, consistent with the GET endpoint. This handles the case where
-// the client sends no auth header (regular Supabase session via cookie).
-//
-// The correct long-term fix is for the client to send Authorization: Bearer <token>,
-// which AddGroupExpense.tsx now does. This fallback is a safety net.
+// Fix 8 applied: resolveGhostToken replaced with resolveGhostUserId from lib/ghostToken.ts
+// which verifies the HMAC signature before trusting profileId.
 
-import { NextResponse } from 'next/server';
-import { logActivity } from '@/lib/logActivity';
-import { createClient }  from '@supabase/supabase-js';
-import { SignJWT, jwtVerify } from 'jose';
+import { NextResponse }        from 'next/server';
+import { logActivity }         from '@/lib/logActivity';
+import { createClient }        from '@supabase/supabase-js';
+import { resolveGhostUserId }  from '@/lib/ghostToken';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,50 +13,12 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-const GHOST_SECRET = new TextEncoder().encode(
-  process.env.GHOST_SESSION_SECRET ?? 'fallback-secret-change-in-prod'
-);
-
-// ── Ghost token resolution ───────────────────────────────────────────────────
-async function resolveGhostToken(token: string): Promise<string | null> {
-  // Support hand-rolled HMAC format (from whatsapp-otp/verify)
-  try {
-    const [payloadB64] = token.split('.');
-    if (payloadB64) {
-      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
-      if (payload.profileId) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', payload.profileId)
-          .single();
-        if (data?.id) return data.id;
-      }
-    }
-  } catch {}
-
-  // Fall back to jose JWT format
-  try {
-    const { payload } = await jwtVerify(token, GHOST_SECRET);
-    const userId = payload.sub as string;
-    if (!userId) return null;
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, is_ghost')
-      .eq('id', userId)
-      .single();
-    return data?.id ?? null;
-  } catch {
-    return null;
-  }
-}
-
 // ── Auth helper ──────────────────────────────────────────────────────────────
 // Priority: ghost token > Bearer token > userId query/body param (verified against DB)
 async function resolveUserId(request: Request, fallbackUserId?: string | null): Promise<string | null> {
-  // 1. Ghost token header
+  // 1. Ghost token header — HMAC verified inside resolveGhostUserId
   const ghostToken = request.headers.get('x-ghost-token');
-  if (ghostToken) return resolveGhostToken(ghostToken);
+  if (ghostToken) return resolveGhostUserId(ghostToken, supabase);
 
   // 2. Bearer token (regular Supabase session)
   const authHeader = request.headers.get('authorization');
@@ -70,9 +28,7 @@ async function resolveUserId(request: Request, fallbackUserId?: string | null): 
     if (user?.id) return user.id;
   }
 
-  // 3. Fallback: userId from query param or body — verify they're actually a real user
-  // This handles cases where the client didn't send an auth header but we have the userId.
-  // We verify by checking the profiles table (service role, so RLS bypassed).
+  // 3. Fallback: userId from query param or body — verify against DB
   if (fallbackUserId) {
     const { data } = await supabase
       .from('profiles')
@@ -211,8 +167,6 @@ export async function POST(
 ) {
   try {
     const { groupId } = params;
-
-    // Clone the request so we can read body after resolveUserId reads headers
     const body = await request.json();
 
     const {
@@ -227,33 +181,19 @@ export async function POST(
       createdBy,
     } = body;
 
-    // Resolve caller — pass createdBy/paidBy as fallback for headerless requests
     const fallbackId = createdBy ?? paidBy ?? null;
     const callerId   = await resolveUserId(request, fallbackId);
 
-    if (!callerId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    if (!callerId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
     const resolvedCreatedBy = createdBy ?? callerId;
 
-    // ── Validation ─────────────────────────────────────────────────────────
     if (!paidBy || !description?.trim() || !totalAmount) {
-      return NextResponse.json(
-        { error: 'paidBy, description, and totalAmount are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'paidBy, description, and totalAmount are required' }, { status: 400 });
     }
+    if (totalAmount <= 0) return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
+    if (splits.length === 0) return NextResponse.json({ error: 'At least one split participant required' }, { status: 400 });
 
-    if (totalAmount <= 0) {
-      return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
-    }
-
-    if (splits.length === 0) {
-      return NextResponse.json({ error: 'At least one split participant required' }, { status: 400 });
-    }
-
-    // Verify caller is a group member
     const { data: member } = await supabase
       .from('group_members')
       .select('id')
@@ -261,26 +201,20 @@ export async function POST(
       .eq('user_id', callerId)
       .single();
 
-    if (!member) {
-      return NextResponse.json({ error: 'Not a member of this group' }, { status: 403 });
-    }
+    if (!member) return NextResponse.json({ error: 'Not a member of this group' }, { status: 403 });
 
     // ── Compute splits ─────────────────────────────────────────────────────
-    // All arithmetic uses integer paisa (×100) to avoid floating-point drift.
-    // After distributing, any remainder paisa goes to the largest-share holder.
     let computedSplits: { userId: string; itemName: string; shareAmount: number }[] = [];
 
-    // Helper: distribute totalPaisa across entries, apply remainder to largest
     function distributeWithRemainder(
       entries: { userId: string; itemName: string; paisaShare: number }[],
       totalPaisa: number,
     ): { userId: string; itemName: string; shareAmount: number }[] {
       const sumPaisa = entries.reduce((s, e) => s + e.paisaShare, 0);
-      const diff     = totalPaisa - sumPaisa;   // +ve or -ve, typically 0 or ±1
+      const diff     = totalPaisa - sumPaisa;
       if (diff === 0) {
         return entries.map((e) => ({ userId: e.userId, itemName: e.itemName, shareAmount: e.paisaShare / 100 }));
       }
-      // Apply remainder to the entry with the largest share (most fair)
       let maxIdx = 0;
       for (let i = 1; i < entries.length; i++) {
         if (entries[i].paisaShare > entries[maxIdx].paisaShare) maxIdx = i;
@@ -297,7 +231,6 @@ export async function POST(
     if (splitType === 'equal') {
       const basePaisa      = Math.floor(totalPaisa / splits.length);
       const remainderPaisa = totalPaisa - basePaisa * splits.length;
-      // Distribute the extra paisa to the first N entries
       computedSplits = splits.map((s: any, i: number) => ({
         userId:      s.userId,
         itemName:    'Shared Cost',
@@ -307,12 +240,12 @@ export async function POST(
     } else if (splitType === 'custom') {
       type SplitEntry = { userId: string; itemName: string; paisaShare: number };
       const rawEntries: SplitEntry[] = splits.map((s: any) => ({
-        userId:      s.userId,
-        itemName:    'Custom Share',
-        paisaShare:  Math.round(Number(s.amount ?? 0) * 100),
+        userId:     s.userId,
+        itemName:   'Custom Share',
+        paisaShare: Math.round(Number(s.amount ?? 0) * 100),
       }));
       const sumPaisa = rawEntries.reduce((acc: number, e) => acc + e.paisaShare, 0);
-      if (Math.abs(sumPaisa - totalPaisa) > 2) {   // > 2 paisa = real user error
+      if (Math.abs(sumPaisa - totalPaisa) > 2) {
         return NextResponse.json(
           { error: `Custom split amounts (₹${(sumPaisa / 100).toFixed(2)}) must equal total (₹${totalAmount.toFixed(2)})` },
           { status: 400 }
@@ -323,9 +256,9 @@ export async function POST(
     } else if (splitType === 'itemized') {
       type SplitEntry = { userId: string; itemName: string; paisaShare: number };
       const rawEntries: SplitEntry[] = splits.map((s: any) => ({
-        userId:      s.userId,
-        itemName:    s.itemName ?? 'Item',
-        paisaShare:  Math.round(Number(s.amount ?? 0) * 100),
+        userId:     s.userId,
+        itemName:   s.itemName ?? 'Item',
+        paisaShare: Math.round(Number(s.amount ?? 0) * 100),
       }));
       const sumPaisa = rawEntries.reduce((acc: number, e) => acc + e.paisaShare, 0);
       if (Math.abs(sumPaisa - totalPaisa) > 2) {
@@ -369,9 +302,7 @@ export async function POST(
       settled_via:    s.userId === paidBy ? 'direct_payment' : null,
     }));
 
-    const { error: splitError } = await supabase
-      .from('transaction_splits')
-      .insert(splitRows);
+    const { error: splitError } = await supabase.from('transaction_splits').insert(splitRows);
 
     if (splitError) {
       await supabase.from('group_transactions').delete().eq('id', transaction.id);
@@ -383,43 +314,28 @@ export async function POST(
       .from('group_transactions')
       .select(`
         *,
-        payer:profiles!group_transactions_paid_by_fkey (
-          id, display_name, ghost_name
-        ),
+        payer:profiles!group_transactions_paid_by_fkey ( id, display_name, ghost_name ),
         transaction_splits (
           id, user_id, item_name, share_amount, is_settled,
-          profiles!transaction_splits_user_id_fkey (
-            id, display_name, ghost_name
-          )
+          profiles!transaction_splits_user_id_fkey ( id, display_name, ghost_name )
         )
       `)
       .eq('id', transaction.id)
       .single();
 
-    // ── Update group last_activity (fire and forget) ──────────────────────
     supabase.from('groups').update({ last_activity: new Date().toISOString() }).eq('id', groupId);
 
-    // ── Fire WhatsApp notifications async ─────────────────────────────────
     const { data: payerProfile } = await supabase
-      .from('profiles')
-      .select('display_name, ghost_name')
-      .eq('id', paidBy)
-      .single();
+      .from('profiles').select('display_name, ghost_name').eq('id', paidBy).single();
     const payerName = payerProfile?.display_name || payerProfile?.ghost_name || 'Someone';
 
-    const { data: group } = await supabase
-      .from('groups')
-      .select('currency')
-      .eq('id', groupId)
-      .single();
+    const { data: group } = await supabase.from('groups').select('currency').eq('id', groupId).single();
 
     notifyGroupMembers(groupId, payerName, description.trim(), totalAmount, group?.currency ?? 'INR', callerId);
 
-    // Log activity (fire-and-forget)
-    const actorName = payerName;
     logActivity(
       groupId, callerId, 'ADD_EXPENSE',
-      actorName + ' added \'' + description.trim() + '\' (₹' + Math.round(totalAmount) + ')',
+      payerName + ' added \'' + description.trim() + '\' (₹' + Math.round(totalAmount) + ')',
       { transaction_id: transaction.id, amount: totalAmount }
     );
 
@@ -443,17 +359,10 @@ export async function DELETE(
     }
 
     const { data: tx } = await supabase
-      .from('group_transactions')
-      .select('created_by, paid_by')
-      .eq('id', transactionId)
-      .single();
+      .from('group_transactions').select('created_by, paid_by').eq('id', transactionId).single();
 
     const { data: membership } = await supabase
-      .from('group_members')
-      .select('role')
-      .eq('group_id', params.groupId)
-      .eq('user_id', userId)
-      .single();
+      .from('group_members').select('role').eq('group_id', params.groupId).eq('user_id', userId).single();
 
     const isOwner = tx?.created_by === userId || tx?.paid_by === userId;
     const isAdmin = membership?.role === 'admin';
@@ -462,116 +371,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Only the creator or group admin can delete transactions' }, { status: 403 });
     }
 
-    await supabase
-      .from('group_transactions')
-      .update({ is_deleted: true })
-      .eq('id', transactionId);
-
-    // Update group last_activity (fire and forget)
+    await supabase.from('group_transactions').update({ is_deleted: true }).eq('id', transactionId);
     supabase.from('groups').update({ last_activity: new Date().toISOString() }).eq('id', params.groupId);
 
-    // Log deletion
-    const { data: deletedTx } = await supabase.from('group_transactions').select('description, total_amount').eq('id', transactionId).single();
+    const { data: deletedTx } = await supabase
+      .from('group_transactions').select('description, total_amount').eq('id', transactionId).single();
     if (deletedTx) {
-      logActivity(params.groupId, userId, 'DELETE_EXPENSE', 'Deleted \'' + deletedTx.description + '\' (₹' + Math.round(deletedTx.total_amount) + ')');
+      logActivity(params.groupId, userId, 'DELETE_EXPENSE',
+        'Deleted \'' + deletedTx.description + '\' (₹' + Math.round(deletedTx.total_amount) + ')');
     }
-
-    return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
-}
-
-// ── PATCH /api/groups/[groupId]/transactions/[txId] ──────────────────────────
-// Edit an existing transaction. Only the creator/payer can edit.
-// Body: { description?, totalAmount?, category?, paidBy?, userId }
-// When totalAmount changes, splits are recalculated equally.
-// Settled splits are NOT touched — only unsettled ones are rebalanced.
-export async function PATCH(
-  request: Request,
-  { params }: { params: { groupId: string } }
-) {
-  try {
-    const { groupId } = params;
-    const body        = await request.json();
-    const { description, totalAmount, category, paidBy, userId: bodyUserId } = body;
-
-    const callerId = await resolveUserId(request, bodyUserId ?? null);
-    if (!callerId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-
-    // Extract txId from URL  /api/groups/[groupId]/transactions/[txId]
-    const url    = new URL(request.url);
-    const parts  = url.pathname.split('/');
-    const txId   = parts[parts.length - 1];
-
-    if (!txId || txId === 'transactions') {
-      return NextResponse.json({ error: 'txId required in URL' }, { status: 400 });
-    }
-
-    // Fetch existing transaction
-    const { data: tx, error: txErr } = await supabase
-      .from('group_transactions')
-      .select('id, group_id, created_by, paid_by, total_amount, description, split_type')
-      .eq('id', txId)
-      .eq('is_deleted', false)
-      .single();
-
-    if (txErr || !tx) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
-    if (tx.group_id !== groupId) return NextResponse.json({ error: 'Transaction not in this group' }, { status: 403 });
-
-    // Only creator or payer can edit
-    const isCreator = tx.created_by === callerId || tx.paid_by === callerId;
-    const { data: mem } = await supabase.from('group_members').select('role').eq('group_id', groupId).eq('user_id', callerId).single();
-    const isAdmin = mem?.role === 'admin';
-
-    if (!isCreator && !isAdmin) {
-      return NextResponse.json({ error: 'Only the expense creator or a group admin can edit this transaction' }, { status: 403 });
-    }
-
-    // Build update payload
-    const updates: Record<string, any> = {};
-    if (description?.trim()) updates.description  = description.trim();
-    if (category)             updates.category    = category;
-    if (paidBy)               updates.paid_by     = paidBy;
-
-    const newTotal = totalAmount ? Number(totalAmount) : null;
-    if (newTotal && newTotal > 0) updates.total_amount = newTotal;
-
-    // Update the transaction row
-    const { error: updErr } = await supabase
-      .from('group_transactions')
-      .update(updates)
-      .eq('id', txId);
-
-    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
-
-    // If amount changed, rebalance unsettled splits equally
-    if (newTotal && newTotal !== tx.total_amount) {
-      const { data: splits } = await supabase
-        .from('transaction_splits')
-        .select('id, user_id, is_settled')
-        .eq('transaction_id', txId);
-
-      const unsettled = (splits ?? []).filter((s) => !s.is_settled);
-      if (unsettled.length > 0) {
-        const totalPaisa   = Math.round(newTotal * 100);
-        const basePaisa    = Math.floor(totalPaisa / unsettled.length);
-        const remainPaisa  = totalPaisa - basePaisa * unsettled.length;
-
-        for (let i = 0; i < unsettled.length; i++) {
-          await supabase
-            .from('transaction_splits')
-            .update({ share_amount: (basePaisa + (i < remainPaisa ? 1 : 0)) / 100 })
-            .eq('id', unsettled[i].id);
-        }
-      }
-    }
-
-    // Log activity
-    logActivity(groupId, callerId, 'ADD_EXPENSE',
-      'Edited \'' + (updates.description ?? tx.description) + '\'' +
-      (newTotal ? ' → ₹' + Math.round(newTotal) : ''),
-    );
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
