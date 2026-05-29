@@ -76,9 +76,9 @@ function QuickAction({
 }
 
 function SectionCard({
-  emoji, label, sub, color, onClick, wide, badge,
+  icon, label, sub, color, onClick, wide, badge,
 }: {
-  emoji: string;
+  icon: string;
   label: string;
   sub: string;
   color: string;
@@ -127,7 +127,9 @@ function SectionCard({
 
       {/* Left content */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 8 }}>{emoji}</div>
+        <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center' }}>
+          <Icon name={icon} size={22} color={color} />
+        </div>
         <div style={{
           fontSize: 12,
           fontWeight: 700,
@@ -416,10 +418,10 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
   // ── Section card definitions ────────────────────────────────────────────────
   // visibility: 'all' | 'household' | 'ghost' | 'partner'
   // Cast after .filter() — avoids TypeScript widening view literals to string.
-  type SectionDef = { emoji: string; label: string; sub: string; color: string; view: ViewId; wide?: boolean; badge?: string; show: boolean };
+  type SectionDef = { icon: string; label: string; sub: string; color: string; view: ViewId; wide?: boolean; badge?: string; show: boolean };
   const sections = ([
     {
-      emoji: '💳',
+      icon: 'card',
       label: 'Expenses',
       sub: stats.thisMonthExp.length > 0
         ? `${stats.thisMonthExp.length} this month · ${fmt(stats.totalSpent)}`
@@ -429,7 +431,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
       show: true,
     },
     {
-      emoji: '📥',
+      icon: 'trendUp',
       label: 'Income',
       sub: stats.totalIncome > 0
         ? `${fmt(stats.totalIncome)} earned this month`
@@ -439,7 +441,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
       show: !isGhost,
     },
     {
-      emoji: '👥',
+      icon: 'users',
       label: 'Groups',
       sub: stats.groupCount > 0
         ? `${stats.groupCount} active ${stats.groupCount === 1 ? 'group' : 'groups'}`
@@ -450,7 +452,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
       show: true,
     },
     {
-      emoji: '🤝',
+      icon: 'handshake',
       label: 'Settle Up',
       sub: stats.unsettled > 0
         ? `${stats.unsettled} pending ${stats.unsettled === 1 ? 'settlement' : 'settlements'}`
@@ -461,7 +463,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
       show: true,
     },
     {
-      emoji: '🎯',
+      icon: 'target',
       label: 'Goals',
       sub: stats.goalsCount > 0
         ? `${stats.goalsCount} goals · ${stats.goalsPct}% funded`
@@ -471,7 +473,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
       show: true,
     },
     {
-      emoji: '💰',
+      icon: 'wallet',
       label: 'Contributions',
       sub: stats.contribTotal > 0
         ? `${fmt(stats.contribTotal)} pooled this month`
@@ -481,7 +483,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
       show: hasPartner,
     },
     {
-      emoji: '🏦',
+      icon: 'bank',
       label: 'Loans & EMIs',
       sub: stats.loanCount > 0
         ? `${stats.loanCount} active · ${fmt(stats.loanTotal)}/mo`
@@ -491,7 +493,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
       show: !isGhost,
     },
     {
-      emoji: '✨',
+      icon: 'sparkles',
       label: 'AI Insights',
       sub: 'Spending patterns · Smart nudges',
       color: C.teal,
@@ -583,30 +585,30 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
         <div style={{ display: 'flex', gap: 8 }}>
           <QuickAction
             label="Add"
-            icon="add"
+            icon="plus"
             accent
             onClick={() => onAddExpense?.()}
           />
           <QuickAction
             label="Settle"
-            icon="settle"
+            icon="handshake"
             onClick={() => onNavigate('settle')}
           />
           <QuickAction
             label="Groups"
-            icon="groups"
+            icon="users"
             onClick={() => onNavigate('groups')}
           />
           {!isGhost ? (
             <QuickAction
               label="Stats"
-              icon="chart"
+              icon="barChart"
               onClick={() => onNavigate('dashboard')}
             />
           ) : (
             <QuickAction
               label="Goals"
-              icon="goals"
+              icon="target"
               onClick={() => onNavigate('goals')}
             />
           )}
@@ -633,7 +635,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
           {sections.map((s) => (
             <SectionCard
               key={s.view}
-              emoji={s.emoji}
+              icon={s.icon}
               label={s.label}
               sub={s.sub}
               color={s.color}
