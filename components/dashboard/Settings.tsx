@@ -9,6 +9,7 @@ import { C, HOUSEHOLD_MODE_META } from '@/constants';
 import { hasPartnerB } from '@/lib/householdModes';
 import { supabase } from '@/lib/supabaseClient';
 import { parseImport } from '@/lib/parseImport';
+import { AvatarUpload } from '@/components/ui/Avatar';
 
 interface Props {
   data: AppData;
@@ -20,6 +21,7 @@ interface Props {
   theme?: string;
   onThemeChange?: (t: string) => void;
   planInfo?: { plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string };
+  session?: any; // Added to access session?.user?.id for the Avatar component
 }
 
 // ─── Downgrade config ─────────────────────────────────────────────────────────
@@ -277,7 +279,7 @@ const ghostBtnStyle: React.CSSProperties = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function Settings({ data, householdId, onSave, onExport, onImport, onJoinHousehold, theme = 'obsidian', onThemeChange, planInfo }: Props) {
+export function Settings({ data, householdId, onSave, onExport, onImport, onJoinHousehold, theme = 'obsidian', onThemeChange, planInfo, session }: Props) {
 
   const [s, setS]                 = useState<SettingsType>(() => JSON.parse(JSON.stringify(data.settings)));
   const [flash, setFlash]         = useState(false);
@@ -287,6 +289,9 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   const [joinId, setJoinId]       = useState('');
   const [expandedMode, setExpandedMode] = useState<string | null>(null);
   const [expandedTg, setExpandedTg]     = useState(false);
+  const [avatarUrl, setAvatarUrl]       = useState<string>(
+    (data as any)?.profile?.avatar_url ?? ''
+  );
 
   // Collapsed section state — all start collapsed for a clean initial view
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -539,29 +544,28 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         );
       })()}
 
-      {/* ── 1. Profile hero card ──────────────────────────────────────────── */}
+      {/* ── 1. Profile hero card ─────────────────────────────────────────── */}
       <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{
-          width: 56, height: 56, borderRadius: '50%', background: C.accent, color: '#0a0a0a',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, fontWeight: 900, flexShrink: 0,
-        }}>
-          {(s.partnerAName || 'U').charAt(0).toUpperCase()}
-        </div>
+        {/* Avatar upload — tap to change */}
+        <AvatarUpload
+          profile={{
+            id:           session?.user?.id ?? '',
+            display_name: s.partnerAName,
+            avatar_url:   avatarUrl || null,
+          }}
+          onUploaded={(url) => setAvatarUrl(url)}
+        />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: C.textW, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: C.textW, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {s.partnerAName || 'You'}{partnerB && s.partnerBName ? ` & ${s.partnerBName}` : ''}
           </div>
           <div style={{ fontSize: 12, color: C.text2, marginTop: 2 }}>
             {HOUSEHOLD_MODE_META[s.householdMode ?? 'solo']?.label ?? 'Household'} · {householdId.slice(0, 8)}…
           </div>
+          <div style={{ fontSize: 11, color: C.text3, marginTop: 4 }}>Tap photo to change</div>
         </div>
         {planInfo?.plan === 'pro' && (
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-            borderRadius: 999, fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
-            color: C.accent, border: `1px solid ${C.accent}`, flexShrink: 0,
-          }}>✦ PRO</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, color: C.accent, border: `1px solid ${C.accent}`, flexShrink: 0 }}>✦ PRO</span>
         )}
       </div>
 
