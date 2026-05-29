@@ -92,6 +92,9 @@ export default function App() {
   const [planInfo, setPlanInfo] = useState<{ plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string } | undefined>(undefined);
   const [theme, setTheme] = useState('obsidian');
 
+  const [duplicateData, setDuplicateData] = useState<any>(null);
+const [prevView, setPrevView] = useState<ViewId>('home');
+
   useEffect(() => {
     const saved = localStorage.getItem('cf_theme') || 'obsidian';
     setTheme(saved);
