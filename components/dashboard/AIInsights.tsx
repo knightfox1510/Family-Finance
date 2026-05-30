@@ -31,6 +31,7 @@ export function AIInsights({ data, fmt }: Props) {
     handleInputChange, 
     handleSubmit, 
     setMessages, 
+    append, // Destructured append to natively invoke the initial streaming trigger
     isLoading, 
     error 
   } = useChat({
@@ -68,17 +69,16 @@ export function AIInsights({ data, fmt }: Props) {
       discretionary: `Expense coach. Spending: ${JSON.stringify(catTotals)}. Budgets: ${JSON.stringify((data.settings as any).budgets)}. Separate Fixed (Rent, Utilities, EMI, Insurance) from Discretionary (Dining, Coffee, Entertainment, Apparel). Flag categories approaching limits. Suggest adjustments to reclaim capital for investments.`,
     };
 
-    setMessages([
-      { id: `init-${mode}`, role: 'user', content: prompts[mode] }
-    ]);
-  };
+    // Explicitly reset any existing messages in state container
+    setMessages([]);
 
-  // Automated layout submit runner once the core prompt maps into the message context array
-  useEffect(() => {
-    if (messages.length === 1 && messages[0].role === 'user' && messages[0].id === `init-${mode}`) {
-      handleSubmit(new Event('submit') as any);
-    }
-  }, [messages, mode, handleSubmit]);
+    // Programmatically append message to array history, triggering the stream pipeline immediately
+    append({
+      id: `init-${mode}`,
+      role: 'user',
+      content: prompts[mode]
+    });
+  };
 
   const currentMode = MODES.find((m) => m.id === mode)!;
   
