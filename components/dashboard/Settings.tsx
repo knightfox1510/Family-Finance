@@ -484,9 +484,12 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         setS((x) => ({ ...x, notifications: { ...x.notifications, enabled: true } }));
         setPushActionMsg({ type: 'success', text: 'Push notifications enabled! You will receive budget and settlement alerts.' });
       } else {
+        // push.status hasn't re-rendered yet (it's async state), so read the
+        // OS permission directly from the browser to pick the right message.
+        const permissionNow = typeof Notification !== 'undefined' ? Notification.permission : 'default';
         setPushActionMsg({
           type: 'error',
-          text: push.status === 'denied'
+          text: permissionNow === 'denied'
             ? 'Permission denied. Allow notifications in your browser settings and try again.'
             : 'Could not enable notifications. Please try again.',
         });
