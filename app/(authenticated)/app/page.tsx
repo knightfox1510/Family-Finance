@@ -33,7 +33,7 @@ import { LoadDataError }  from '@/lib/supabaseHelpers';
 import { Dashboard }        from '@/components/dashboard/Dashboard';
 import { AddExpense }       from '@/components/dashboard/AddExpense';
 import { IncomeTracker }    from '@/components/dashboard/IncomeTracker';
-import { ExpenseList }      from '@/components/dashboard/ExpenseList';
+import { ExpenseListPaginated }     from '@/components/dashboard/ExpenseListPaginated';
 import { SettleDashboard }  from '@/components/dashboard/SettleDashboard';
 import { Groups }           from '@/components/dashboard/Groups';
 import { Contributions }    from '@/components/dashboard/Contributions';
