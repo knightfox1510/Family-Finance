@@ -80,13 +80,16 @@ export function AIInsights({ data, fmt }: Props) {
 
   const currentMode = MODES.find((m) => m.id === mode)!;
   
-  const initialReportMessage = messages.find((m) => m.id === `init-${mode}-reply` || (m.role === 'assistant' && messages.indexOf(m) === 1));
+  const initialReportMessage = messages.find((m) =>
+    m.role === 'assistant' && messages[messages.indexOf(m) - 1]?.id === `init-${mode}`
+  );
   const reportText = initialReportMessage?.content;
 
   const followUpChatMessages = messages.filter((m) => {
     const isInitialPrompt = m.id === `init-${mode}`;
-    const isInitialReply = m === initialReportMessage;
-    return !isInitialPrompt && !isInitialReply;
+    const isInitialReply  = m === initialReportMessage;
+    const isHidden        = isInitialPrompt || isInitialReply;
+    return !isHidden;
   });
 
   return (
