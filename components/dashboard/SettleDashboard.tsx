@@ -176,6 +176,16 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
   // Selected items for wizard
   const p2pSelItems = pendingPartnerItems.filter((i: any) => p2pSelected.has(i.id));
 
+  // Net direction for the current selection — cancels opposing items
+  const p2pSelNetBalance = p2pSelItems.reduce((net: number, item: any) => {
+    const paidByA = item.account === names.a || item.account === 'Partner A';
+    return paidByA ? net + Number(item.amountOwed) : net - Number(item.amountOwed);
+  }, 0);
+  const p2pSelNetAbs  = Math.abs(p2pSelNetBalance);
+  const p2pSelNetFrom = p2pSelNetBalance > 0 ? names.b : names.a;
+  const p2pSelNetTo   = p2pSelNetBalance > 0 ? names.a : names.b;
+  const p2pSelIsZero  = p2pSelNetAbs < 0.01;
+
   const hasJointPending = pendingA.length > 0 || pendingB.length > 0;
   const jointTotal = pending.reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
@@ -532,30 +542,40 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
               </div>
             )}
 
-            {/* Settle selected button */}
+            {/* Settle selected button — shows total + net direction */}
             {p2pSelected.size > 0 && (
               <button
                 onClick={() => openWizard(p2pSelItems)}
                 style={{
                   marginTop: 12,
                   width: '100%',
-                  padding: '14px',
-                  borderRadius: 999,
+                  padding: '14px 18px',
+                  borderRadius: 16,
                   border: 'none',
                   background: C.purple,
                   color: '#fff',
-                  fontSize: 14,
-                  fontWeight: 800,
                   cursor: 'pointer',
                   fontFamily: 'inherit',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
+                  gap: 12,
                 }}
               >
-                <Icon name="zap" size={16} color="#fff" strokeWidth={2.5} />
-                Settle {p2pSelected.size} item{p2pSelected.size !== 1 ? 's' : ''} · {fmt(p2pSelTotal)}
+                <Icon name="zap" size={18} color="#fff" strokeWidth={2.5} />
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, lineHeight: 1.3 }}>
+                    Settle {p2pSelected.size} item{p2pSelected.size !== 1 ? 's' : ''}
+                    {' · '}
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(p2pSelTotal)}</span>
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.85, marginTop: 2, lineHeight: 1.3 }}>
+                    {p2pSelIsZero
+                      ? '⇄ Items cancel out — net zero payment'
+                      : `→ ${p2pSelNetFrom} pays ${p2pSelNetTo} ${fmt(p2pSelNetAbs)} net`
+                    }
+                  </div>
+                </div>
+                <Icon name="chevron" size={14} color="rgba(255,255,255,0.7)" />
               </button>
             )}
           </div>
@@ -635,20 +655,20 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
                         <button onClick={() => clearGroup(pendingA)} style={{ background: 'transparent', border: `1px solid ${C.border2}`, color: C.text2, borderRadius: 999, padding: '4px 10px', fontWeight: 600, cursor: 'pointer', fontSize: 10, fontFamily: 'inherit' }}>Clear</button>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {pendingA.map((e) => (
                         <div key={e.id}
-                          style={{ background: selected.has(e.id) ? `${C.purple}12` : C.surface2, borderRadius: 12, padding: '11px 13px', border: `1px solid ${selected.has(e.id) ? C.purple + '44' : C.border + '33'}`, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', transition: 'all 0.12s' }}
+                          style={{ background: selected.has(e.id) ? `${C.purple}12` : C.surface2, borderRadius: 12, padding: '13px 14px', border: `1px solid ${selected.has(e.id) ? C.purple + '44' : C.border + '33'}`, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'all 0.12s' }}
                           onClick={() => toggle(e.id)}
                         >
                           <div style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${selected.has(e.id) ? C.purple : C.border2}`, background: selected.has(e.id) ? C.purple : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             {selected.has(e.id) && <Icon name="check" size={10} color="#fff" strokeWidth={3} />}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: C.text1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: C.text1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
                               {e.note || e.category}
                             </div>
-                            <div style={{ fontSize: 10, color: C.text3 }}>{e.date} · {e.category}</div>
+                            <div style={{ fontSize: 11, color: C.text3, marginTop: 3, lineHeight: 1.3 }}>{e.date} · {e.category}</div>
                           </div>
                           <div style={{ fontSize: 13, fontWeight: 800, color: C.purple, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{fmt(e.amount)}</div>
                         </div>
@@ -680,20 +700,20 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
                         <button onClick={() => clearGroup(pendingB)} style={{ background: 'transparent', border: `1px solid ${C.border2}`, color: C.text2, borderRadius: 999, padding: '4px 10px', fontWeight: 600, cursor: 'pointer', fontSize: 10, fontFamily: 'inherit' }}>Clear</button>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {pendingB.map((e) => (
                         <div key={e.id}
-                          style={{ background: selected.has(e.id) ? `${C.blue}12` : C.surface2, borderRadius: 12, padding: '11px 13px', border: `1px solid ${selected.has(e.id) ? C.blue + '44' : C.border + '33'}`, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', transition: 'all 0.12s' }}
+                          style={{ background: selected.has(e.id) ? `${C.blue}12` : C.surface2, borderRadius: 12, padding: '13px 14px', border: `1px solid ${selected.has(e.id) ? C.blue + '44' : C.border + '33'}`, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'all 0.12s' }}
                           onClick={() => toggle(e.id)}
                         >
                           <div style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${selected.has(e.id) ? C.blue : C.border2}`, background: selected.has(e.id) ? C.blue : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             {selected.has(e.id) && <Icon name="check" size={10} color="#fff" strokeWidth={3} />}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: C.text1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: C.text1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
                               {e.note || e.category}
                             </div>
-                            <div style={{ fontSize: 10, color: C.text3 }}>{e.date} · {e.category}</div>
+                            <div style={{ fontSize: 11, color: C.text3, marginTop: 3, lineHeight: 1.3 }}>{e.date} · {e.category}</div>
                           </div>
                           <div style={{ fontSize: 13, fontWeight: 800, color: C.blue, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{fmt(e.amount)}</div>
                         </div>
