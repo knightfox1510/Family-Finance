@@ -446,7 +446,7 @@ export function AddExpense({ data, session, duplicateData, onAdd, onUpdateSave, 
           ? <><Icon name="check" size={18} color="#fff" strokeWidth={3} /> Saved!</>
           : isEditingMode
             ? `Update · ₹${form.amount || 0}`
-            : `Log ${form.type === 'income' ? 'income' : 'expense'} · ₹${form.amount || 0}`}
+            : `Log ${form.type === 'income' ? 'income' : 'expense'} · ₹${parseFloat(form.amount) || 0}`}
       </button>
     </div>
   );
