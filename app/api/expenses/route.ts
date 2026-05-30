@@ -16,7 +16,7 @@
 //   &sortDir      — 'desc' (default) | 'asc'
 //
 // Response:
-//   { expenses: Expense[], total: number, page: number, hasMore: boolean, nextCursor: string | null }
+//   { expenses: Expense[], total: number, page: number, hasMore: boolean, nextCursor: string | null, availableMonths: string[] }
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -187,6 +187,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // ── Dynamic available months fetch ─────────────────────────────────────────
+    const { data: monthRows } = await supabaseAdmin
+      .from('transactions')
+      .select('date')
+      .eq('household_id', householdId)
+      .order('date', { ascending: false });
+
+    const availableMonths = [
+      ...new Set(
+        (monthRows ?? []).map((r: any) => r.date.slice(0, 7))
+      ),
+    ].sort().reverse();
+
     // Map DB row → Expense shape expected by the client
     // (mirrors what loadData does in supabaseHelpers.ts)
     const expenses = (rows ?? []).map((r: any) => {
@@ -241,6 +254,7 @@ export async function GET(req: Request) {
       page,
       hasMore,
       nextCursor: hasMore ? String(page + 1) : null,
+      availableMonths,
     });
   } catch (err: any) {
     console.error('[GET /api/expenses] Error:', err);
