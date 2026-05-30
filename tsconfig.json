@@ -50,6 +50,6 @@
   ],
   /* ── Which folders TypeScript should ignore ────────────────────────────── */
   "exclude": [
-    "node_modules"
+    "node_modules", "vitest.config.ts"
   ]
 }
