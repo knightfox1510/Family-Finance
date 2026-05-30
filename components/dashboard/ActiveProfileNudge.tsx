@@ -16,7 +16,8 @@ import React, { useState } from 'react';
 import { C } from '@/constants';
 import { Icon } from '@/components/ui/Icon';
 
-const ROLE_STRINGS = new Set(['Partner A', 'Partner B', 'partner_a', 'partner_b']);
+const ROLE_STRINGS = new Set(['Partner A', 'Partner B', 'partner_a', 'partner_b', '']);
+
 const DISMISSED_KEY = 'cf_profile_nudge_dismissed';
 
 interface Props {
@@ -38,7 +39,26 @@ export function ActiveProfileNudge({ currentUserRole, settings, onNavigate }: Pr
 
   // Only show when in a multi-partner household AND display_name is still a role string
   const isMultiPartner = settings.householdMode === 'joint' || settings.householdMode === 'separate';
-  const nameIsPlaceholder = ROLE_STRINGS.has(currentUserRole);
+  const nameIsPlaceholder = ROLE_STRINGS.has(settings.partnerAName?.trim() ?? '');
+
+
+  export function ActiveProfileNudge({ currentUserRole, settings, onNavigate }: Props) {
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(DISMISSED_KEY) === '1';
+  });
+
+  const dismiss = () => {
+    localStorage.setItem(DISMISSED_KEY, '1');
+    setDismissed(true);
+  };
+
+  const isMultiPartner = settings.householdMode === 'joint' || settings.householdMode === 'separate';
+  
+  // Check if partnerAName is still a generic placeholder (not a real name)
+  // This uses household_settings data, which is correctly set during setup
+  const PLACEHOLDER_NAMES = new Set(['Partner A', 'Partner B', 'partner_a', 'partner_b', '']);
+  const nameIsPlaceholder = PLACEHOLDER_NAMES.has(settings.partnerAName?.trim() ?? '');
 
   if (!isMultiPartner || !nameIsPlaceholder || dismissed) return null;
 
