@@ -1,6 +1,7 @@
-// app/api/groups/route.ts  (rate-limited patch — POST only)
-// Adds rate limiting to POST /groups: max 10 new groups per day per user.
-// GET, PATCH, DELETE are unchanged from the original.
+// app/api/groups/route.ts
+// FIX: GET now fetches avatar_url from profiles so the Avatar component
+//      receives a real photo URL instead of falling back to initials.
+// All other logic (POST/PATCH/DELETE) unchanged.
 
 import { NextResponse }                          from 'next/server';
 import { createClient }                          from '@supabase/supabase-js';
@@ -12,7 +13,7 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-// ── GET (unchanged) ──────────────────────────────────────────────────────────
+// ── GET ───────────────────────────────────────────────────────────────────────
 export async function GET(request: Request) {
   const userId = new URL(request.url).searchParams.get('userId');
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
@@ -40,8 +41,11 @@ export async function GET(request: Request) {
     const memberIds = (memberRows ?? []).map((r: any) => r.user_id);
     let members: any[] = [];
     if (memberIds.length > 0) {
+      // ── KEY FIX: include avatar_url so the Avatar component shows real photos ──
       const { data: profiles } = await supabase
-        .from('profiles').select('id, display_name, ghost_name, is_ghost').in('id', memberIds);
+        .from('profiles')
+        .select('id, display_name, ghost_name, is_ghost, avatar_url')
+        .in('id', memberIds);
       members = profiles ?? [];
     }
 
@@ -75,13 +79,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'name and createdBy required' }, { status: 400 });
     }
 
-    // ── Rate limit: 10 group creates per 24 hours ─────────────────────────────
     const rateResult = await checkRateLimit(
       supabase,
       'group_create',
       extractRateLimitId(request, createdBy),
-      10,     // max 10
-      86400,  // per 24 hours
+      10,
+      86400,
     );
 
     if (!rateResult.allowed) {
@@ -126,8 +129,8 @@ export async function POST(request: Request) {
       expires_at: inviteExp,
     });
 
-    const siteUrl    = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.chillarflow.com';
-    const inviteUrl  = `${siteUrl}/join?g=${inviteCode}`;
+    const siteUrl   = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.chillarflow.com';
+    const inviteUrl = `${siteUrl}/join?g=${inviteCode}`;
 
     return NextResponse.json(
       { group, invite_url: inviteUrl },
@@ -141,7 +144,7 @@ export async function POST(request: Request) {
   }
 }
 
-// ── PATCH (unchanged) ────────────────────────────────────────────────────────
+// ── PATCH ─────────────────────────────────────────────────────────────────────
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
@@ -183,7 +186,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-// ── DELETE (unchanged) ───────────────────────────────────────────────────────
+// ── DELETE ────────────────────────────────────────────────────────────────────
 export async function DELETE(request: Request) {
   try {
     const { groupId, userId } = await request.json();
