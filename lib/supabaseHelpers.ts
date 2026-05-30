@@ -91,7 +91,7 @@ export async function loadData(userId: string): Promise<AppData> {
       supabase.from('loans').select('*').eq('household_id', hId),
       supabase.from('contributions').select('*').eq('household_id', hId),
       supabase.from('household_settings').select('*').eq('household_id', hId),
-      supabase.from('profiles').select('telegram_username, display_name').eq('id', userId).single(),
+      supabase.from('profiles').select('telegram_username, whatsapp_number, display_name').eq('id', userId).single(),
       supabase.from('profiles').select('avatar_url').eq('id', userId).single(),
     ]);
 
@@ -127,6 +127,7 @@ export async function loadData(userId: string): Promise<AppData> {
       incomeCategories:  unpacked.incomeCategories  ?? unpacked.income_categories  ?? DEFAULT_SETTINGS.incomeCategories,
       budgets:       unpacked.budgets ?? {},
       telegramUsername: currentProfileRow.data?.telegram_username ?? unpacked.telegramUsername ?? '',
+      whatsappNumber: currentProfileRow.data?.whatsapp_number ?? unpacked.whatsappNumber ?? '',
       setupComplete,
     };
 
@@ -206,7 +207,7 @@ export async function loadData(userId: string): Promise<AppData> {
     const loans: Loan[] = (ln.data ?? []).map((r: any) => ({
       id: r.id, name: r.name, lender: r.lender ?? '',
       principal: r.principal, outstanding: r.outstanding, emi: r.emi,
-      interestRate: r.interest_rate, startDate: r.start_date,
+      interestRate: r.interest_rate, start_date: r.start_date,
       tenureMonths: r.tenure_months, paymentDay: r.payment_day ?? 1,
     }));
 
@@ -275,15 +276,51 @@ export async function dbUpsertContribution(c: Contribution, householdId: string)
   );
 }
 
-export async function dbSaveSettings(s: Settings, householdId: string, userId: string) {
-  const deviceRole = typeof window !== 'undefined' ? (localStorage.getItem('active_partner_role') ?? 'Partner A') : 'Partner A';
+export async function dbSaveSettings(
+  s: Settings,
+  householdId: string,
+  userId: string,
+): Promise<Error | null> {
+
+  // Which device role is this? ("Partner A" or "Partner B")
+  const deviceRole: string =
+    typeof window !== 'undefined'
+      ? (localStorage.getItem('active_partner_role') ?? 'Partner A')
+      : 'Partner A';
+
+  // Use deviceRole only to SELECT which real name to apply — never write the role key itself.
+  // partnerAName / partnerBName are set by the setup wizard and hold e.g. "Gaurav", "Priya".
+  const isPartnerB = deviceRole === 'Partner B' || deviceRole === 'partner_b';
+  const realName = isPartnerB
+    ? (s.partnerBName?.trim() || s.partnerAName?.trim() || deviceRole)
+    : (s.partnerAName?.trim() || deviceRole);
+
+  const profileUpdate: Record<string, string | null> = {
+    display_name:      realName,
+    telegram_username: (s.telegramUsername ?? '').trim() || null,
+    whatsapp_number:   (s.whatsappNumber   ?? '').replace(/\D/g, '') || null,
+  };
 
   const [settingsResult, profileResult] = await Promise.all([
-    supabase.from('household_settings').upsert({ household_id: householdId, settings_data: s }, { onConflict: 'household_id' }),
-    supabase.from('profiles').update({ display_name: deviceRole, telegram_username: s.telegramUsername }).eq('id', userId),
+    supabase.from('household_settings').upsert(
+      { household_id: householdId, settings_data: s },
+      { onConflict: 'household_id' },
+    ),
+    supabase.from('profiles')
+      .update(profileUpdate)
+      .eq('id', userId),
   ]);
 
-  return settingsResult.error ?? profileResult.error ?? null;
+  if (settingsResult.error) {
+    console.error('[dbSaveSettings] household_settings upsert failed:', settingsResult.error);
+    return settingsResult.error;
+  }
+  if (profileResult.error) {
+    console.error('[dbSaveSettings] profiles update failed:', profileResult.error);
+    return profileResult.error;
+  }
+
+  return null;
 }
 
 export async function dbAddGoal(g: Goal, householdId: string) {
