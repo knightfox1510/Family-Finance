@@ -1,8 +1,10 @@
-// app/api/groups/invite/members/route.ts
-// Public endpoint used by the /join page to show real member avatars.
-// Returns minimal profile info (id, first name initial, avatar_url) for a group.
-// No auth required — this is intentionally public for the invite preview UX.
-// Sensitive fields (email, phone) are never returned.
+// app/api/groups/invite/route.ts
+// FIX: GET now resolves the creator's real display_name via a fallback chain:
+//   1. household_settings.partnerAName / partnerBName  (setup wizard names)
+//   2. profiles.display_name  (raw stored value)
+//   3. profiles.ghost_name
+//   4. "Someone"
+// This prevents "Partner A invited you" from appearing on the join page.
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -13,96 +15,244 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://chillarflow.com';
+
+// Role strings that should never be shown to outsiders
 const ROLE_STRINGS = new Set(['Partner A', 'Partner B', 'partner_a', 'partner_b']);
 
-export async function GET(request: Request) {
-  const groupId = new URL(request.url).searchParams.get('groupId');
-  if (!groupId) {
-    return NextResponse.json({ error: 'groupId required' }, { status: 400 });
-  }
-
-  // Verify the group exists and has an active invite
-  const { data: invite } = await supabase
-    .from('group_invites')
-    .select('id')
-    .eq('group_id', groupId)
-    .eq('is_active', true)
-    .gt('expires_at', new Date().toISOString())
-    .limit(1)
+async function resolveCreatorName(creatorId: string): Promise<string> {
+  // 1. Fetch profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name, ghost_name, household_id')
+    .eq('id', creatorId)
     .single();
 
-  if (!invite) {
-    // No active invite — don't expose member info
-    return NextResponse.json({ members: [] });
+  if (!profile) return 'Someone';
+
+  const dn = profile.display_name ?? '';
+  const gn = profile.ghost_name ?? '';
+
+  // 2. If display_name is a real name (not a role string), use it directly
+  if (dn && !ROLE_STRINGS.has(dn)) return dn;
+
+  // 3. Try household_settings for the real partner name
+  if (profile.household_id) {
+    const { data: settings } = await supabase
+      .from('household_settings')
+      .select('settings_data')
+      .eq('household_id', profile.household_id)
+      .single();
+
+    if (settings?.settings_data) {
+      const s = typeof settings.settings_data === 'string'
+        ? JSON.parse(settings.settings_data)
+        : settings.settings_data;
+
+      // Partner A is always the group creator in normal flow
+      const nameA = s.partnerAName;
+      if (nameA && !ROLE_STRINGS.has(nameA)) return nameA;
+    }
   }
 
-  const { data: rows } = await supabase
-    .from('group_members')
+  // 4. Fall back to ghost_name or generic
+  return gn || 'Someone';
+}
+
+// ── GET /api/groups/invite?code=CF-XXXXXX ────────────────────────────────────
+export async function GET(request: Request) {
+  const code = new URL(request.url).searchParams.get('code');
+  if (!code) {
+    return NextResponse.json({ error: 'code required' }, { status: 400 });
+  }
+
+  const { data: invite, error } = await supabase
+    .from('group_invites')
     .select(`
-      user_id,
-      profiles (
+      id,
+      code,
+      expires_at,
+      used_count,
+      max_uses,
+      is_active,
+      group_id,
+      created_by,
+      groups (
         id,
-        display_name,
-        ghost_name,
-        avatar_url,
-        household_id
+        name,
+        description,
+        currency,
+        created_by
       )
     `)
-    .eq('group_id', groupId)
-    .order('joined_at', { ascending: true })
-    .limit(8); // only need enough for avatar stack
+    .eq('code', code.toUpperCase())
+    .single();
 
-  if (!rows) return NextResponse.json({ members: [] });
-
-  // Collect household IDs to resolve real names from settings
-  const householdIds = [...new Set(
-    (rows ?? [])
-      .map((r: any) => r.profiles?.household_id)
-      .filter(Boolean)
-  )];
-
-  const settingsMap: Record<string, any> = {};
-  if (householdIds.length > 0) {
-    const { data: settingsRows } = await supabase
-      .from('household_settings')
-      .select('household_id, settings_data')
-      .in('household_id', householdIds);
-
-    for (const row of settingsRows ?? []) {
-      const s = typeof row.settings_data === 'string'
-        ? JSON.parse(row.settings_data)
-        : row.settings_data;
-      settingsMap[row.household_id] = s;
-    }
+  if (error || !invite) {
+    return NextResponse.json({ error: 'Invalid invite code' }, { status: 404 });
   }
 
-  const members = (rows ?? []).map((row: any) => {
-    const p = row.profiles;
-    if (!p) return null;
+  if (!invite.is_active) {
+    return NextResponse.json({ error: 'This invite link has been deactivated' }, { status: 410 });
+  }
 
-    let displayName = p.display_name;
+  if (new Date(invite.expires_at) < new Date()) {
+    return NextResponse.json(
+      { error: 'This invite has expired. Ask the group admin to generate a new one.' },
+      { status: 410 }
+    );
+  }
 
-    // Resolve real name from household settings if display_name is a role string
-    if (!displayName || ROLE_STRINGS.has(displayName)) {
-      const s = settingsMap[p.household_id];
-      if (s) {
-        const isPartnerB = displayName === 'Partner B' || displayName === 'partner_b';
-        displayName = isPartnerB
-          ? (s.partnerBName || s.partnerAName || displayName)
-          : (s.partnerAName || displayName);
-      }
+  if (invite.used_count >= invite.max_uses) {
+    return NextResponse.json({ error: 'This invite link has reached its usage limit' }, { status: 410 });
+  }
+
+  const { count: memberCount } = await supabase
+    .from('group_members')
+    .select('*', { count: 'exact', head: true })
+    .eq('group_id', invite.group_id);
+
+  const group = invite.groups as any;
+
+  // Resolve a real human name for the invite creator
+  const creatorId   = invite.created_by ?? group?.created_by;
+  const creatorName = creatorId ? await resolveCreatorName(creatorId) : 'Someone';
+
+  return NextResponse.json({
+    valid:        true,
+    code:         invite.code,
+    group_id:     invite.group_id,
+    group_name:   group?.name,
+    description:  group?.description,
+    currency:     group?.currency ?? 'INR',
+    invited_by:   creatorName,
+    member_count: memberCount ?? 0,
+    expires_at:   invite.expires_at,
+  });
+}
+
+// ── POST /api/groups/invite ───────────────────────────────────────────────────
+export async function POST(request: Request) {
+  try {
+    const { groupId, userId } = await request.json();
+
+    if (!groupId || !userId) {
+      return NextResponse.json({ error: 'groupId and userId required' }, { status: 400 });
     }
 
-    // Only return first name for privacy on public invite page
-    const firstName = (displayName || p.ghost_name || 'Member').split(' ')[0];
+    const { data: member } = await supabase
+      .from('group_members')
+      .select('role')
+      .eq('group_id', groupId)
+      .eq('user_id', userId)
+      .single();
 
-    return {
-      id:           p.id,
-      display_name: firstName,
-      ghost_name:   p.ghost_name,
-      avatar_url:   p.avatar_url ?? null,
-    };
-  }).filter(Boolean);
+    if (!member) {
+      return NextResponse.json({ error: 'You are not a member of this group' }, { status: 403 });
+    }
 
-  return NextResponse.json({ members });
+    const code      = 'CF-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: invite, error } = await supabase
+      .from('group_invites')
+      .insert({
+        group_id:   groupId,
+        code,
+        created_by: userId,
+        expires_at: expiresAt,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      code,
+      invite_url: `${SITE_URL}/join?g=${code}`,
+      expires_at: expiresAt,
+      message:    'Share this link. It expires in 7 days and can be used up to 50 times.',
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// ── PATCH /api/groups/invite ──────────────────────────────────────────────────
+export async function PATCH(request: Request) {
+  try {
+    const { code, newUserId, displayName } = await request.json();
+
+    if (!code || !newUserId) {
+      return NextResponse.json({ error: 'code and newUserId required' }, { status: 400 });
+    }
+
+    const { data: invite } = await supabase
+      .from('group_invites')
+      .select('id, group_id, used_count, max_uses, expires_at, is_active')
+      .eq('code', code.toUpperCase())
+      .single();
+
+    if (!invite?.is_active || new Date(invite.expires_at) < new Date()) {
+      return NextResponse.json({ error: 'Invite is no longer valid' }, { status: 410 });
+    }
+
+    if (invite.used_count >= invite.max_uses) {
+      return NextResponse.json({ error: 'Invite usage limit reached' }, { status: 410 });
+    }
+
+    const { data: existing } = await supabase
+      .from('group_members')
+      .select('id')
+      .eq('group_id', invite.group_id)
+      .eq('user_id', newUserId)
+      .single();
+
+    if (!existing) {
+      const { error: memberError } = await supabase
+        .from('group_members')
+        .insert({
+          group_id: invite.group_id,
+          user_id:  newUserId,
+          role:     'member',
+        });
+
+      if (memberError) {
+        return NextResponse.json({ error: memberError.message }, { status: 500 });
+      }
+
+      // Update the new member's display_name in profiles if a real name is provided
+      // and the current display_name is still a role string or blank
+      if (displayName) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', newUserId)
+          .single();
+
+        const currentDn = prof?.display_name ?? '';
+        if (!currentDn || ROLE_STRINGS.has(currentDn)) {
+          await supabase
+            .from('profiles')
+            .update({ display_name: displayName })
+            .eq('id', newUserId);
+        }
+      }
+
+      await supabase
+        .from('group_invites')
+        .update({ used_count: invite.used_count + 1 })
+        .eq('id', invite.id);
+    }
+
+    return NextResponse.json({
+      ok:       true,
+      group_id: invite.group_id,
+      message:  existing ? 'Already a member' : 'Added to group successfully',
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }
