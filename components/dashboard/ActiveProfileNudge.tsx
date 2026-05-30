@@ -16,8 +16,7 @@ import React, { useState } from 'react';
 import { C } from '@/constants';
 import { Icon } from '@/components/ui/Icon';
 
-const ROLE_STRINGS = new Set(['Partner A', 'Partner B', 'partner_a', 'partner_b', '']);
-
+const ROLE_STRINGS  = new Set(['Partner A', 'Partner B', 'partner_a', 'partner_b']);
 const DISMISSED_KEY = 'cf_profile_nudge_dismissed';
 
 interface Props {
@@ -37,28 +36,8 @@ export function ActiveProfileNudge({ currentUserRole, settings, onNavigate }: Pr
     setDismissed(true);
   };
 
-  // Only show when in a multi-partner household AND display_name is still a role string
-  const isMultiPartner = settings.householdMode === 'joint' || settings.householdMode === 'separate';
-  const nameIsPlaceholder = ROLE_STRINGS.has(settings.partnerAName?.trim() ?? '');
-
-
-  export function ActiveProfileNudge({ currentUserRole, settings, onNavigate }: Props) {
-  const [dismissed, setDismissed] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem(DISMISSED_KEY) === '1';
-  });
-
-  const dismiss = () => {
-    localStorage.setItem(DISMISSED_KEY, '1');
-    setDismissed(true);
-  };
-
-  const isMultiPartner = settings.householdMode === 'joint' || settings.householdMode === 'separate';
-  
-  // Check if partnerAName is still a generic placeholder (not a real name)
-  // This uses household_settings data, which is correctly set during setup
-  const PLACEHOLDER_NAMES = new Set(['Partner A', 'Partner B', 'partner_a', 'partner_b', '']);
-  const nameIsPlaceholder = PLACEHOLDER_NAMES.has(settings.partnerAName?.trim() ?? '');
+  const isMultiPartner    = settings.householdMode === 'joint' || settings.householdMode === 'separate';
+  const nameIsPlaceholder = ROLE_STRINGS.has(currentUserRole?.trim() ?? '');
 
   if (!isMultiPartner || !nameIsPlaceholder || dismissed) return null;
 
@@ -71,18 +50,12 @@ export function ActiveProfileNudge({ currentUserRole, settings, onNavigate }: Pr
       borderRadius: 14,
       background: `${C.amber}18`,
       border: `1px solid ${C.amber}55`,
-      marginBottom: 4,
     }}>
       <div style={{
-        width: 32,
-        height: 32,
-        borderRadius: 10,
+        width: 32, height: 32, borderRadius: 10,
         background: `${C.amber}25`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        marginTop: 1,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0, marginTop: 1,
       }}>
         <Icon name="user" size={16} color={C.amber} />
       </div>
@@ -98,16 +71,9 @@ export function ActiveProfileNudge({ currentUserRole, settings, onNavigate }: Pr
         <button
           onClick={() => { onNavigate('settings'); dismiss(); }}
           style={{
-            marginTop: 8,
-            padding: '6px 14px',
-            borderRadius: 99,
-            border: 'none',
-            background: C.amber,
-            color: '#0a0a0a',
-            fontSize: 12,
-            fontWeight: 800,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
+            marginTop: 8, padding: '6px 14px', borderRadius: 99, border: 'none',
+            background: C.amber, color: '#0a0a0a',
+            fontSize: 12, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
           Go to Settings →
@@ -117,14 +83,9 @@ export function ActiveProfileNudge({ currentUserRole, settings, onNavigate }: Pr
       <button
         onClick={dismiss}
         style={{
-          background: 'transparent',
-          border: 'none',
-          color: C.text3,
-          cursor: 'pointer',
-          fontSize: 18,
-          lineHeight: 1,
-          padding: '0 2px',
-          flexShrink: 0,
+          background: 'transparent', border: 'none', color: C.text3,
+          cursor: 'pointer', fontSize: 18, lineHeight: 1,
+          padding: '0 2px', flexShrink: 0,
         }}
       >
         ×
