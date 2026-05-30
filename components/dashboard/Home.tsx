@@ -524,7 +524,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
           ...data.settings,
           householdMode: data.settings.householdMode ?? undefined,
         }}
-        onNavigate={onNavigate}
+        onNavigate={(v: string) => onNavigate(v as ViewId)}
       />
 
       {/* ── Hero Card ───────────────────────────────────────────────────────── */}
