@@ -85,11 +85,20 @@ export async function GET(req: Request) {
       .eq('household_id', householdId);
 
     // ── Date filters ─────────────────────────────────────────────────────────
+    // The `date` column is a Postgres DATE type — .like() uses the ~~ operator
+    // which only works on text. Use gte/lte range comparisons instead.
     if (month && month !== 'All' && month !== 'year') {
-      // Exact month match e.g. "2025-03"
-      query = query.like('date', `${month}%`);
+      // month is "YYYY-MM" — compute the first and last day of that month
+      const [y, m]   = month.split('-').map(Number);
+      const firstDay = `${month}-01`;
+      // Last day: first day of next month minus 1 day
+      const nextMonth = m === 12
+        ? `${y + 1}-01-01`
+        : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+      query = query.gte('date', firstDay).lt('date', nextMonth);
     } else if (year === 'current') {
-      query = query.like('date', `${new Date().getFullYear()}%`);
+      const y = new Date().getFullYear();
+      query = query.gte('date', `${y}-01-01`).lt('date', `${y + 1}-01-01`);
     }
     // else: 'All' → no date filter
 
