@@ -520,7 +520,10 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
            a placeholder role string. Dismissible, stored in localStorage.   */}
       <ActiveProfileNudge
         currentUserRole={data.currentUserRole ?? 'Partner A'}
-        settings={data.settings}
+        settings={{
+          ...data.settings,
+          householdMode: data.settings.householdMode ?? undefined,
+        }}
         onNavigate={onNavigate}
       />
 
