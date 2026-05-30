@@ -1,8 +1,5 @@
 import { google } from '@ai-sdk/google';
-import { streamText } from 'ai';
-
-// Optional: Use edge runtime for faster streaming delivery
-export const runtime = 'edge';
+import { streamText, StreamingTextResponse } from 'ai';
 
 export async function POST(request: Request) {
   try {
@@ -22,13 +19,8 @@ export async function POST(request: Request) {
       messages: messages,
     });
 
-    // FIX: Directly return the standard stream text response payload 
-    // This entirely avoids the internal 'instanceof' bugs in version 3.1.x
-    return new Response(result.textStream, {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-      },
-    });
+    // FIX: Using standard Node-friendly StreamingTextResponse utility
+    return new StreamingTextResponse(result.textStream);
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message }), 
