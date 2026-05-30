@@ -33,7 +33,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { notifyHousehold, type PushPayload } from '@/lib/webPush';
+import { notifyHousehold, type PushPayload } from '@/lib/webPushServer';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
