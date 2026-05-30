@@ -282,6 +282,16 @@ function HeroCard({
   const isPositive = retained >= 0;
   const accentColor = isPositive ? C.green : C.red;
 
+  const contextMessage = (() => {
+    if (totalIncome === 0) return `${fmt(totalSpent)} spent this month — add your income to see retention`;
+    if (isPositive) {
+      const retentionPct = ((retained / totalIncome) * 100).toFixed(0);
+      return `${retentionPct}% of income retained · ${fmt(totalSpent)} spent`;
+    }
+    const overspendPct = (((Math.abs(retained)) / totalIncome) * 100).toFixed(0);
+    return `${overspendPct}% over income · spent ${fmt(Math.abs(retained))} more than earned`;
+  })();
+
   return (
     <div style={{
       borderRadius: 24,
@@ -319,9 +329,7 @@ function HeroCard({
       </div>
 
       <div style={{ fontSize: 13, color: C.text3, marginBottom: 18, lineHeight: 1.4 }}>
-        {isPositive
-          ? `retained after spending · ${fmt(totalSpent)} spent`
-          : `overspent this month · ${fmt(totalIncome)} earned`}
+        {contextMessage}
       </div>
 
       {/* Income / Spent chips */}
@@ -380,10 +388,15 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
   // Derive display name based on active device profile 
   const firstName = useMemo(() => {
     if (activeRole === 'Partner B' && hasPartner) {
-      return (data.settings.partnerBName || 'Partner').split(' ')[0];
-    }
-    if (data.settings.partnerAName) {
-      return data.settings.partnerAName.split(' ')[0];
+      const nameB = data.settings.partnerBName;
+      if (nameB && nameB !== 'Partner B') {
+        return nameB.split(' ')[0];
+      }
+    } else {
+      const nameA = data.settings.partnerAName;
+      if (nameA && nameA !== 'Partner A') {
+        return nameA.split(' ')[0];
+      }
     }
     const email = session?.user?.email ?? '';
     return email.split('@')[0] || 'there';
