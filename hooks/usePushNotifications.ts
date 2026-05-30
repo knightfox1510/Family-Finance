@@ -1,79 +1,94 @@
 // hooks/usePushNotifications.ts
-// React hook that manages service worker registration and push subscription state.
-// Import this in app/page.tsx and call it once after the user is authenticated.
+// ─────────────────────────────────────────────────────────────────────────────
+// CLIENT-ONLY React hook.
+// Imports only from lib/webPushClient — zero reference to web-push or any
+// Node built-in. Safe to import from any component or page.
+// ─────────────────────────────────────────────────────────────────────────────
 
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import {
   isPushSupported,
+  getPermission,
+  registerServiceWorker,
   subscribeToPush,
   unsubscribeFromPush,
-  getPushSubscriptionStatus,
-} from '@/lib/webPush';
+  getActiveSubscription,
+} from '@/lib/webPushClient';
 
-export type PushStatus = 'loading' | 'unsupported' | 'denied' | 'subscribed' | 'unsubscribed';
+export type PushStatus =
+  | 'loading'       // checking state on mount
+  | 'unsupported'   // browser doesn't support Web Push
+  | 'denied'        // OS permission is blocked
+  | 'subscribed'    // active subscription exists
+  | 'unsubscribed'; // supported & permitted, but no active subscription
 
 interface UsePushNotificationsReturn {
-  status:     PushStatus;
-  subscribe:  () => Promise<boolean>;
+  status:      PushStatus;
+  isLoading:   boolean;
+  subscribe:   () => Promise<boolean>;
   unsubscribe: () => Promise<boolean>;
-  isLoading:  boolean;
 }
 
 export function usePushNotifications(householdId?: string): UsePushNotificationsReturn {
-  const [status, setStatus]     = useState<PushStatus>('loading');
+  const [status,    setStatus]  = useState<PushStatus>('loading');
   const [isLoading, setLoading] = useState(false);
 
-  // ── Register service worker and resolve current status ──────────────────────
+  // ── Resolve current state on mount ──────────────────────────────────────
   useEffect(() => {
     if (!isPushSupported()) {
       setStatus('unsupported');
       return;
     }
 
-    let mounted = true;
+    let cancelled = false;
 
     const init = async () => {
-      try {
-        // Register the service worker if not already registered
-        await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      // Register SW (idempotent)
+      await registerServiceWorker();
+      if (cancelled) return;
 
-        const permission = await getPushSubscriptionStatus();
-        if (!mounted) return;
+      const permission = getPermission();
+      if (permission === 'denied') {
+        setStatus('denied');
+        return;
+      }
 
-        if (permission === 'denied') {
-          setStatus('denied');
-          return;
-        }
-
-        // Check if there is an active subscription
-        const reg          = await navigator.serviceWorker.ready;
-        const subscription = await reg.pushManager.getSubscription();
-        setStatus(subscription ? 'subscribed' : 'unsubscribed');
-      } catch (err) {
-        console.warn('[Push] Init error:', err);
-        if (mounted) setStatus('unsupported');
+      // Check for an existing active subscription
+      const sub = await getActiveSubscription();
+      if (!cancelled) {
+        setStatus(sub ? 'subscribed' : 'unsubscribed');
       }
     };
 
-    init();
-    return () => { mounted = false; };
+    init().catch(() => {
+      if (!cancelled) setStatus('unsupported');
+    });
+
+    return () => { cancelled = true; };
   }, []);
 
+  // ── Subscribe ────────────────────────────────────────────────────────────
   const subscribe = useCallback(async (): Promise<boolean> => {
     if (!householdId) return false;
     setLoading(true);
     try {
       const ok = await subscribeToPush(householdId);
-      if (ok) setStatus('subscribed');
-      else if (Notification.permission === 'denied') setStatus('denied');
+      if (ok) {
+        setStatus('subscribed');
+      } else {
+        // Re-check permission in case the user clicked "Block"
+        const perm = getPermission();
+        if (perm === 'denied') setStatus('denied');
+      }
       return ok;
     } finally {
       setLoading(false);
     }
   }, [householdId]);
 
+  // ── Unsubscribe ──────────────────────────────────────────────────────────
   const unsubscribe = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     try {
@@ -85,5 +100,5 @@ export function usePushNotifications(householdId?: string): UsePushNotifications
     }
   }, []);
 
-  return { status, subscribe, unsubscribe, isLoading };
+  return { status, isLoading, subscribe, unsubscribe };
 }
