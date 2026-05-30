@@ -11,6 +11,8 @@ import { logActivity }     from '@/lib/logActivity';
 import { createClient }    from '@supabase/supabase-js';
 import { computeNetDebts } from '@/lib/debtEngine';
 import { resolveGhostUserIdSimple } from '@/lib/ghostToken';
+import { resolveGhostUserId, shouldRefreshToken, issueRefreshedToken } from '@/lib/ghostToken';
+
 
 
 const supabase = createClient(
@@ -137,6 +139,7 @@ export async function GET(
   });
 }
 
+
 // ── POST /api/groups/[groupId]/settle ────────────────────────────────────────
 export async function POST(
   request: Request,
@@ -144,13 +147,17 @@ export async function POST(
 ) {
   try {
     const { groupId } = params;
-
     const ghostToken = request.headers.get('x-ghost-token');
     let callerId: string | null = null;
 
+    // Resolve caller — and for ghost tokens, keep the full result so we
+    // can check expiry and issue a refreshed token in the response.
+    let ghostResult: Awaited<ReturnType<typeof resolveGhostUserId>> = null;
+
     if (ghostToken) {
-      callerId = await resolveGhostUserIdSimple(ghostToken, supabase);
-      if (!callerId) return NextResponse.json({ error: 'Invalid or expired ghost token' }, { status: 401 });
+      ghostResult = await resolveGhostUserId(ghostToken, supabase);
+      if (!ghostResult) return NextResponse.json({ error: 'Invalid or expired ghost token' }, { status: 401 });
+      callerId = ghostResult.profileId;
     } else {
       callerId = await resolveUserId(request);
     }
@@ -191,7 +198,21 @@ export async function POST(
       { split_ids: splitIds, method: settledVia }
     );
 
-    return NextResponse.json({ ok: true, settled_count: splitIds.length, remaining_splits: remainingUnsettled?.length ?? 0 });
+    // Build response headers — attach a refreshed ghost token if the
+    // current one is within 7 days of expiry.
+    const responseHeaders: Record<string, string> = {};
+    if (ghostResult && shouldRefreshToken(ghostResult.exp)) {
+      responseHeaders['x-ghost-token-refreshed'] = issueRefreshedToken(
+        ghostResult.profileId,
+        ghostResult.phone,
+      );
+    }
+
+    return NextResponse.json(
+      { ok: true, settled_count: splitIds.length, remaining_splits: remainingUnsettled?.length ?? 0 },
+      { headers: responseHeaders },
+    );
+
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
