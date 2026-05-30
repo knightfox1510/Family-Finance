@@ -132,6 +132,7 @@ export function ExpenseListPaginated({
   const [loading, setLoading]     = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [fetchError, setFetchError]   = useState<string | null>(null);
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
 
   // ── Selection state ──────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds]             = useState<Set<string>>(new Set());
@@ -192,6 +193,10 @@ export function ExpenseListPaginated({
 
       setTotal(json.total ?? 0);
       setHasMore(json.hasMore ?? false);
+      
+      if (!append && json.availableMonths) {
+        setAvailableMonths(json.availableMonths);
+      }
 
       if (append) {
         setExpenses((prev) => [...prev, ...(json.expenses ?? [])]);
@@ -229,14 +234,7 @@ export function ExpenseListPaginated({
 
   // ── Available months for the month picker ─────────────────────────────────
   // Derive from data.expenses (summary is fast since loadData still loads meta)
-  const allMonths = Array.from(
-    { length: 18 },
-    (_, i) => {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    }
-  );
+  // Now dynamically updated via API instead of hardcoded 18 months.
 
   const allCats = [...data.settings.expenseCategories, ...data.settings.incomeCategories];
 
@@ -310,7 +308,7 @@ export function ExpenseListPaginated({
           <select style={selStyle} value={filter.month} onChange={(e) => sf('month', e.target.value)}>
             <option value="All">All Months</option>
             <option value="year">This Year</option>
-            {allMonths.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+            {availableMonths.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
           </select>
           <select style={selStyle} value={filter.category} onChange={(e) => sf('category', e.target.value)}>
             <option value="All">All Categories</option>
