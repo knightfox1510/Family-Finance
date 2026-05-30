@@ -339,8 +339,8 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   const currentCloudRole = data.currentUserRole ?? 'Partner A';
   const telegramHandle   = (s.telegramUsername ?? '').trim();
   const telegramLinked   = telegramHandle.length > 0;
-  const waNumber         = (s.whatsappNumber ?? '').replace(/\D/g, '');
-  const waLinked         = waNumber.length >= 10;
+  const waNumber = (s.whatsappNumber ?? '').replace(/\D/g, '');
+  const waLinked = waNumber.length >= 11;
 
   // ── Save with downgrade protection ────────────────────────────────────────
 
@@ -879,25 +879,94 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             <p style={{ color: C.text1, fontSize: 13, margin: '14px 0', lineHeight: 1.5 }}>
               {waLinked ? 'Your WhatsApp is connected. Send a message to log expenses instantly.' : 'Link your WhatsApp number to log expenses from WhatsApp.'}
             </p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input
-                type="tel"
-                disabled={waLinked}
-                placeholder="Country code + number, e.g. 919876543210"
-                value={waLinked ? waNumber : (s.whatsappNumber ?? '')}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, whatsappNumber: e.target.value.replace(/\D/g, '') }))}
-                style={{ ...inputStyle, opacity: waLinked ? 0.7 : 1, cursor: waLinked ? 'not-allowed' : 'text', flex: 1, width: 'auto' }}
-              />
-              {waLinked && (
-                <button onClick={() => setS((x) => ({ ...x, whatsappNumber: '' }))} style={{ background: 'transparent', border: `1px solid ${C.red}44`, color: C.red, borderRadius: 999, padding: '10px 18px', fontWeight: 600, fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>
+
+            {waLinked ? (
+              // Linked State — Shows the full number with a plus sign
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <input
+                  readOnly
+                  value={`+${waNumber}`}
+                  style={{ ...inputStyle, opacity: 0.7, cursor: 'not-allowed', flex: 1, width: 'auto' }}
+                />
+                <button 
+                  onClick={() => setS((x) => ({ ...x, whatsappNumber: '' }))} 
+                  style={{ background: 'transparent', border: `1px solid ${C.red}44`, color: C.red, borderRadius: 999, padding: '10px 18px', fontWeight: 600, fontSize: 14, cursor: 'pointer', flexShrink: 0 }}
+                >
                   Unlink
                 </button>
-              )}
-            </div>
-            <div style={{ fontSize: 12, color: C.text3, lineHeight: 1.6 }}>
-              <strong style={{ color: C.text1 }}>Format:</strong> Country code + number without spaces or +<br />
-              India example: <code style={{ background: `${C.border}40`, padding: '1px 6px', borderRadius: 6 }}>919876543210</code>
-            </div>
+              </div>
+            ) : (
+              // Unlinked State — Split inputs (Country Code + Local)
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                  
+                  {/* Country Code Pill */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    background: 'rgba(0,0,0,0.03)', border: `1px solid ${C.border}`, borderRadius: 12,
+                    padding: '0 12px', fontSize: 14, flexShrink: 0, whiteSpace: 'nowrap',
+                  }}>
+                    <span style={{ color: C.text3 }}>+</span>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      placeholder="91"
+                      maxLength={4}
+                      id="wa-cc"
+                      // Intelligently load existing CC if available, otherwise default to 91
+                      defaultValue={
+                        (s.whatsappNumber ?? '').replace(/\D/g, '').length >= 11
+                          ? (s.whatsappNumber ?? '').replace(/\D/g, '').slice(0, -10)
+                          : '91'
+                      }
+                      style={{
+                        background: 'transparent', border: 'none', outline: 'none',
+                        width: 36, color: C.text1, fontFamily: 'inherit', fontSize: 14,
+                      }}
+                      onChange={(e) => {
+                         // Update global state immediately if they edit the country code
+                         const newCc = e.target.value.replace(/\D/g, '');
+                         const full = (s.whatsappNumber ?? '').replace(/\D/g, '');
+                         const currentLocal = full.length >= 11 ? full.slice(-10) : full;
+                         setS((x) => ({ ...x, whatsappNumber: newCc + currentLocal }));
+                      }}
+                    />
+                  </div>
+
+                  {/* Local Number Input */}
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="9876543210"
+                    maxLength={15} // Allows room for scaling
+                    style={{ ...inputStyle, flex: 1, width: 'auto' }}
+                    value={
+                      (() => {
+                        const full = (s.whatsappNumber ?? '').replace(/\D/g, '');
+                        const ccEl = typeof document !== 'undefined'
+                          ? (document.getElementById('wa-cc') as HTMLInputElement)
+                          : null;
+                        const cc = ccEl ? ccEl.value.replace(/\D/g, '') : '91';
+                        return full.startsWith(cc) ? full.slice(cc.length) : full;
+                      })()
+                    }
+                    onChange={(e) => {
+                      const local = e.target.value.replace(/\D/g, '');
+                      const ccEl = document.getElementById('wa-cc') as HTMLInputElement;
+                      const cc = ccEl ? ccEl.value.replace(/\D/g, '') : '91';
+                      setS((x) => ({ ...x, whatsappNumber: cc + local }));
+                    }}
+                  />
+                </div>
+                
+                <div style={{ fontSize: 11, color: C.text3, marginTop: 8, lineHeight: 1.6 }}>
+                  Country code + number without spaces. <br/>
+                  India example: <code style={{ background: `${C.border}40`, padding: '1px 5px', borderRadius: 6, fontSize: 11 }}>91</code>{' '}
+                  <code style={{ background: `${C.border}40`, padding: '1px 5px', borderRadius: 6, fontSize: 11 }}>9876543210</code>
+                </div>
+              </div>
+            )}
+
             {!waLinked && (
               <div style={{ marginTop: 12, padding: '10px 14px', background: '#25D36610', border: '1px solid #25D36633', borderRadius: 12, fontSize: 12, color: '#25D366', lineHeight: 1.6 }}>
                 After linking, open WhatsApp and send <strong>hi</strong> to the ChillarFlow number to activate your account.
