@@ -5,6 +5,7 @@ export async function POST(request: Request) {
   try {
     const { messages } = await request.json();
     
+    // Grabs your existing key name perfectly
     const apiKey = process.env.GEMINI_API_KEY; 
     if (!apiKey) {
       return new Response(
@@ -13,13 +14,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Call Gemini using Vercel AI SDK streamText
+    // Call Gemini and explicitly pass your existing GEMINI_API_KEY variable
     const result = await streamText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-2.5-flash', { apiKey }),
       messages: messages,
     });
 
-    // FIX: Using standard Node-friendly StreamingTextResponse utility
+    // Return the stable Node-friendly streaming response
     return new StreamingTextResponse(result.textStream);
   } catch (err: any) {
     return new Response(
