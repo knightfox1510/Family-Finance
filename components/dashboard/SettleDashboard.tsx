@@ -406,7 +406,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
         />
 
         {!partnerCollapsed && (
-          <div style={{ padding: '0 16px 16px' }}>
+          <div style={{ padding: '16px 18px' }}>
 
             {/* KPI row */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
@@ -605,7 +605,7 @@ export function SettleDashboard({ fmt, data, onBulkSettle, partnerCalculations, 
         />
 
         {!jointCollapsed && (
-          <div style={{ padding: '0 16px 16px' }}>
+          <div style={{ padding: '16px 18px' }}>
             {!hasJointPending ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '24px 12px', textAlign: 'center' }}>
                 <Icon name="check" size={28} color={C.green} />
