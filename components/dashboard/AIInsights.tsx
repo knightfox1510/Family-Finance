@@ -31,13 +31,13 @@ export function AIInsights({ data, fmt }: Props) {
     handleInputChange, 
     handleSubmit, 
     setMessages, 
-    append, // Destructured append to natively invoke the initial streaming trigger
+    append, 
     isLoading, 
     error 
   } = useChat({
     api: '/api/insights',
     onError: (err) => {
-      console.error('Streaming error:', err);
+      console.error('Streaming client crash details:', err);
     }
   });
 
@@ -69,10 +69,8 @@ export function AIInsights({ data, fmt }: Props) {
       discretionary: `Expense coach. Spending: ${JSON.stringify(catTotals)}. Budgets: ${JSON.stringify((data.settings as any).budgets)}. Separate Fixed (Rent, Utilities, EMI, Insurance) from Discretionary (Dining, Coffee, Entertainment, Apparel). Flag categories approaching limits. Suggest adjustments to reclaim capital for investments.`,
     };
 
-    // Explicitly reset any existing messages in state container
     setMessages([]);
 
-    // Programmatically append message to array history, triggering the stream pipeline immediately
     append({
       id: `init-${mode}`,
       role: 'user',
@@ -82,11 +80,9 @@ export function AIInsights({ data, fmt }: Props) {
 
   const currentMode = MODES.find((m) => m.id === mode)!;
   
-  // Extract initial standalone report card text
   const initialReportMessage = messages.find((m) => m.id === `init-${mode}-reply` || (m.role === 'assistant' && messages.indexOf(m) === 1));
   const reportText = initialReportMessage?.content;
 
-  // Filter out any subsequent back-and-forth conversation answers
   const followUpChatMessages = messages.filter((m) => {
     const isInitialPrompt = m.id === `init-${mode}`;
     const isInitialReply = m === initialReportMessage;
@@ -180,7 +176,7 @@ export function AIInsights({ data, fmt }: Props) {
       {/* Error Warnings */}
       {error && (
         <div style={{ background: `${C.red}11`, border: `1px solid ${C.red}44`, borderRadius: 14, padding: '14px 16px', fontSize: 13, color: C.red }}>
-          Could not generate insight: {error.message}
+          Could not generate insight: {error.message || JSON.stringify(error)}
         </div>
       )}
 
@@ -196,7 +192,6 @@ export function AIInsights({ data, fmt }: Props) {
 
       {/* Action Area Switcher */}
       {reportText ? (
-        /* Render Chat Input for Follow-up once report drops */
         <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8, marginTop: 8, background: C.surface, padding: 6, borderRadius: 999, border: `1px solid ${C.border}` }}>
           <input
             value={input}
@@ -218,7 +213,6 @@ export function AIInsights({ data, fmt }: Props) {
           </button>
         </form>
       ) : (
-        /* Standalone Base Generate Trigger Button */
         <button onClick={generateInitialReport} disabled={isLoading}
           style={{ width: '100%', minHeight: 52, borderRadius: 999, border: 'none',
             background: isLoading ? C.surface2 : C.accent, color: isLoading ? C.text3 : '#0a0a0a',
