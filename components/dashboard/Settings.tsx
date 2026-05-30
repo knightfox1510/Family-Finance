@@ -625,20 +625,6 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 2. Logout button ─────────────────────────────────────────────── */}
-      <button
-        onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/'; })}
-        style={{
-          background: 'transparent', border: `1px solid ${C.red}44`, color: C.red,
-          borderRadius: 999, padding: '12px 18px', fontWeight: 700, fontSize: 14,
-          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          gap: 8, fontFamily: 'inherit',
-        }}
-      >
-        <Icon name="arrowRight" size={16} color={C.red} />
-        Log Out
-      </button>
-
       {/* ── 3. Plan & Usage ──────────────────────────────────────────────── */}
       <div style={{ ...cardStyle, border: planInfo?.plan === 'pro' ? `1px solid ${C.amber}44` : undefined }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -1255,6 +1241,35 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
       >
         <Icon name="check" size={16} color="#0a0a0a" />
         {flash ? 'Settings Saved!' : 'Save All Settings'}
+      </button>
+
+      {/* ── 18. Logout button ─────────────────────────────────────────────── */}
+      <button
+        onClick={async () => {
+          const confirmed = window.confirm('Log out of ChillarFlow?');
+          if (!confirmed) return;
+          await supabase.auth.signOut();
+          window.location.href = '/';
+        }}
+        style={{
+          background: 'transparent',
+          border: `1px solid ${C.border2}`,
+          color: C.text3,
+          borderRadius: 999,
+          padding: '12px 18px',
+          fontWeight: 600,
+          fontSize: 13,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          fontFamily: 'inherit',
+          width: '100%',
+        }}
+      >
+        <Icon name="arrowRight" size={16} color={C.text3} />
+        Log Out
       </button>
 
     </div>
