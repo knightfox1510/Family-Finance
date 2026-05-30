@@ -95,7 +95,11 @@ export function ExpenseListPaginated({
   onBulkDelete, onBulkFlagToSettle, onBulkMarkAsSettled, onBulkAssignToAccount,
   onTriggerEdit, onDuplicate,
 }: Props) {
-  const names      = { a: data.settings.partnerAName, b: data.settings.partnerBName };
+  // Memoize names so they don't recreate on every render and trigger
+  // fetchExpenses to loop via the useCallback dependency array.
+  const nameA      = data.settings.partnerAName;
+  const nameB      = data.settings.partnerBName;
+  const names      = React.useMemo(() => ({ a: nameA, b: nameB }), [nameA, nameB]);
   const mode       = data.settings.householdMode ?? 'joint';
   const isJoint    = mode === 'joint';
   const isSolo     = mode === 'solo';
@@ -127,6 +131,7 @@ export function ExpenseListPaginated({
   const [hasMore, setHasMore]     = useState(false);
   const [loading, setLoading]     = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [fetchError, setFetchError]   = useState<string | null>(null);
 
   // ── Selection state ──────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds]             = useState<Set<string>>(new Set());
@@ -143,6 +148,7 @@ export function ExpenseListPaginated({
     else        setLoading(true);
 
     try {
+      setFetchError(null);
       const params = new URLSearchParams({
         householdId:  data.householdId,
         page:         String(pageNum),
@@ -163,11 +169,24 @@ export function ExpenseListPaginated({
       if (filterState.settled  !== 'All') params.set('settled',  filterState.settled);
       if (searchTerm.trim())              params.set('search',   searchTerm.trim());
 
-      const res  = await fetch(`/api/expenses?${params}`);
+      // Include the Supabase session token so the API can verify the caller
+      // belongs to the requested household.
+      let authHeader: Record<string, string> = {};
+      try {
+        const { supabase } = await import('@/lib/supabaseClient');
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          authHeader = { Authorization: `Bearer ${session.access_token}` };
+        }
+      } catch {}
+
+      const res  = await fetch(`/api/expenses?${params}`, { headers: authHeader });
       const json = await res.json();
 
       if (!res.ok) {
-        console.error('[ExpenseListPaginated] API error:', json.error);
+        const msg = json.error ?? `HTTP ${res.status}`;
+        console.error('[ExpenseListPaginated] API error:', msg);
+        setFetchError(msg);
         return;
       }
 
@@ -180,8 +199,10 @@ export function ExpenseListPaginated({
         setExpenses(json.expenses ?? []);
         setSelectedIds(new Set()); // clear selection on filter change
       }
-    } catch (err) {
-      console.error('[ExpenseListPaginated] Fetch error:', err);
+    } catch (err: any) {
+      const msg = err?.message ?? 'Network error';
+      console.error('[ExpenseListPaginated] Fetch error:', msg);
+      setFetchError(msg);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -349,8 +370,15 @@ export function ExpenseListPaginated({
         {loading && <Icon name="clock" size={14} color={C.text3} />}
       </div>
 
+      {/* ── Fetch error banner ──────────────────────────────────────────────── */}
+      {fetchError && (
+        <div style={{ background: `${C.red}15`, border: `1px solid ${C.red}44`, borderRadius: 14, padding: '14px 16px', fontSize: 13, color: C.red, lineHeight: 1.5 }}>
+          <strong>Could not load expenses:</strong> {fetchError}
+        </div>
+      )}
+
       {/* ── Empty state ─────────────────────────────────────────────────────── */}
-      {!loading && expenses.length === 0 && (
+      {!loading && !fetchError && expenses.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 24px', color: C.text3 }}>
           <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'center' }}>
             <Icon name="search" size={40} color={C.text3} strokeWidth={1.5} />
