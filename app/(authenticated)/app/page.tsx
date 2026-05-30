@@ -272,7 +272,13 @@ const [session, setSession]           = useState<any>(null);
 
   const needsSetup = data && !data.settings.setupComplete;
 
-  const handleSetupComplete = async (mode: HouseholdMode, nameA: string, nameB: string, telegramUsername?: string) => {
+  const handleSetupComplete = async (
+    mode: HouseholdMode,
+    nameA: string,
+    nameB: string,
+    telegramUsername?: string,
+    whatsappNumber?: string,
+  ) => {
     if (!data) return;
     const updatedSettings = {
       ...data.settings,
@@ -281,12 +287,22 @@ const [session, setSession]           = useState<any>(null);
       partnerBName:   nameB || 'Partner B',
       setupComplete:  true,
       ...(telegramUsername ? { telegramUsername } : {}),
+      ...(whatsappNumber ? { whatsappNumber } : {}),
     };
     await actions.saveSettings(updatedSettings);
+
     if (telegramUsername && session?.user?.id) {
       const { supabase } = await import('@/lib/supabaseClient');
       await supabase.from('profiles').update({ telegram_username: telegramUsername }).eq('id', session.user.id);
     }
+    
+    if (whatsappNumber && session?.user?.id) {
+      const { supabase } = await import('@/lib/supabaseClient');
+      await supabase.from('profiles')
+        .update({ whatsapp_number: whatsappNumber.replace(/\D/g, '') })
+        .eq('id', session.user.id);
+    }
+
     const fresh = await (await import('@/lib/supabaseHelpers')).loadData(session!.user.id);
     setData(fresh);
   };
