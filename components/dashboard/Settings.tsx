@@ -10,6 +10,7 @@ import { hasPartnerB } from '@/lib/householdModes';
 import { supabase } from '@/lib/supabaseClient';
 import { parseImport } from '@/lib/parseImport';
 import { AvatarUpload } from '@/components/ui/Avatar';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 interface Props {
   data: AppData;
@@ -21,7 +22,7 @@ interface Props {
   theme?: string;
   onThemeChange?: (t: string) => void;
   planInfo?: { plan: 'free' | 'pro'; count: number; limit: number; pct: number; month: string };
-  session?: any; // Added to access session?.user?.id for the Avatar component
+  session?: any;
 }
 
 // ─── Downgrade config ─────────────────────────────────────────────────────────
@@ -36,8 +37,6 @@ interface SwitchInfo {
 }
 
 const SWITCH_INFO: Record<string, Record<string, SwitchInfo>> = {
-
-  // ── Upgrades (adding capability) ─────────────────────────────────────────
   solo: {
     separate: {
       type: 'upgrade',
@@ -82,8 +81,6 @@ const SWITCH_INFO: Record<string, Record<string, SwitchInfo>> = {
       note: 'All existing separate transactions are preserved. Nothing is reclassified automatically.',
       offerNewHousehold: false,
     },
-
-    // ── Downgrade ───────────────────────────────────────────────────────────
     solo: {
       type: 'downgrade',
       title: 'Downgrading to Solo',
@@ -127,19 +124,24 @@ const SWITCH_INFO: Record<string, Record<string, SwitchInfo>> = {
   },
 };
 
-// ─── Mode icon map ────────────────────────────────────────────────────────────
-
 const MODE_ICONS: Record<string, string> = { joint: 'users', separate: 'user', solo: 'user' };
 
 // ─── Inline Toggle ────────────────────────────────────────────────────────────
 
-function InlineToggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+function InlineToggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
-    <div onClick={() => onChange(!on)} style={{
-      width: 44, height: 26, borderRadius: 99, cursor: 'pointer', flexShrink: 0,
-      background: on ? C.accent : C.surface2, position: 'relative', transition: 'background 0.2s',
-      border: `1px solid ${on ? C.accent : C.border2}`,
-    }}>
+    <div
+      onClick={() => !disabled && onChange(!on)}
+      style={{
+        width: 44, height: 26, borderRadius: 99,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        flexShrink: 0,
+        background: on ? C.accent : C.surface2,
+        position: 'relative', transition: 'background 0.2s',
+        border: `1px solid ${on ? C.accent : C.border2}`,
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
       <div style={{
         position: 'absolute', top: 3, left: on ? 'calc(100% - 22px)' : 3,
         width: 18, height: 18, borderRadius: '50%', background: on ? '#0a0a0a' : C.text3,
@@ -149,7 +151,29 @@ function InlineToggle({ on, onChange }: { on: boolean; onChange: (v: boolean) =>
   );
 }
 
-// ─── Inline sub-components ───────────────────────────────────────────────────
+// ─── Push status badge ────────────────────────────────────────────────────────
+
+function PushStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; color: string; bg: string }> = {
+    subscribed:   { label: 'Active',       color: C.green,  bg: C.greenBg  },
+    unsubscribed: { label: 'Off',          color: C.text3,  bg: C.surface2 },
+    denied:       { label: 'Blocked',      color: C.red,    bg: C.redBg    },
+    unsupported:  { label: 'Unsupported',  color: C.text3,  bg: C.surface2 },
+    loading:      { label: 'Checking…',    color: C.text3,  bg: C.surface2 },
+  };
+  const s = map[status] ?? map.unsubscribed;
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+      textTransform: 'uppercase', padding: '3px 8px', borderRadius: 99,
+      color: s.color, background: s.bg, border: `1px solid ${s.color}33`,
+    }}>
+      {s.label}
+    </span>
+  );
+}
+
+// ─── Inline sub-components ────────────────────────────────────────────────────
 
 function InviteLinkButton({ householdId }: { householdId: string }) {
   const [link, setLink] = React.useState('');
@@ -292,8 +316,9 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   const [avatarUrl, setAvatarUrl]       = useState<string>(
     (data as any)?.profile?.avatar_url ?? ''
   );
+  const [pushActionMsg, setPushActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Collapsed section state — all start collapsed for a clean initial view
+  // Collapsed section state
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggleSection = (id: string) => setOpenSection((prev) => prev === id ? null : id);
 
@@ -301,17 +326,21 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   const [pendingSettings, setPendingSettings] = useState<SettingsType | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // ── Push notification hook ─────────────────────────────────────────────────
+  // Pass householdId so the hook can persist the subscription to the right household
+  const push = usePushNotifications(householdId);
+
   useEffect(() => {
     if (data?.settings) setS(JSON.parse(JSON.stringify(data.settings)));
   }, [data.settings]);
 
   const modes: HouseholdMode[] = ['joint', 'separate', 'solo'];
-  const partnerB = hasPartnerB(s.householdMode ?? 'solo');
-  const currentCloudRole        = data.currentUserRole ?? 'Partner A';
-  const telegramHandle          = (s.telegramUsername ?? '').trim();
-  const telegramLinked          = telegramHandle.length > 0;
-  const waNumber                = (s.whatsappNumber ?? '').replace(/\D/g, '');
-  const waLinked                = waNumber.length >= 10;
+  const partnerB        = hasPartnerB(s.householdMode ?? 'solo');
+  const currentCloudRole = data.currentUserRole ?? 'Partner A';
+  const telegramHandle   = (s.telegramUsername ?? '').trim();
+  const telegramLinked   = telegramHandle.length > 0;
+  const waNumber         = (s.whatsappNumber ?? '').replace(/\D/g, '');
+  const waLinked         = waNumber.length >= 10;
 
   // ── Save with downgrade protection ────────────────────────────────────────
 
@@ -331,7 +360,6 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   };
 
   const commitSave = (settings: SettingsType) => {
-    // Guarantee Miscellaneous is always present before persisting
     const guarded = {
       ...settings,
       expenseCategories: settings.expenseCategories.includes('Miscellaneous')
@@ -339,7 +367,6 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         : [...settings.expenseCategories, 'Miscellaneous'],
       whatsappNumber: settings.whatsappNumber ?? '',
     };
-    // Also save whatsapp_number to profiles table
     if ('whatsappNumber' in guarded) {
       import('@/lib/supabaseClient').then(({ supabase }) => {
         supabase.from('profiles')
@@ -434,6 +461,50 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
     window.location.reload();
   };
 
+  // ── Push notification handlers ─────────────────────────────────────────────
+
+  const handlePushToggle = async (wantEnabled: boolean) => {
+    setPushActionMsg(null);
+
+    if (wantEnabled) {
+      if (push.status === 'denied') {
+        setPushActionMsg({
+          type: 'error',
+          text: 'Notifications are blocked by your browser. Open site settings and allow notifications, then try again.',
+        });
+        return;
+      }
+      if (push.status === 'unsupported') {
+        setPushActionMsg({ type: 'error', text: 'Push notifications are not supported in this browser.' });
+        return;
+      }
+      const ok = await push.subscribe();
+      if (ok) {
+        // Sync the settings toggle so it persists on Save
+        setS((x) => ({ ...x, notifications: { ...x.notifications, enabled: true } }));
+        setPushActionMsg({ type: 'success', text: 'Push notifications enabled! You will receive budget and settlement alerts.' });
+      } else {
+        setPushActionMsg({
+          type: 'error',
+          text: push.status === 'denied'
+            ? 'Permission denied. Allow notifications in your browser settings and try again.'
+            : 'Could not enable notifications. Please try again.',
+        });
+      }
+    } else {
+      await push.unsubscribe();
+      setS((x) => ({ ...x, notifications: { ...x.notifications, enabled: false } }));
+      setPushActionMsg({ type: 'success', text: 'Push notifications disabled.' });
+    }
+
+    // Auto-clear the message after 4 seconds
+    setTimeout(() => setPushActionMsg(null), 4000);
+  };
+
+  // Whether the main push toggle should appear "on"
+  // Combines the settings flag with the live subscription status
+  const pushIsOn = push.status === 'subscribed';
+
   // ── Collapsible section header builder ────────────────────────────────────
 
   const SectionHeader = ({ id, title, badge }: { id: string; title: string; badge?: string }) => {
@@ -477,16 +548,12 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
             <div style={{ background: C.surface, border: `1px solid ${accentColor}44`, borderRadius: 20, padding: 28, maxWidth: 480, width: '100%', boxShadow: C.shadowMd }}>
-
-              {/* Header */}
               <div style={{ fontSize: 17, fontWeight: 800, color: accentColor, marginBottom: 4 }}>
                 {icon} {downgradeModal.title}
               </div>
               <p style={{ color: C.text2, fontSize: 13, margin: '0 0 14px', lineHeight: 1.6 }}>
                 {downgradeModal.subtitle}
               </p>
-
-              {/* Changes list */}
               <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
                 {changesLabel}
               </div>
@@ -495,19 +562,12 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                   <li key={item} style={{ color: C.text1, fontSize: 13 }}>{item}</li>
                 ))}
               </ul>
-
-              {/* Note */}
               <div style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}33`, borderRadius: 12, padding: '10px 14px', marginBottom: 20, fontSize: 13, color: accentColor, lineHeight: 1.6 }}>
                 💡 {downgradeModal.note}
               </div>
-
-              {/* Actions */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {!isUpgrade && downgradeModal.offerNewHousehold && (
-                  <button
-                    onClick={handleModalNewHousehold}
-                    style={{ ...primaryBtnStyle, background: C.accent }}
-                  >
+                  <button onClick={handleModalNewHousehold} style={{ ...primaryBtnStyle, background: C.accent }}>
                     📦 Export my data &amp; start a fresh household
                   </button>
                 )}
@@ -528,13 +588,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                 </button>
                 <button
                   onClick={handleModalCancel}
-                  style={{
-                    ...ghostBtnStyle,
-                    background: isUpgrade ? 'transparent' : 'transparent',
-                    border: `1px solid ${C.red}44`,
-                    color: C.red,
-                    width: '100%',
-                  }}
+                  style={{ ...ghostBtnStyle, border: `1px solid ${C.red}44`, color: C.red, width: '100%' }}
                 >
                   Cancel — stay on current mode
                 </button>
@@ -546,7 +600,6 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
 
       {/* ── 1. Profile hero card ─────────────────────────────────────────── */}
       <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-        {/* Avatar upload — tap to change */}
         <AvatarUpload
           profile={{
             id:           session?.user?.id ?? '',
@@ -583,12 +636,10 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         Log Out
       </button>
 
-      {/* ── 3. Plan & Usage (not collapsible) ────────────────────────────── */}
+      {/* ── 3. Plan & Usage ──────────────────────────────────────────────── */}
       <div style={{ ...cardStyle, border: planInfo?.plan === 'pro' ? `1px solid ${C.amber}44` : undefined }}>
-        {/* Header row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <span style={{ color: C.textW, fontWeight: 700, fontSize: 14 }}>Your Plan</span>
-          {/* Plan badge pill */}
           <span style={{
             display: 'inline-flex', alignItems: 'center', padding: '4px 12px',
             borderRadius: 999, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
@@ -599,8 +650,6 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             {planInfo?.plan === 'pro' ? '✦ PRO' : 'FREE'}
           </span>
         </div>
-
-        {/* AI parse usage */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: 12, color: C.text2 }}>AI parses used this month</span>
@@ -612,59 +661,35 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                 : '— / 30'}
             </span>
           </div>
-          {/* Progress bar */}
           <div style={{ background: C.surface2, borderRadius: 99, height: 6, overflow: 'hidden' }}>
             <div style={{
-              width: planInfo
-                ? planInfo.plan === 'pro' ? '100%' : `${planInfo.pct}%`
-                : '0%',
+              width: planInfo ? (planInfo.plan === 'pro' ? '100%' : `${planInfo.pct}%`) : '0%',
               height: '100%',
-              background: planInfo?.plan === 'pro'
-                ? C.teal
-                : !planInfo || planInfo.pct < 70 ? C.green
-                : planInfo.pct < 90 ? C.amber : C.red,
-              borderRadius: 99,
-              transition: 'width 0.4s',
+              background: planInfo?.plan === 'pro' ? C.teal : !planInfo || planInfo.pct < 70 ? C.green : planInfo.pct < 90 ? C.amber : C.red,
+              borderRadius: 99, transition: 'width 0.4s',
             }} />
           </div>
           {planInfo?.plan === 'pro' && (
-            <div style={{ fontSize: 11, color: C.teal, marginTop: 5 }}>
-              ∞ Unlimited — Pro plan active
-            </div>
+            <div style={{ fontSize: 11, color: C.teal, marginTop: 5 }}>∞ Unlimited — Pro plan active</div>
           )}
           {planInfo && planInfo.plan === 'free' && planInfo.pct >= 70 && (
             <div style={{ fontSize: 11, color: planInfo.pct >= 90 ? C.red : C.amber, marginTop: 5 }}>
               {planInfo.pct >= 100 ? '🚫 Limit reached' : `⚠️ ${30 - planInfo.count} parses remaining`}
             </div>
           )}
-          {!planInfo && (
-            <div style={{ fontSize: 11, color: C.text3, marginTop: 5 }}>
-              Loading usage data…
-            </div>
-          )}
+          {!planInfo && <div style={{ fontSize: 11, color: C.text3, marginTop: 5 }}>Loading usage data…</div>}
         </div>
-
-        {/* Upgrade CTA — free plan */}
         {(!planInfo || planInfo.plan === 'free') && (
-          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 12, marginBottom: 0 }}>
-            <div style={{ color: C.textW, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>
-              ✦ Upgrade to Pro
-            </div>
+          <div style={{ padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 12 }}>
+            <div style={{ color: C.textW, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>✦ Upgrade to Pro</div>
             <div style={{ color: C.text2, fontSize: 12, marginBottom: 10, lineHeight: 1.6 }}>
               Free plan: 30 AI parses/month · Pro plan: unlimited. The number wizard is always free.
             </div>
-            <button
-              style={{ ...primaryBtnStyle }}
-              onClick={() => {
-                window.open('mailto:team@chillarflow.com?subject=Pro%20Upgrade&body=Household%20ID:%20' + householdId, '_blank');
-              }}
-            >
+            <button style={{ ...primaryBtnStyle }} onClick={() => { window.open('mailto:team@chillarflow.com?subject=Pro%20Upgrade&body=Household%20ID:%20' + householdId, '_blank'); }}>
               ✦ Upgrade to Pro — Unlimited AI logging
             </button>
           </div>
         )}
-
-        {/* Pro active state */}
         {planInfo?.plan === 'pro' && (
           <div style={{ padding: '10px 14px', background: `${C.teal}10`, border: `1px solid ${C.teal}33`, borderRadius: 12, textAlign: 'center' }}>
             <div className="pro-badge" style={{ fontSize: 15, marginBottom: 4 }}>✦ PRO PLAN ACTIVE</div>
@@ -673,7 +698,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 4. Household Mode (collapsible) ──────────────────────────────── */}
+      {/* ── 4. Household Mode ────────────────────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         <SectionHeader id="mode" title="Household Mode" badge={HOUSEHOLD_MODE_META[s.householdMode ?? 'solo']?.label ?? ''} />
         {openSection === 'mode' && (
@@ -688,7 +713,6 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                 const isOpen = expandedMode === m;
                 return (
                   <div key={m}>
-                    {/* Mode row */}
                     <div
                       onClick={() => setS((x) => ({ ...x, householdMode: m }))}
                       style={{
@@ -699,50 +723,24 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                         padding: '12px 14px', transition: 'all 0.2s',
                       }}
                     >
-                      {/* Active indicator dot */}
-                      <div style={{
-                        width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
-                        border: `2px solid ${active ? C.accent : C.border}`,
-                        background: active ? C.accent : 'transparent',
-                        transition: 'all 0.2s',
-                      }} />
-                      {/* Mode icon */}
-                      <div style={{
-                        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                        background: active ? `${C.accent}22` : C.surface,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
+                      <div style={{ width: 16, height: 16, borderRadius: '50%', flexShrink: 0, border: `2px solid ${active ? C.accent : C.border}`, background: active ? C.accent : 'transparent', transition: 'all 0.2s' }} />
+                      <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: active ? `${C.accent}22` : C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Icon name={MODE_ICONS[m] ?? 'user'} size={16} color={active ? C.accent : C.text3} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ color: C.textW, fontWeight: 700, fontSize: 14 }}>{meta.label}</div>
                         <div style={{ color: C.text2, fontSize: 12, marginTop: 2, lineHeight: 1.4 }}>{meta.description}</div>
                       </div>
-                      {/* Chevron toggle */}
                       <button
                         onClick={(e) => { e.stopPropagation(); setExpandedMode(isOpen ? null : m); }}
-                        style={{
-                          background: 'transparent', border: 'none', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', flexShrink: 0, padding: '4px 6px',
-                          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                          transition: 'transform 0.2s',
-                        }}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0, padding: '4px 6px', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
                       >
                         <Icon name="chevronDown" size={16} color={isOpen ? C.accent : C.text3} />
                       </button>
                     </div>
-
-                    {/* Expandable detail panel */}
                     {isOpen && (
-                      <div style={{
-                        background: `${C.accent}08`,
-                        border: `2px solid ${active ? C.accent : C.border}`, borderTop: 'none',
-                        borderRadius: '0 0 12px 12px', padding: '12px 16px',
-                      }}>
-                        <div style={{
-                          fontSize: 11, color: C.text3, fontWeight: 600,
-                          textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 10,
-                        }}>
+                      <div style={{ background: `${C.accent}08`, border: `2px solid ${active ? C.accent : C.border}`, borderTop: 'none', borderRadius: '0 0 12px 12px', padding: '12px 16px' }}>
+                        <div style={{ fontSize: 11, color: C.text3, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 10 }}>
                           What you get with {meta.label}:
                         </div>
                         {((meta as any).detail as string[]).map((line: string, i: number) => (
@@ -761,30 +759,20 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 5. Partner Names (collapsible) ───────────────────────────────── */}
+      {/* ── 5. Partner Names ─────────────────────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         <SectionHeader id="partnerNames" title="Partner Names" />
         {openSection === 'partnerNames' && (
           <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
             <div style={{ paddingTop: 14, display: 'grid', gridTemplateColumns: partnerB ? '1fr 1fr' : '1fr', gap: 14 }}>
               <div>
-                <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, marginBottom: 6 }}>
-                  {partnerB ? 'Partner A Name' : 'Your Name'}
-                </div>
-                <input
-                  value={s.partnerAName}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, partnerAName: e.target.value }))}
-                  style={inputStyle}
-                />
+                <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, marginBottom: 6 }}>{partnerB ? 'Partner A Name' : 'Your Name'}</div>
+                <input value={s.partnerAName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, partnerAName: e.target.value }))} style={inputStyle} />
               </div>
               {partnerB && (
                 <div>
                   <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, marginBottom: 6 }}>Partner B Name</div>
-                  <input
-                    value={s.partnerBName}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, partnerBName: e.target.value }))}
-                    style={inputStyle}
-                  />
+                  <input value={s.partnerBName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, partnerBName: e.target.value }))} style={inputStyle} />
                 </div>
               )}
             </div>
@@ -792,7 +780,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 6. Active Device Profile (collapsible, only if partnerB) ──────── */}
+      {/* ── 6. Active Device Profile ─────────────────────────────────────── */}
       {partnerB && (
         <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', border: `1px solid ${C.purple}44` }}>
           <SectionHeader id="deviceProfile" title="Active Device Profile" />
@@ -803,9 +791,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               </p>
               <p style={{ color: C.text3, fontSize: 12, margin: '0 0 14px' }}>
                 Currently registered as{' '}
-                <strong style={{ color: C.textW }}>
-                  {currentCloudRole === 'Partner A' ? s.partnerAName : s.partnerBName}
-                </strong>{' '}({currentCloudRole}).
+                <strong style={{ color: C.textW }}>{currentCloudRole === 'Partner A' ? s.partnerAName : s.partnerBName}</strong>{' '}({currentCloudRole}).
               </p>
               <div style={{ display: 'flex', gap: 10 }}>
                 {(['Partner A', 'Partner B'] as const).map((role) => (
@@ -814,9 +800,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                     onClick={() => switchRole(role)}
                     style={{
                       flex: 1,
-                      ...(currentCloudRole === role
-                        ? { ...primaryBtnStyle, width: 'auto' }
-                        : { ...ghostBtnStyle }),
+                      ...(currentCloudRole === role ? { ...primaryBtnStyle, width: 'auto' } : { ...ghostBtnStyle }),
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     }}
                   >
@@ -830,56 +814,31 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         </div>
       )}
 
-      {/* ── 7. Telegram Integration (collapsible) ────────────────────────── */}
+      {/* ── 7. Telegram Integration ──────────────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', border: `1px solid ${C.teal}44` }}>
         <SectionHeader id="telegram" title="Telegram Bot Integration" />
         {openSection === 'telegram' && (
           <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
             <p style={{ color: C.text1, fontSize: 13, margin: '14px 0', lineHeight: 1.5 }}>
-              {telegramLinked
-                ? 'Your Telegram account is connected. Send a message to log expenses instantly.'
-                : 'Link your Telegram username to log expenses from your phone in seconds.'}
+              {telegramLinked ? 'Your Telegram account is connected. Send a message to log expenses instantly.' : 'Link your Telegram username to log expenses from your phone in seconds.'}
             </p>
-
-            {/* Username input */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               <input
                 type="text"
                 disabled={telegramLinked}
                 placeholder={telegramLinked ? `@${telegramHandle}` : 'e.g. yourhandle (without @)'}
                 value={telegramLinked ? `@${telegramHandle}` : (s.telegramUsername ?? '')}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setS((x) => ({ ...x, telegramUsername: e.target.value.replace(/@/g, '').trim() }))}
-                style={{
-                  ...inputStyle,
-                  opacity: telegramLinked ? 0.7 : 1,
-                  cursor: telegramLinked ? 'not-allowed' : 'text',
-                  flex: 1, width: 'auto',
-                }}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, telegramUsername: e.target.value.replace(/@/g, '').trim() }))}
+                style={{ ...inputStyle, opacity: telegramLinked ? 0.7 : 1, cursor: telegramLinked ? 'not-allowed' : 'text', flex: 1, width: 'auto' }}
               />
               {telegramLinked && (
-                <button
-                  onClick={() => setS((x) => ({ ...x, telegramUsername: '' }))}
-                  style={{
-                    background: 'transparent', border: `1px solid ${C.red}44`, color: C.red,
-                    borderRadius: 999, padding: '10px 18px', fontWeight: 600, fontSize: 14,
-                    cursor: 'pointer', flexShrink: 0,
-                  }}
-                >
+                <button onClick={() => setS((x) => ({ ...x, telegramUsername: '' }))} style={{ background: 'transparent', border: `1px solid ${C.red}44`, color: C.red, borderRadius: 999, padding: '10px 18px', fontWeight: 600, fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>
                   Unlink
                 </button>
               )}
             </div>
-
-            {/* Setup guide — collapsible */}
             <div style={{ background: C.surface2, borderRadius: 12, overflow: 'hidden' }}>
-              <button
-                onClick={() => setExpandedTg((v) => !v)}
-                style={{
-                  width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '12px 16px', background: 'transparent', border: 'none', cursor: 'pointer',
-                }}
-              >
+              <button onClick={() => setExpandedTg((v) => !v)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'transparent', border: 'none', cursor: 'pointer' }}>
                 <span style={{ fontSize: 12, color: C.text3, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
                   {expandedTg ? 'Hide setup guide' : 'How to set up & logging syntax'}
                 </span>
@@ -889,9 +848,6 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               </button>
               {expandedTg && (
                 <div style={{ padding: '0 16px 14px' }}>
-                  <div style={{ fontSize: 12, color: C.text3, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 12 }}>
-                    How to set up
-                  </div>
                   {[
                     { step: '1', text: 'Open Telegram and start a chat with your bot (link provided by the admin)' },
                     { step: '2', text: 'Send /start to activate it' },
@@ -910,7 +866,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                       { code: '450 Zomato to settle', desc: 'Joint pool reimburses you' },
                       { code: '500',                  desc: 'Interactive wizard' },
                       { code: '/recent',              desc: 'View & edit last 3 transactions' },
-                      { code: '/summary',             desc: 'This month\'s snapshot' },
+                      { code: '/summary',             desc: "This month's snapshot" },
                       { code: '/usage',               desc: 'Check AI parse usage' },
                     ].map(({ code, desc }) => (
                       <div key={code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' as const, gap: 6 }}>
@@ -926,52 +882,33 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 8. WhatsApp Integration (collapsible) ────────────────────────── */}
+      {/* ── 8. WhatsApp Integration ──────────────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden', border: '1px solid #25D36644' }}>
         <SectionHeader id="whatsapp" title="WhatsApp Integration" />
         {openSection === 'whatsapp' && (
           <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
             <p style={{ color: C.text1, fontSize: 13, margin: '14px 0', lineHeight: 1.5 }}>
-              {waLinked
-                ? 'Your WhatsApp is connected. Send a message to log expenses instantly.'
-                : 'Link your WhatsApp number to log expenses from WhatsApp.'}
+              {waLinked ? 'Your WhatsApp is connected. Send a message to log expenses instantly.' : 'Link your WhatsApp number to log expenses from WhatsApp.'}
             </p>
-
             <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
               <input
                 type="tel"
                 disabled={waLinked}
                 placeholder="Country code + number, e.g. 919876543210"
                 value={waLinked ? waNumber : (s.whatsappNumber ?? '')}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setS((x) => ({ ...x, whatsappNumber: e.target.value.replace(/\D/g, '') }))
-                }
-                style={{
-                  ...inputStyle,
-                  opacity: waLinked ? 0.7 : 1,
-                  cursor: waLinked ? 'not-allowed' : 'text',
-                  flex: 1, width: 'auto',
-                }}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, whatsappNumber: e.target.value.replace(/\D/g, '') }))}
+                style={{ ...inputStyle, opacity: waLinked ? 0.7 : 1, cursor: waLinked ? 'not-allowed' : 'text', flex: 1, width: 'auto' }}
               />
               {waLinked && (
-                <button
-                  onClick={() => setS((x) => ({ ...x, whatsappNumber: '' }))}
-                  style={{
-                    background: 'transparent', border: `1px solid ${C.red}44`, color: C.red,
-                    borderRadius: 999, padding: '10px 18px', fontWeight: 600, fontSize: 14,
-                    cursor: 'pointer', flexShrink: 0,
-                  }}
-                >
+                <button onClick={() => setS((x) => ({ ...x, whatsappNumber: '' }))} style={{ background: 'transparent', border: `1px solid ${C.red}44`, color: C.red, borderRadius: 999, padding: '10px 18px', fontWeight: 600, fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>
                   Unlink
                 </button>
               )}
             </div>
-
             <div style={{ fontSize: 12, color: C.text3, lineHeight: 1.6 }}>
               <strong style={{ color: C.text1 }}>Format:</strong> Country code + number without spaces or +<br />
               India example: <code style={{ background: `${C.border}40`, padding: '1px 6px', borderRadius: 6 }}>919876543210</code>
             </div>
-
             {!waLinked && (
               <div style={{ marginTop: 12, padding: '10px 14px', background: '#25D36610', border: '1px solid #25D36633', borderRadius: 12, fontSize: 12, color: '#25D366', lineHeight: 1.6 }}>
                 After linking, open WhatsApp and send <strong>hi</strong> to the ChillarFlow number to activate your account.
@@ -981,7 +918,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 9. Expense Categories (collapsible) ──────────────────────────── */}
+      {/* ── 9. Expense Categories ────────────────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         <SectionHeader id="expCats" title="Expense Categories" badge={`${s.expenseCategories.length} categories`} />
         {openSection === 'expCats' && (
@@ -989,29 +926,17 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             <div style={{ paddingTop: 14 }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
                 {s.expenseCategories.map((c) => (
-                  <span key={c} style={{
-                    background: c === 'Miscellaneous' ? `${C.teal}0a` : C.surface2,
-                    border: `1px solid ${c === 'Miscellaneous' ? C.teal + '44' : C.border}`,
-                    borderRadius: 99, padding: '4px 10px', fontSize: 13, color: C.text1,
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}>
+                  <span key={c} style={{ background: c === 'Miscellaneous' ? `${C.teal}0a` : C.surface2, border: `1px solid ${c === 'Miscellaneous' ? C.teal + '44' : C.border}`, borderRadius: 99, padding: '4px 10px', fontSize: 13, color: C.text1, display: 'flex', alignItems: 'center', gap: 6 }}>
                     {c}
-                    {c === 'Miscellaneous' ? (
-                      <span title="Required — cannot be removed" style={{ color: C.teal, fontSize: 11, cursor: 'default', lineHeight: 1 }}>🔒</span>
-                    ) : (
-                      <span onClick={() => removeExpCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span>
-                    )}
+                    {c === 'Miscellaneous'
+                      ? <span title="Required — cannot be removed" style={{ color: C.teal, fontSize: 11, cursor: 'default', lineHeight: 1 }}>🔒</span>
+                      : <span onClick={() => removeExpCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span>
+                    }
                   </span>
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  value={newExpCat}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewExpCat(e.target.value)}
-                  placeholder="Add category…"
-                  onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && addExpCat()}
-                  style={{ ...inputStyle, flex: 1, width: 'auto' }}
-                />
+                <input value={newExpCat} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewExpCat(e.target.value)} placeholder="Add category…" onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && addExpCat()} style={{ ...inputStyle, flex: 1, width: 'auto' }} />
                 <button onClick={addExpCat} style={ghostBtnStyle}>Add</button>
               </div>
             </div>
@@ -1019,7 +944,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 10. Income Categories (collapsible) ───────────────────────────── */}
+      {/* ── 10. Income Categories ────────────────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         <SectionHeader id="incCats" title="Income Categories" badge={`${s.incomeCategories.length} categories`} />
         {openSection === 'incCats' && (
@@ -1027,24 +952,14 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             <div style={{ paddingTop: 14 }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 12 }}>
                 {s.incomeCategories.map((c) => (
-                  <span key={c} style={{
-                    background: C.surface2, border: `1px solid ${C.border}`,
-                    borderRadius: 99, padding: '4px 10px', fontSize: 13, color: C.text1,
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}>
+                  <span key={c} style={{ background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 99, padding: '4px 10px', fontSize: 13, color: C.text1, display: 'flex', alignItems: 'center', gap: 6 }}>
                     {c}
                     <span onClick={() => removeIncCat(c)} style={{ color: C.red, cursor: 'pointer', fontWeight: 700, fontSize: 15, lineHeight: 1 }}>×</span>
                   </span>
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  value={newIncCat}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewIncCat(e.target.value)}
-                  placeholder="Add income category…"
-                  onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && addIncCat()}
-                  style={{ ...inputStyle, flex: 1, width: 'auto' }}
-                />
+                <input value={newIncCat} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewIncCat(e.target.value)} placeholder="Add income category…" onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && addIncCat()} style={{ ...inputStyle, flex: 1, width: 'auto' }} />
                 <button onClick={addIncCat} style={ghostBtnStyle}>Add</button>
               </div>
             </div>
@@ -1052,7 +967,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 11. Category Budgets (collapsible) ───────────────────────────── */}
+      {/* ── 11. Category Budgets ─────────────────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         <SectionHeader id="budgets" title="Category Budgets" badge={`${Object.values(s.budgets).filter(Boolean).length} limits set`} />
         {openSection === 'budgets' && (
@@ -1061,18 +976,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                 <span style={{ fontSize: 12, color: C.text3 }}>Monthly limit per category. Overages flagged on dashboard.</span>
                 {Object.keys(s.budgets).some((k) => s.budgets[k] !== undefined) && (
-                  <button
-                    onClick={() => {
-                      if (window.confirm('Remove all budget limits? This cannot be undone.')) {
-                        setS((x) => ({ ...x, budgets: {} }));
-                      }
-                    }}
-                    style={{
-                      background: 'transparent', border: `1px solid ${C.red}44`, color: C.red,
-                      borderRadius: 999, padding: '4px 10px', fontSize: 11, cursor: 'pointer',
-                      fontWeight: 600, flexShrink: 0,
-                    }}
-                  >
+                  <button onClick={() => { if (window.confirm('Remove all budget limits? This cannot be undone.')) { setS((x) => ({ ...x, budgets: {} })); } }} style={{ background: 'transparent', border: `1px solid ${C.red}44`, color: C.red, borderRadius: 999, padding: '4px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600, flexShrink: 0 }}>
                     Reset All
                   </button>
                 )}
@@ -1083,9 +987,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {s.expenseCategories.map((c) => (
                   <div key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                    <span style={{ color: C.text1, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                      {c}
-                    </span>
+                    <span style={{ color: C.text1, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{c}</span>
                     <input
                       type="number"
                       placeholder="No limit"
@@ -1094,12 +996,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                         const v = e.target.value;
                         setS((x) => ({ ...x, budgets: { ...x.budgets, [c]: v ? Number(v) : undefined } }));
                       }}
-                      style={{
-                        width: 88, flexShrink: 0, padding: '6px 8px', fontSize: 13,
-                        background: C.surface2, border: `1px solid ${C.border}`, color: C.textW,
-                        borderRadius: 12, outline: 'none', WebkitAppearance: 'none' as any,
-                        fontFamily: 'inherit',
-                      }}
+                      style={{ width: 88, flexShrink: 0, padding: '6px 8px', fontSize: 13, background: C.surface2, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 12, outline: 'none', WebkitAppearance: 'none' as any, fontFamily: 'inherit' }}
                     />
                   </div>
                 ))}
@@ -1109,39 +1006,78 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 12. Notifications (not collapsible) ──────────────────────────── */}
+      {/* ── 12. Notifications ────────────────────────────────────────────── */}
+      {/* This section is now wired to the real Web Push API via usePushNotifications. */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}` }}>
+        {/* Header row */}
+        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: C.text3 }}>Notifications</div>
+          <PushStatusBadge status={push.status} />
         </div>
-        {([
-          { icon: 'bell', title: 'Push notifications', sub: 'Browser permission required', on: s.notifications.enabled, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, enabled: v } })) },
-          { icon: 'alert', title: 'Budget alerts', sub: 'At 80% of monthly budget', on: s.notifications.budgetAlert, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetAlert: v } })) },
-          { icon: 'refresh', title: 'Settlement reminders', sub: 'When partner adds or settles', on: s.notifications.settlement, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, settlement: v } })) },
-          { icon: 'wallet', title: 'Partner expense alerts', sub: 'Notify when partner logs an expense', on: s.notifications.newExpense, onChange: (v: boolean) => setS((x) => ({ ...x, notifications: { ...x.notifications, newExpense: v } })) },
-        ] as { icon: string; title: string; sub: string; on: boolean; onChange: (v: boolean) => void }[]).map((row, i) => (
-          <React.Fragment key={row.title}>
-            {i > 0 && <div style={{ height: 1, background: C.border, margin: '0 18px' }} />}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px' }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: 12, background: C.surface2,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                <Icon name={row.icon} size={18} color={C.text2} />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.textW }}>{row.title}</div>
-                {row.sub && <div style={{ fontSize: 11, color: C.text2, marginTop: 2 }}>{row.sub}</div>}
-              </div>
-              <InlineToggle on={row.on} onChange={row.onChange} />
+
+        {/* ── Row 1: Push notifications master toggle ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Icon name="bell" size={18} color={pushIsOn ? C.accent : C.text2} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.textW }}>Push notifications</div>
+            <div style={{ fontSize: 11, color: C.text2, marginTop: 2 }}>
+              {push.status === 'unsupported' && 'Not supported in this browser'}
+              {push.status === 'denied'      && 'Blocked — allow in browser site settings'}
+              {push.status === 'loading'     && 'Checking permission…'}
+              {push.status === 'subscribed'  && 'Active — receiving budget & settlement alerts'}
+              {push.status === 'unsubscribed' && 'Enable to receive budget & settlement alerts'}
             </div>
-          </React.Fragment>
-        ))}
-        {s.notifications.budgetAlert && (
-          <div style={{ padding: '12px 18px', borderTop: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          </div>
+          <InlineToggle
+            on={pushIsOn}
+            onChange={handlePushToggle}
+            disabled={push.isLoading || push.status === 'loading' || push.status === 'unsupported'}
+          />
+        </div>
+
+        {/* Push action feedback message */}
+        {pushActionMsg && (
+          <div style={{ margin: '0 18px 14px', padding: '10px 14px', borderRadius: 12, fontSize: 13, background: pushActionMsg.type === 'success' ? `${C.green}18` : `${C.red}18`, border: `1px solid ${pushActionMsg.type === 'success' ? C.green : C.red}44`, color: pushActionMsg.type === 'success' ? C.green : C.red, lineHeight: 1.5 }}>
+            {pushActionMsg.text}
+          </div>
+        )}
+
+        {/* "Blocked" helper — shown when permission is denied */}
+        {push.status === 'denied' && (
+          <div style={{ margin: '0 18px 14px', padding: '12px 14px', background: `${C.amber}10`, border: `1px solid ${C.amber}33`, borderRadius: 12, fontSize: 12, color: C.amber, lineHeight: 1.6 }}>
+            <strong>Blocked by browser.</strong> To re-enable: tap the lock icon in your address bar → Site settings → Notifications → Allow. Then toggle on above.
+          </div>
+        )}
+
+        <div style={{ height: 1, background: C.border, margin: '0 18px' }} />
+
+        {/* ── Row 2: Budget alerts sub-toggle ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Icon name="alert" size={18} color={C.text2} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: pushIsOn ? C.textW : C.text3 }}>Budget alerts</div>
+            <div style={{ fontSize: 11, color: C.text2, marginTop: 2 }}>
+              When a category hits your spending threshold
+            </div>
+          </div>
+          <InlineToggle
+            on={s.notifications.budgetAlert && pushIsOn}
+            onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetAlert: v } }))}
+            disabled={!pushIsOn}
+          />
+        </div>
+
+        {/* Budget threshold input — shown only when both push and budgetAlert are on */}
+        {pushIsOn && s.notifications.budgetAlert && (
+          <div style={{ padding: '0 18px 14px 68px', display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 13, color: C.text2 }}>Alert at</span>
             <input
               type="number"
+              min={50} max={100}
               value={s.notifications.budgetThreshold}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setS((x) => ({ ...x, notifications: { ...x.notifications, budgetThreshold: Number(e.target.value) } }))}
               style={{ width: 70, background: C.surface2, border: `1px solid ${C.border}`, color: C.textW, borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
@@ -1149,28 +1085,64 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             <span style={{ fontSize: 13, color: C.text2 }}>% of budget used</span>
           </div>
         )}
-        {s.notifications.enabled && (
+
+        <div style={{ height: 1, background: C.border, margin: '0 18px' }} />
+
+        {/* ── Row 3: Settlement reminders sub-toggle ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Icon name="refresh" size={18} color={C.text2} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: pushIsOn ? C.textW : C.text3 }}>Settlement reminders</div>
+            <div style={{ fontSize: 11, color: C.text2, marginTop: 2 }}>
+              Partner splits unsettled for 3+ days
+            </div>
+          </div>
+          <InlineToggle
+            on={s.notifications.settlement && pushIsOn}
+            onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, settlement: v } }))}
+            disabled={!pushIsOn}
+          />
+        </div>
+
+        <div style={{ height: 1, background: C.border, margin: '0 18px' }} />
+
+        {/* ── Row 4: Partner expense alerts sub-toggle ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 12, background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Icon name="wallet" size={18} color={C.text2} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: pushIsOn ? C.textW : C.text3 }}>Partner expense alerts</div>
+            <div style={{ fontSize: 11, color: C.text2, marginTop: 2 }}>
+              Notify when partner logs an expense
+            </div>
+          </div>
+          <InlineToggle
+            on={s.notifications.newExpense && pushIsOn}
+            onChange={(v) => setS((x) => ({ ...x, notifications: { ...x.notifications, newExpense: v } }))}
+            disabled={!pushIsOn}
+          />
+        </div>
+
+        {/* Test notification button — only shown when push is active */}
+        {pushIsOn && (
           <div style={{ padding: '0 18px 14px', borderTop: `1px solid ${C.border}` }}>
             <button
-              style={{
-                marginTop: 10, background: 'transparent', border: `1px solid ${C.border}`,
-                color: C.text2, borderRadius: 99, padding: '8px 16px', fontSize: 12,
-                fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-              }}
-              onClick={async () => {
-                if (!('Notification' in window)) return;
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') { new Notification('ChillarFlow', { body: 'Notifications working! ✓' }); }
-                else { alert('Please allow notifications in your browser settings.'); }
+              style={{ marginTop: 10, background: 'transparent', border: `1px solid ${C.border}`, color: C.text2, borderRadius: 99, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              onClick={() => {
+                if (!('Notification' in window) || Notification.permission !== 'granted') return;
+                new Notification('ChillarFlow ✓', { body: 'Push notifications are working!', icon: '/icons/icon-192.png' });
               }}
             >
-              Test Notification
+              Send test notification
             </button>
           </div>
         )}
       </div>
 
-      {/* ── 13. Data Management (collapsible) ────────────────────────────── */}
+      {/* ── 13. Data Management ──────────────────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         <SectionHeader id="dataMgmt" title="Data Management" />
         {openSection === 'dataMgmt' && (
@@ -1178,35 +1150,16 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
             <div style={{ paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Export to Excel</div>
-                <div style={{ color: C.text3, fontSize: 13, marginBottom: 10 }}>
-                  Download all data as an .xlsx file with sheets for expenses, contributions, goals, and loans.
-                </div>
-                <button
-                  onClick={onExport}
-                  style={{ ...ghostBtnStyle, display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  ⬇ Export to Excel
-                </button>
+                <div style={{ color: C.text3, fontSize: 13, marginBottom: 10 }}>Download all data as an .xlsx file with sheets for expenses, contributions, goals, and loans.</div>
+                <button onClick={onExport} style={{ ...ghostBtnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>⬇ Export to Excel</button>
               </div>
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
                 <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Import from Excel</div>
-                <div style={{ color: C.text3, fontSize: 13, marginBottom: 10 }}>
-                  Import from a matching .xlsx or .csv file. Existing data is merged, not replaced.
-                </div>
+                <div style={{ color: C.text3, fontSize: 13, marginBottom: 10 }}>Import from a matching .xlsx or .csv file. Existing data is merged, not replaced.</div>
                 <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImport} style={{ display: 'none' }} />
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  style={{ ...ghostBtnStyle, display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  ⬆ Import File
-                </button>
+                <button onClick={() => fileRef.current?.click()} style={{ ...ghostBtnStyle, display: 'flex', alignItems: 'center', gap: 6 }}>⬆ Import File</button>
                 {importMsg && (
-                  <div style={{
-                    marginTop: 10, padding: '9px 14px', borderRadius: 12, fontSize: 13,
-                    background: importMsg.type === 'success' ? `${C.green}22` : `${C.red}22`,
-                    border: `1px solid ${importMsg.type === 'success' ? C.green : C.red}44`,
-                    color: importMsg.type === 'success' ? C.green : C.red,
-                  }}>
+                  <div style={{ marginTop: 10, padding: '9px 14px', borderRadius: 12, fontSize: 13, background: importMsg.type === 'success' ? `${C.green}22` : `${C.red}22`, border: `1px solid ${importMsg.type === 'success' ? C.green : C.red}44`, color: importMsg.type === 'success' ? C.green : C.red }}>
                     {importMsg.text}
                   </div>
                 )}
@@ -1220,14 +1173,10 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 14. App Theme (collapsible, only if onThemeChange) ───────────── */}
+      {/* ── 14. App Theme ────────────────────────────────────────────────── */}
       {onThemeChange && (
         <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-          <SectionHeader
-            id="theme"
-            title="App Theme"
-            badge={theme === 'pearl' ? 'Pearl' : theme === 'slate' ? 'Slate' : theme === 'indigo' ? 'Indigo' : theme === 'mono' ? 'Mono' : 'Obsidian'}
-          />
+          <SectionHeader id="theme" title="App Theme" badge={theme === 'pearl' ? 'Pearl' : theme === 'slate' ? 'Slate' : theme === 'indigo' ? 'Indigo' : theme === 'mono' ? 'Mono' : 'Obsidian'} />
           {openSection === 'theme' && (
             <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
               <div style={{ paddingTop: 14 }}>
@@ -1238,75 +1187,39 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         </div>
       )}
 
-      {/* ── 15. Invite & Join Partner (collapsible) ──────────────────────── */}
+      {/* ── 15. Invite & Join Partner ────────────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         <SectionHeader id="invite" title="Invite & Join Partner" />
         {openSection === 'invite' && (
           <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
             <div style={{ paddingTop: 14 }}>
-              {/* Invite link via API */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Invite Partner</div>
-                <p style={{ color: C.text3, fontSize: 13, margin: '0 0 12px', lineHeight: 1.5 }}>
-                  Generate a one-click invite link your partner can use to join without copy-pasting your household ID.
-                </p>
+                <p style={{ color: C.text3, fontSize: 13, margin: '0 0 12px', lineHeight: 1.5 }}>Generate a one-click invite link your partner can use to join without copy-pasting your household ID.</p>
                 <InviteLinkButton householdId={householdId} />
               </div>
-
-              {/* Share static invite link */}
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16, marginBottom: 20 }}>
                 <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Share Invite Link</div>
-                <p style={{ color: C.text3, fontSize: 13, margin: '0 0 12px' }}>
-                  Share this link with your partner — they click it, sign up, and join your household automatically.
-                </p>
+                <p style={{ color: C.text3, fontSize: 13, margin: '0 0 12px' }}>Share this link with your partner — they click it, sign up, and join your household automatically.</p>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                  <code style={{
-                    background: C.surface2, borderRadius: 12, padding: '10px 13px', flex: 1,
-                    fontSize: 11, color: C.teal, wordBreak: 'break-all' as const, lineHeight: 1.6,
-                  }}>
+                  <code style={{ background: C.surface2, borderRadius: 12, padding: '10px 13px', flex: 1, fontSize: 11, color: C.teal, wordBreak: 'break-all' as const, lineHeight: 1.6 }}>
                     {'chillarflow.com/join?code=' + householdId}
                   </code>
-                  <button
-                    onClick={() => navigator.clipboard.writeText('https://chillarflow.com/join?code=' + householdId)}
-                    style={ghostBtnStyle}
-                  >
-                    Copy
-                  </button>
+                  <button onClick={() => navigator.clipboard.writeText('https://chillarflow.com/join?code=' + householdId)} style={ghostBtnStyle}>Copy</button>
                 </div>
-                <button
-                  style={primaryBtnStyle}
-                  onClick={() => {
-                    const link = 'https://chillarflow.com/join?code=' + householdId;
-                    if (typeof navigator !== 'undefined' && navigator.share) {
-                      navigator.share({ title: 'Join my ChillarFlow household', text: 'Track finances together on ChillarFlow', url: link });
-                    } else {
-                      navigator.clipboard.writeText(link);
-                    }
-                  }}
-                >
+                <button style={primaryBtnStyle} onClick={() => { const link = 'https://chillarflow.com/join?code=' + householdId; if (typeof navigator !== 'undefined' && navigator.share) { navigator.share({ title: 'Join my ChillarFlow household', text: 'Track finances together on ChillarFlow', url: link }); } else { navigator.clipboard.writeText(link); } }}>
                   🔗 Share invite link via WhatsApp / SMS
                 </button>
               </div>
-
-              {/* Join partner's household */}
               <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 16 }}>
                 <div style={{ color: C.text1, fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Join Partner's Household</div>
-                <p style={{ color: C.text3, fontSize: 13, margin: '0 0 12px' }}>
-                  Enter your partner's Household ID to share the same data pool.
-                </p>
+                <p style={{ color: C.text3, fontSize: 13, margin: '0 0 12px' }}>Enter your partner's Household ID to share the same data pool.</p>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    value={joinId}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setJoinId(e.target.value)}
-                    placeholder="Household UUID…"
-                    onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleJoinHousehold()}
-                    style={{ ...inputStyle, flex: 1, width: 'auto' }}
-                  />
+                  <input value={joinId} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setJoinId(e.target.value)} placeholder="Household UUID…" onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleJoinHousehold()} style={{ ...inputStyle, flex: 1, width: 'auto' }} />
                   <button onClick={handleJoinHousehold} style={ghostBtnStyle}>Join</button>
                 </div>
                 <p style={{ color: C.text3, fontSize: 12, marginTop: 10 }}>
-                  Your household ID:{' '}
-                  <code style={{ color: C.teal, fontSize: 11, userSelect: 'all' as const }}>{householdId}</code>
+                  Your household ID: <code style={{ color: C.teal, fontSize: 11, userSelect: 'all' as const }}>{householdId}</code>
                 </p>
               </div>
             </div>
@@ -1314,7 +1227,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
         )}
       </div>
 
-      {/* ── 16. Referral Program (collapsible) ───────────────────────────── */}
+      {/* ── 16. Referral Program ─────────────────────────────────────────── */}
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         <SectionHeader id="referral" title="Referral Program" />
         {openSection === 'referral' && (
