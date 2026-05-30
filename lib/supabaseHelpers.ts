@@ -38,6 +38,13 @@ export function toDisplayName(
   return val;
 }
 
+export class LoadDataError extends Error {
+  constructor(message: string, public readonly cause?: unknown) {
+    super(message);
+    this.name = 'LoadDataError';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Full load (used only on mount and after joinHousehold)
 // ---------------------------------------------------------------------------
@@ -217,13 +224,13 @@ export async function loadData(userId: string): Promise<AppData> {
       currentUserRole: currentProfileRow.data?.display_name ?? 'Partner A',
       profile: { avatar_url: profileRow?.data?.avatar_url ?? null }, // Attached to the returned AppData
     };
-  } catch (err) {
-    console.error('loadData error:', err);
-    // Re-throw so the caller can handle it — don't silently return empty data
-    // for real errors. The caller (page.tsx) should show an error state.
-    throw err;
+   } catch (err) {
+    console.error('[loadData] error:', err);
+    throw new LoadDataError(
+      'Could not load your household data. Check your connection and try again.',
+      err,
+    );
   }
-}
 
 export function seedData(): AppData {
   return {
