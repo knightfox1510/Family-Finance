@@ -1,15 +1,4 @@
 // ─── app/app/page.tsx ─────────────────────────────────────────────────────────────
-// Root shell. Handles:
-//    • Auth gate (Cleanly decoupled native redirect)
-//    • Loading state
-//    • First-time setup wizard
-//    • Layout (sidebar / mobile bottom nav)
-//    • View routing
-//
-// All data logic is in useActions.ts, all DB calls in supabaseHelpers.ts.
-// All types are in types/index.ts. Design tokens are in constants/index.ts.
-
-// ─── app/app/page.tsx ─────────────────────────────────────────────────────────────
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -25,23 +14,23 @@ import { ToastContainer, BottomNav, QuickTray, addToast } from '@/components/ui/
 import { C, navForMode } from '@/constants';
 import { Icon } from '@/components/ui/Icon';
 import type { AppData, ViewId, HouseholdMode } from '@/types';
-import { Avatar } from '@/components/ui/Avatar'; // Imported avatar subcomponent
+import { Avatar } from '@/components/ui/Avatar';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { LoadDataError }  from '@/lib/supabaseHelpers';
 
 // ─── View imports ─────────────────────────────────────────────────────────────
-import { Dashboard }        from '@/components/dashboard/Dashboard';
-import { AddExpense }       from '@/components/dashboard/AddExpense';
-import { IncomeTracker }    from '@/components/dashboard/IncomeTracker';
-import { ExpenseListPaginated }     from '@/components/dashboard/ExpenseListPaginated';
-import { SettleDashboard }  from '@/components/dashboard/SettleDashboard';
-import { Groups }           from '@/components/dashboard/Groups';
-import { Contributions }    from '@/components/dashboard/Contributions';
-import { Goals }            from '@/components/dashboard/Goals';
-import { LoanTracker }      from '@/components/dashboard/LoanTracker';
-import { AIInsights }       from '@/components/dashboard/AIInsights';
-import { Settings }         from '@/components/dashboard/Settings';
-import { Home }             from '@/components/dashboard/Home';
+import { Dashboard }            from '@/components/dashboard/Dashboard';
+import { AddExpense }           from '@/components/dashboard/AddExpense';
+import { IncomeTracker }        from '@/components/dashboard/IncomeTracker';
+import { ExpenseListPaginated } from '@/components/dashboard/ExpenseListPaginated';
+import { SettleDashboard }      from '@/components/dashboard/SettleDashboard';
+import { Groups }               from '@/components/dashboard/Groups';
+import { Contributions }        from '@/components/dashboard/Contributions';
+import { Goals }                from '@/components/dashboard/Goals';
+import { LoanTracker }          from '@/components/dashboard/LoanTracker';
+import { AIInsights }           from '@/components/dashboard/AIInsights';
+import { Settings }             from '@/components/dashboard/Settings';
+import { Home }                 from '@/components/dashboard/Home';
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -95,12 +84,11 @@ const VIEW_LABELS: Record<string, string> = {
 };
 
 export default function App() {
-const [session, setSession]           = useState<any>(null);
+  const [session, setSession]           = useState<any>(null);
   const [data, setData]                 = useState<AppData | null>(null);
   const [loading, setLoading]           = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError]       = useState<string | null>(null);
-
 
   const [view, setView]                 = useState<ViewId>('home');
   const [prevView, setPrevView]         = useState<ViewId>('home');
@@ -272,6 +260,7 @@ const [session, setSession]           = useState<any>(null);
 
   const needsSetup = data && !data.settings.setupComplete;
 
+  // ── FIXED: writes actual name to profiles.display_name after setup ──────────
   const handleSetupComplete = async (
     mode: HouseholdMode,
     nameA: string,
@@ -280,6 +269,7 @@ const [session, setSession]           = useState<any>(null);
     whatsappNumber?: string,
   ) => {
     if (!data) return;
+
     const updatedSettings = {
       ...data.settings,
       householdMode:  mode,
@@ -287,18 +277,36 @@ const [session, setSession]           = useState<any>(null);
       partnerBName:   nameB || 'Partner B',
       setupComplete:  true,
       ...(telegramUsername ? { telegramUsername } : {}),
-      ...(whatsappNumber ? { whatsappNumber } : {}),
+      ...(whatsappNumber   ? { whatsappNumber   } : {}),
     };
+
     await actions.saveSettings(updatedSettings);
 
-    if (telegramUsername && session?.user?.id) {
-      const { supabase } = await import('@/lib/supabaseClient');
-      await supabase.from('profiles').update({ telegram_username: telegramUsername }).eq('id', session.user.id);
+    // dbSaveSettings writes the role string ('Partner A') to display_name.
+    // Override it immediately with the real name so Home shows 'Gaurav' not 'Partner A'.
+    if (session?.user?.id && nameA.trim()) {
+      const { supabase: sb } = await import('@/lib/supabaseClient');
+      await sb
+        .from('profiles')
+        .update({ display_name: nameA.trim() })
+        .eq('id', session.user.id);
     }
-    
+
+    // Seed localStorage so role-switching in Settings starts from correct baseline
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('active_partner_role', 'Partner A');
+    }
+
+    if (telegramUsername && session?.user?.id) {
+      const { supabase: sb } = await import('@/lib/supabaseClient');
+      await sb.from('profiles')
+        .update({ telegram_username: telegramUsername })
+        .eq('id', session.user.id);
+    }
+
     if (whatsappNumber && session?.user?.id) {
-      const { supabase } = await import('@/lib/supabaseClient');
-      await supabase.from('profiles')
+      const { supabase: sb } = await import('@/lib/supabaseClient');
+      await sb.from('profiles')
         .update({ whatsapp_number: whatsappNumber.replace(/\D/g, '') })
         .eq('id', session.user.id);
     }
@@ -307,7 +315,7 @@ const [session, setSession]           = useState<any>(null);
     setData(fresh);
   };
 
- if (loading) {
+  if (loading) {
     return (
       <div className="cf-loader-page animate-fade-in">
         <div className="cf-loader-logo">
@@ -515,8 +523,6 @@ const [session, setSession]           = useState<any>(null);
             <button
               onClick={() => { setView('settings'); setShowMore(false); }}
               style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-              
-              {/* Dynamic Avatar UI Integration */}
               <Avatar
                 profile={{
                   id:           session?.user?.id ?? '',
@@ -526,7 +532,6 @@ const [session, setSession]           = useState<any>(null);
                 size={38}
                 highlight={C.accent}
               />
-
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontSize: 18, color: C.textW, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.02em' }}>
                   {VIEW_LABELS[view] ?? 'ChillarFlow'}
@@ -582,17 +587,45 @@ const [session, setSession]           = useState<any>(null);
 
           {/* ── View router ──────────────────────────────────────────────── */}
           {view === 'home' && (
-            <Home data={data} fmt={fmt$} onNavigate={(v) => setView(v as ViewId)} session={session} onAddExpense={() => { setPrevView(view); setView('add'); }} />
+            <Home
+              data={data}
+              fmt={fmt$}
+              onNavigate={(v) => setView(v as ViewId)}
+              session={session}
+              onAddExpense={() => { setPrevView(view); setView('add'); }}
+            />
           )}
           {view === 'dashboard' && (
             <Dashboard data={data} onAddExpense={actions.addExpense} fmt={fmt$} />
           )}
           {view === 'add' && (
-            <AddExpense data={data} isOnline={isOnline} session={session} duplicateData={duplicateData} onAdd={actions.addExpense} onUpdateSave={actions.updateExpense} onClose={() => { setDuplicateData(null); setView(prevView); }} />
+            <AddExpense
+              data={data} isOnline={isOnline} session={session} duplicateData={duplicateData}
+              onAdd={actions.addExpense} onUpdateSave={actions.updateExpense}
+              onClose={() => { setDuplicateData(null); setView(prevView); }}
+            />
           )}
           {view === 'income' && <IncomeTracker data={data} fmt={fmt$} />}
           {view === 'expenses' && (
-            <ExpenseListPaginated data={data} fmt={fmt$} onToggleToSettle={actions.toggleToSettle} onDelete={actions.deleteExpense} onUpdate={actions.updateExpense} onUnsettle={actions.unsettle} onBulkDelete={actions.bulkDeleteExpense} onBulkFlagToSettle={actions.bulkFlagToSettle} onBulkMarkAsSettled={actions.bulkMarkAsSettled} onBulkAssignToAccount={actions.bulkAssignToAccount} onTriggerEdit={(tx: any) => { setDuplicateData({ ...tx, isRecurring: tx.isRecurring ?? false, recurrenceInterval: tx.recurrenceInterval ?? 'monthly' }); setPrevView(view); setView('add'); }} onDuplicate={(e: any) => { setDuplicateData({ ...e, date: today(), amount: String(e.amount), id: null }); setPrevView(view); setView('add'); }} />
+            <ExpenseListPaginated
+              data={data} fmt={fmt$}
+              onToggleToSettle={actions.toggleToSettle}
+              onDelete={actions.deleteExpense}
+              onUpdate={actions.updateExpense}
+              onUnsettle={actions.unsettle}
+              onBulkDelete={actions.bulkDeleteExpense}
+              onBulkFlagToSettle={actions.bulkFlagToSettle}
+              onBulkMarkAsSettled={actions.bulkMarkAsSettled}
+              onBulkAssignToAccount={actions.bulkAssignToAccount}
+              onTriggerEdit={(tx: any) => {
+                setDuplicateData({ ...tx, isRecurring: tx.isRecurring ?? false, recurrenceInterval: tx.recurrenceInterval ?? 'monthly' });
+                setPrevView(view); setView('add');
+              }}
+              onDuplicate={(e: any) => {
+                setDuplicateData({ ...e, date: today(), amount: String(e.amount), id: null });
+                setPrevView(view); setView('add');
+              }}
+            />
           )}
           {view === 'settle' && mode !== 'solo' && (
             <SettleDashboard data={data} fmt={fmt$} onBulkSettle={actions.bulkSettle} partnerCalculations={partnerCalculations} actions={actions} />
@@ -619,7 +652,7 @@ const [session, setSession]           = useState<any>(null);
               onExport={() => exportToExcel(data)}
               onImport={actions.importData}
               onJoinHousehold={(id: string) => actions.joinHousehold(id, setLoading)}
-              session={session} // Session reference passed successfully here
+              session={session}
             />
           )}
         </div>
@@ -744,6 +777,6 @@ const [session, setSession]           = useState<any>(null);
 
       <ToastContainer />
     </div>
-      </ErrorBoundary>
+    </ErrorBoundary>
   );
 }
