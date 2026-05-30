@@ -1,5 +1,8 @@
 // app/auth/page.tsx — ChillarFlow unified authentication
-// Fixed: reads ?invite= URL param and joins the group after signup
+// FIX: populates `name` column in profiles to satisfy NOT NULL constraint
+//      (previously caused "null value in column name violates not-null constraint")
+// FIX: uses emailName (part before @) as display_name so group members never
+//      show as "Partner A" from the moment they sign up.
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
@@ -12,9 +15,8 @@ function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Read invite code and mode from URL (?invite=CF-XXXXXX&mode=signup)
   const urlInvite = searchParams.get('invite');
-  const urlMode   = searchParams.get('mode'); // 'signup' | 'signin'
+  const urlMode   = searchParams.get('mode');
 
   const [loading, setLoading]       = useState(false);
   const [email, setEmail]           = useState('');
@@ -24,7 +26,6 @@ function AuthPageContent() {
   const [mode, setMode]             = useState<'create' | 'join'>('create');
   const [inviteCode, setInviteCode] = useState('');
 
-  // If arriving from a group invite link, auto-switch to signup
   useEffect(() => {
     if (urlInvite) setIsSignUp(true);
   }, [urlInvite]);
@@ -46,6 +47,14 @@ function AuthPageContent() {
         const userId = authData.user?.id;
         if (!userId) throw new Error('Authentication failed — please try again.');
 
+        // Derive a human-readable name from the email address
+        const emailName = email.split('@')[0]?.replace(/[._-]/g, ' ') ?? 'User';
+        // Capitalise first letter of each word
+        const displayName = emailName
+          .split(' ')
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ');
+
         let targetHouseholdId = '';
 
         if (mode === 'create') {
@@ -61,7 +70,7 @@ function AuthPageContent() {
             .insert({
               household_id: newHouseholdId,
               settings_data: {
-                partnerAName:      'Partner A',
+                partnerAName:      displayName,
                 partnerBName:      'Partner B',
                 householdMode:     'joint',
                 expenseCategories: [
@@ -84,7 +93,6 @@ function AuthPageContent() {
           targetHouseholdId = newHouseholdId;
 
         } else {
-          // Joining existing household via household ID
           const { data: existing, error: verifyError } = await supabase
             .from('household_settings')
             .select('household_id')
@@ -97,24 +105,24 @@ function AuthPageContent() {
           targetHouseholdId = inviteCode.trim();
         }
 
-        const assignedRole = mode === 'create' ? 'Partner A' : 'Partner B';
-
+        // FIX: include `name` (NOT NULL) AND `display_name` in the insert.
+        // Both are set to the derived displayName so no constraint is violated.
         const { error: profileError } = await supabase
           .from('profiles')
           .insert({
             id:           userId,
             household_id: targetHouseholdId,
             email:        email.toLowerCase().trim(),
-            display_name: assignedRole,
+            name:         displayName,          // ← satisfies NOT NULL constraint
+            display_name: displayName,          // ← shown in the app
           });
         if (profileError) throw profileError;
 
         if (typeof window !== 'undefined') {
-          localStorage.setItem('cf_partner_role', assignedRole);
+          localStorage.setItem('cf_partner_role', 'Partner A');
         }
 
-        // ── If arrived via a group invite link, consume it now ───────────
-        // urlInvite is the group invite code (CF-XXXXXX) from ?invite= param
+        // Consume group invite if arriving from a group invite link
         if (urlInvite) {
           try {
             const joinRes = await fetch('/api/groups/invite', {
@@ -123,21 +131,19 @@ function AuthPageContent() {
               body:    JSON.stringify({
                 code:        urlInvite,
                 newUserId:   userId,
-                displayName: email.toLowerCase().trim(),
+                displayName: displayName,
               }),
             });
             const joinData = await joinRes.json();
             if (joinRes.ok && joinData.group_id) {
-              // Redirect straight to the group they were invited to
               router.push(`/app?group=${joinData.group_id}`);
               return;
             }
           } catch {
-            // Non-fatal — still redirect to app even if group join fails
+            // Non-fatal — still redirect to app
           }
         }
 
-        // Default redirect
         router.push('/app');
 
       } else {
@@ -145,16 +151,12 @@ function AuthPageContent() {
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
 
-        // If arriving from a group invite link while signing in, join the group
         if (urlInvite && data.user) {
           try {
             const joinRes = await fetch('/api/groups/invite', {
               method:  'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body:    JSON.stringify({
-                code:      urlInvite,
-                newUserId: data.user.id,
-              }),
+              body:    JSON.stringify({ code: urlInvite, newUserId: data.user.id }),
             });
             const joinData = await joinRes.json();
             if (joinRes.ok && joinData.group_id) {
@@ -222,7 +224,6 @@ function AuthPageContent() {
 
         <form onSubmit={handleAuth} className="flex flex-col" style={{ gap: 20 }}>
 
-          {/* Only show household mode picker if NOT arriving from a group invite */}
           {isSignUp && !urlInvite && (
             <div className="cf-card-inset flex flex-col" style={{ padding: 16, gap: 12, border: '1px solid var(--border)' }}>
               <label className="t-caption" style={{ color: 'var(--text3)' }}>Setup Operations Mode</label>
@@ -237,7 +238,6 @@ function AuthPageContent() {
             </div>
           )}
 
-          {/* When arriving from group invite, show a context note */}
           {isSignUp && urlInvite && (
             <div style={{ padding: '10px 14px', background: 'var(--accent-bg)', border: '1px solid var(--accent)', borderRadius: 12, fontSize: 13, color: 'var(--accent)' }}>
               🎉 You'll be added to the group automatically after signing up.
