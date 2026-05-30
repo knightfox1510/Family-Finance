@@ -1,10 +1,11 @@
 // components/dashboard/AddGroupExpense.tsx
 // Fixed itemized split: item-first then assign to one or more members
 // Fixed auth: sends Bearer token for regular users, x-ghost-token for guests
+// Added: OCR Receipt scanning feature
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { C } from '@/constants';
 import { Icon } from '@/components/ui/Icon';
 
@@ -115,6 +116,10 @@ export function AddGroupExpense({ groupId, groupName, currency, members, userId,
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState<string | null>(null);
 
+  // NEW: State and ref for Receipt Scanning
+  const [isScanning, setIsScanning]   = useState(false);
+  const fileInputRef                  = useRef<HTMLInputElement>(null);
+
   const allMemberIds = members.map((m) => m.id);
 
   // Equal split state
@@ -170,6 +175,76 @@ export function AddGroupExpense({ groupId, groupName, currency, members, userId,
     }
     return false;
   })();
+
+  // NEW: Receipt Upload Handler
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    setError(null);
+    try {
+      // 1. Upload to Supabase Storage
+      const { supabase } = await import('@/lib/supabaseClient');
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `receipts/${groupId}/${fileName}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from('receipts')
+        .upload(filePath, file);
+
+      if (uploadErr) throw new Error('Failed to upload receipt image.');
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('receipts')
+        .getPublicUrl(filePath);
+
+      // 2. Call the new OCR API route
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (ghostToken) {
+        headers['x-ghost-token'] = ghostToken;
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
+      const res = await fetch(`/api/groups/${groupId}/ocr`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ imageUrl: publicUrl })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to process receipt.');
+
+      // 3. Pre-populate the form and jump to Step 2
+      if (data.items && data.items.length > 0) {
+        const newItems = data.items.map((item: any) => ({
+          id: newItemId(),
+          itemName: item.name,
+          totalAmount: String(item.price),
+          splitMode: 'equal',
+          memberIds: [], // Users will tap to assign members in Step 2
+          customAmounts: {}
+        }));
+        
+        setItems(newItems);
+        setAmount(String(data.totalAmount));
+        if (!description) setDescription('Receipt Expense');
+        setSplitType('itemized');
+        setStep(2); // Jump directly to the item assignment step
+      } else {
+        throw new Error('No items found on the receipt.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong while scanning.');
+    } finally {
+      setIsScanning(false);
+      // Reset the input so the same file can be selected again if it failed
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   // Build splits payload for the API
   const buildSplits = () => {
@@ -250,7 +325,25 @@ export function AddGroupExpense({ groupId, groupName, currency, members, userId,
                 <input autoFocus value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="0"
                   style={{ background: 'transparent', border: 'none', outline: 'none', color: C.textW, fontFamily: 'inherit', fontSize: 48, fontWeight: 900, letterSpacing: '-0.04em', textAlign: 'center', maxWidth: 220, width: '100%' }} />
               </div>
+
+              {/* NEW: OCR Upload Button */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
+                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleReceiptUpload} style={{ display: 'none' }} />
+                <button 
+                  onClick={() => fileInputRef.current?.click()} 
+                  disabled={isScanning} 
+                  style={{ padding: '8px 16px', borderRadius: 99, border: `1px solid ${C.accent}`, background: `${C.accent}15`, color: C.accent, fontSize: 13, fontWeight: 700, cursor: isScanning ? 'not-allowed' : 'pointer', display: 'flex', gap: 6, alignItems: 'center' }}
+                >
+                  {isScanning ? '⏳ Scanning receipt...' : '📸 Scan Receipt'}
+                </button>
+              </div>
             </div>
+
+            {/* NEW: Error Display in Step 1 */}
+            {error && (
+              <div style={{ padding: '10px 14px', borderRadius: 12, fontSize: 13, background: `${C.red}15`, border: `1px solid ${C.red}44`, color: C.red }}>{error}</div>
+            )}
+
             <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What was this for? (e.g. Dinner at Olive)" style={inp}
               onFocus={(e) => { e.currentTarget.style.borderColor = C.accent; }}
               onBlur={(e)  => { e.currentTarget.style.borderColor = 'transparent'; }} />
