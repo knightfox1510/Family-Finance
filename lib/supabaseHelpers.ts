@@ -38,6 +38,10 @@ export function toDisplayName(
   return val;
 }
 
+// ---------------------------------------------------------------------------
+// Full load (used only on mount and after joinHousehold)
+// ---------------------------------------------------------------------------
+
 export class LoadDataError extends Error {
   constructor(message: string, public readonly cause?: unknown) {
     super(message);
@@ -45,9 +49,6 @@ export class LoadDataError extends Error {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Full load (used only on mount and after joinHousehold)
-// ---------------------------------------------------------------------------
 export async function loadData(userId: string): Promise<AppData> {
   try {
     const { data: profile } = await supabase
@@ -231,6 +232,7 @@ export async function loadData(userId: string): Promise<AppData> {
       err,
     );
   }
+}
 
 export function seedData(): AppData {
   return {
