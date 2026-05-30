@@ -5,10 +5,6 @@
 //   - app/api/**/route.ts
 //   - app/api/cron/**/route.ts
 //
-// It imports web-push at the top level (not dynamically), which is fine
-// because Next.js route files are always compiled for Node, never for the
-// browser bundle.
-//
 // VAPID setup (run once, then add to Vercel env):
 //   npx web-push generate-vapid-keys
 //   VAPID_PUBLIC_KEY=<public>
@@ -19,19 +15,31 @@
 
 import webpush from 'web-push';
 
-// Configure VAPID once at module load (safe — this file is Node-only)
-webpush.setVapidDetails(
-  process.env.VAPID_EMAIL         ?? 'mailto:team@chillarflow.com',
-  process.env.VAPID_PUBLIC_KEY    ?? '',
-  process.env.VAPID_PRIVATE_KEY   ?? '',
-);
-
 export interface PushPayload {
   title:  string;
   body:   string;
   tag:    string;
   url:    string;
   icon?:  string;
+}
+
+// Called lazily inside each exported function so env vars are read at request
+// time, not at module-load / build time when they are not yet available on
+// Vercel. Calling setVapidDetails at the top level causes:
+//   "Error: No key set vapidDetails.publicKey" during the build phase.
+function configureVapid(): void {
+  const publicKey  = process.env.VAPID_PUBLIC_KEY  ?? '';
+  const privateKey = process.env.VAPID_PRIVATE_KEY ?? '';
+  const email      = process.env.VAPID_EMAIL       ?? 'mailto:team@chillarflow.com';
+
+  if (!publicKey || !privateKey) {
+    throw new Error(
+      '[webPushServer] VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set in env. ' +
+      'Generate them with: npx web-push generate-vapid-keys'
+    );
+  }
+
+  webpush.setVapidDetails(email, publicKey, privateKey);
 }
 
 /**
@@ -46,6 +54,7 @@ export async function sendPushToEndpoint(
   payload:  PushPayload,
 ): Promise<{ ok: boolean; expired?: boolean }> {
   try {
+    configureVapid();
     await webpush.sendNotification(
       { endpoint, keys: { p256dh, auth } },
       JSON.stringify(payload),
@@ -98,7 +107,7 @@ export async function notifyHousehold(
     }),
   );
 
-  // Prune stale subscriptions so they don't accumulate
+  // Prune stale subscriptions so they do not accumulate
   if (expiredIds.length > 0) {
     await supabase.from('push_subscriptions').delete().in('id', expiredIds);
   }
