@@ -519,7 +519,7 @@ export function Home({ data, fmt, onNavigate, session, onAddExpense }: Props) {
            Shows only for joint/separate households where display_name is still
            a placeholder role string. Dismissible, stored in localStorage.   */}
       <ActiveProfileNudge
-        currentUserRole={data.currentUserRole}
+        currentUserRole={data.currentUserRole ?? 'Partner A'}
         settings={data.settings}
         onNavigate={onNavigate}
       />
