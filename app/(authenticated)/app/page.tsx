@@ -79,6 +79,21 @@ function exportToExcel(data: AppData) {
   XLSX.writeFile(wb, `ChillarFlow_${today()}.xlsx`);
 }
 
+const VIEW_LABELS: Record<string, string> = {
+  home:          'ChillarFlow',
+  dashboard:     'Stats',
+  add:           'Add Expense',
+  expenses:      'Expenses',
+  income:        'Income',
+  settle:        'Settle Up',
+  groups:        'Groups',
+  contributions: 'Contributions',
+  goals:         'Goals',
+  loans:         'Loans & EMI',
+  insights:      'AI Insights',
+  settings:      'Settings',
+};
+
 export default function App() {
 const [session, setSession]           = useState<any>(null);
   const [data, setData]                 = useState<AppData | null>(null);
@@ -498,7 +513,7 @@ const [session, setSession]           = useState<any>(null);
 
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontSize: 18, color: C.textW, fontWeight: 800, lineHeight: 1, letterSpacing: '-0.02em' }}>
-                  {view === 'home' ? 'ChillarFlow' : view === 'dashboard' ? 'Stats' : nav.find((n) => n.id === view)?.label ?? 'ChillarFlow'}
+                  {VIEW_LABELS[view] ?? 'ChillarFlow'}
                 </div>
                 <div style={{ fontSize: 10, color: C.text3, fontWeight: 500, lineHeight: 1, marginTop: 3 }}>
                   {data?.settings?.partnerAName ?? ''}{data?.settings?.partnerBName ? ` & ${data.settings.partnerBName}` : ''}
@@ -531,7 +546,7 @@ const [session, setSession]           = useState<any>(null);
           {!isMobile && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 12 }}>
               <h2 style={{ color: C.textW, fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: -0.5 }}>
-                {view === 'home' ? 'ChillarFlow' : view === 'dashboard' ? 'Stats' : nav.find((n) => n.id === view)?.label ?? ''}
+                {VIEW_LABELS[view] ?? 'ChillarFlow'}
               </h2>
               {view !== 'add' && view !== 'settings' && (
                 <button
