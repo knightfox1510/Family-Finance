@@ -4,18 +4,16 @@ import { CoinMark } from '@/components/marketing/CoinMark';
 
 export const metadata = {
   title: 'ChillarFlow — Track every rupee. Effortlessly.',
-  description: 'ChillarFlow helps couples and solo entrepreneurs stop income leakage through WhatsApp and Telegram. No spreadsheets. Just send a message!',
+  description: 'ChillarFlow helps couples and solo entrepreneurs stop income leakage through WhatsApp and Telegram. No heavy spreadsheets. Just chat!',
 };
 
-// 🎯 Grouped strictly by specific platform toolsets
 const featureSubLinks = [
-  { href: '/features/tracking', label: 'Chat Log Automations' }, /* ⚡ Was WhatsApp Tracking */
-  { href: '/features/budgeting', label: 'Retention Metrics' },    /* ⚡ Was Leakage Budgeting */
-  { href: '/features/planning', label: 'Household Settlement' }, /* ⚡ Was Household Planning */
+  { href: '/features/tracking', label: 'Conversational Automations' }, 
+  { href: '/features/budgeting', label: 'Retention Metrics' },    
+  { href: '/features/planning', label: 'Household Settlement' }, 
   { href: '/shortcuts',         label: 'Power User Guide' }, 
 ];
 
-// 🧭 The high-level main directories remain clean and distinct
 const navLinks = [
   { href: '/pricing',  label: 'Pricing' },
   { href: '/reviews',  label: 'Reviews' }, 
@@ -26,18 +24,18 @@ const navLinks = [
 const features = [
   {
     icon: '💬',
-    title: 'Log from WhatsApp',
-    desc: 'Send "450 Zomato" from WhatsApp. ChillarFlow categorises, records, and confirms — in seconds.',
+    title: 'Log from WhatsApp & TG',
+    desc: 'Send "450 Zomato" from your favorite chat client. ChillarFlow instantly categorises, splits, and updates your balances in seconds.',
   },
   {
-    icon: '🤖',
-    title: 'AI-Powered Parsing',
-    desc: 'Gemini AI understands natural language. "Got grocery for 1200, petrol 400, to settle" logs three transactions in one message.',
+    icon: '🔮',
+    title: 'Swipe-to-Edit Corrections',
+    desc: 'Made a mistake? Swipe to reply directly to the bot\'s confirmation message with corrections like "actually 550 for fuel". It patches the data cleanly with zero duplicates.',
   },
   {
-    icon: '📊',
-    title: 'Plug Income Leakages',
-    desc: 'Don’t just track what went out. Our Income Retention dashboard calculates your wealth velocity, instantly highlighting hidden subscription traps and unallocated lifestyle drains.',
+    icon: '🙋‍♂️',
+    title: 'Conversational Spending Queries',
+    desc: 'Chat directly with your cashflow history. Type phrases like "how much did we spend on groceries this month?" and get clear, instant natural answers.',
   },
   {
     icon: '🏠',
@@ -46,8 +44,8 @@ const features = [
   },
   {
     icon: '🤝',
-    title: 'Both Partners, One View',
-    desc: 'Each partner logs independently via their personal chat apps. The dashboard automatically syncs combined income, individual spending, and shared goals.',
+    title: 'Dynamic Partner Profiles',
+    desc: 'Each partner logs independently from their personal device handle. The system verifies individual sender profiles automatically, syncing tracking records perfectly under a single shared vault view.',
   },
   {
     icon: '🔒',
@@ -62,7 +60,7 @@ const modes = [
     tag: 'For couples',
     accentClass: 't-accent',
     borderStyle: '1px solid var(--accent-glow)',
-    features: ['Joint pool tracking', 'Partner activity breakdown', 'Settlement dashboard', 'Wealth retention velocity', 'Both Telegram & WhatsApp'],
+    features: ['Joint pool tracking', 'Dynamic partner validation', 'Conversational database queries', 'Frictionless swipe-to-edit', 'Both Telegram & WhatsApp'],
   },
   {
     name: 'ChillarFlow Hustle',
@@ -88,7 +86,6 @@ export default function HomePage() {
           </Link>
 
           <div className="flex items-center" style={{ gap: 16 }}>
-            {/* Desktop link directory map */}
             <div className="nav-links-desktop" style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
               <Link href="/features" className="t-body" style={{ textDecoration: 'none', fontWeight: 500 }}>
                 Features
@@ -100,37 +97,27 @@ export default function HomePage() {
               ))}
             </div>
 
-            {/* Persistent Display Button Action Element */}
             <Link href="/app" className="cf-btn cf-btn-primary cf-btn-sm" style={{ fontWeight: 800, zIndex: 95 }}>
               Sign In
             </Link>
 
-            {/* Functional Checkbox State Toggle Control */}
             <input type="checkbox" id="menu-toggle" />
             
-            {/* Three-Line Hamburger Component Trigger Icon Art */}
             <label htmlFor="menu-toggle" className="mobile-menu-trigger">
               <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
               <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
               <span style={{ width: 22, height: 2, background: 'var(--textW)', borderRadius: 2 }}></span>
             </label>
 
-            {/* Semi-Transparent Background Overlay Dismissal Mask */}
             <label htmlFor="menu-toggle" className="drawer-overlay"></label>
 
-            {/* Sliding Mobile System Control Drawer Container Box */}
             <div className="mobile-drawer">
-              
-              {/* Dynamic Header Wrapper Area */}
               <div className="flex justify-between items-center" style={{ marginBottom: 28, paddingBottom: 14, borderBottom: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 22, fontWeight: 900, color: 'var(--textW)', letterSpacing: '-0.03em' }}>MENU</span>
                 <label htmlFor="menu-toggle" style={{ color: 'var(--text3)', fontSize: 32, cursor: 'pointer', lineHeight: 0.5, padding: '4px' }}>&times;</label>
               </div>
 
-              {/* Functional Routing Menu Directory Scroll Tree */}
               <div className="flex flex-col" style={{ gap: 24, flex: 1, overflowY: 'auto' }}>
-                
-                {/* Multi-tier nested features navigation item list */}
                 <div className="flex flex-col" style={{ gap: 12 }}>
                   <Link href="/features" className="t-h1" style={{ textDecoration: 'none' }}>
                     Features
@@ -144,7 +131,6 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Secondary system configuration index points */}
                 {navLinks.map((l) => (
                   <Link key={l.href} href={l.href} className="t-h1" style={{ textDecoration: 'none' }}>
                     {l.label}
@@ -152,7 +138,6 @@ export default function HomePage() {
                 ))}
               </div>
 
-              {/* Onboarding Identity Control Actions Container Footer */}
               <div className="flex flex-col" style={{ gap: 12, paddingTop: 16, marginTop: 'auto' }}>
                 <Link href="/app" className="cf-btn cf-btn-primary cf-btn-full" style={{ fontWeight: 800 }}>
                   Create Account (Sign Up)
@@ -161,28 +146,26 @@ export default function HomePage() {
                   Sign In
                 </Link>
               </div>
-
             </div>
           </div>
-
         </div>
       </nav>
 
       {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <section className="cf-content text-center animate-fade-up" style={{ padding: '80px 16px 48px' }}>
         <div className="cf-badge" style={{ background: 'var(--accent-bg)', color: 'var(--accent)', border: '1px solid var(--accent-glow)', marginBottom: 24, padding: '6px 16px' }}>
-          ⚡ Fast WhatsApp & Telegram tracking active
+          ⚡ Fully Conversational WhatsApp & Telegram AI Node Active
         </div>
         
         <h1 className="t-display" style={{ marginBottom: 24, lineHeight: 1.1 }}>
           Track every single rupee.
           <br />
-          <span className="pro-shimmer">Keep 30% more of it.</span>
+          <span className="pro-shimmer">Conversational Fin-AI.</span>
         </h1>
         
         <p className="t-body" style={{ fontSize: 17, marginBottom: 40, color: 'var(--text2)' }}>
-          ChillarFlow automatically transforms plain text chat alerts into beautifully structured analytics. 
-          Stop losing ground to untracked lifestyle leakage, separate business metrics easily, and align shared goals effortlessly.
+          ChillarFlow automatically transforms plain text chat statements into beautifully structured financial ledgers. 
+          Stop losing ground to untracked lifestyle leakage, edit updates simply by replying to messages, and ask questions directly to your transaction history.
         </p>
 
         <div className="flex items-center justify-between" style={{ gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -193,10 +176,10 @@ export default function HomePage() {
             See pricing plans
           </Link>
         </div>
-        <p className="t-small t-muted" style={{ marginTop: 16 }}>30 automated transactions free monthly • Setup under 2 minutes</p>
+        <p className="t-small t-muted" style={{ marginTop: 16 }}>30 automated actions free monthly • Setup under 2 minutes</p>
       </section>
 
-      {/* ── Immersive Unmissable WhatsApp Section Showcase ─────────────────── */}
+      {/* ── Immersive Showcase ─────────────────── */}
       <section style={{ padding: '24px 16px 80px', position: 'relative' }}>
         <div className="pulse" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 280, height: 280, background: 'var(--accent-glow)', filter: 'blur(90px)', borderRadius: '50%', pointerEvents: 'none' }}></div>
 
@@ -209,9 +192,9 @@ export default function HomePage() {
               </div>
               <div>
                 <div style={{ color: '#e9edef', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  ChillarFlow Bot <span className="cf-badge" style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--green)', fontSize: 9, padding: '2px 6px' }}>Verified</span>
+                  ChillarFlow Assistant <span className="cf-badge" style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--green)', fontSize: 9, padding: '2px 6px' }}>Verified</span>
                 </div>
-                <div style={{ color: '#8696a0', fontSize: 11 }}>online and parsing statements...</div>
+                <div style={{ color: '#8696a0', fontSize: 11 }}>listening to conversational triggers...</div>
               </div>
             </div>
             <div style={{ color: '#8696a0', fontSize: 18, cursor: 'default' }}>•••</div>
@@ -219,9 +202,10 @@ export default function HomePage() {
 
           <div style={{ padding: '20px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[
-              { from: 'user', text: '450 Zomato, 1200 Big Bazaar to settle, 400 Ola' },
-              { from: 'bot',  text: '📝 **Parsed Successfully!**\n\n💰 **Amount:** ₹450\n🏷️ **Category:** Dine Out / Food\n👤 **Logged By:** Current Session\n🤝 **Split Rule:** Personal\n\n*Synced directly with your household vault dashboard.*' },
-              { from: 'bot',  text: '📝 **Parsed Successfully!**\n\n💰 **Amount:** ₹1,200\n🏷️ **Category:** Groceries\n👤 **Logged By:** Current Session\n🤝 **Split Rule:** Shared (Joint Pool)\n\n*Reimbursement pipeline metrics recalculated.*' },
+              { from: 'user', text: '450 Zomato' },
+              { from: 'bot',  text: '📝 **Parsed Successfully!**\n\n💰 **Amount:** ₹450\n🏷️ **Category:** Dine Out / Food\n👤 **Account:** Partner A\n\n*Tip: Reply directly to this text to edit it instantly!*' },
+              { from: 'user', text: 'How much did we spend on food this month?' },
+              { from: 'bot',  text: '📊 Total spent on **Dine Out / Food** this calendar cycle is **₹3,840**.' },
             ].map((m, i) => (
               <div key={i} className="flex" style={{ justifyContent: m.from === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div style={{
@@ -244,7 +228,7 @@ export default function HomePage() {
         </div>
 
         <p className="t-body text-center animate-fade-in" style={{ marginTop: 24, padding: '0 16px', fontWeight: 500 }}>
-          🚀 No complex accounting configurations to monitor. One chat string securely manages records.
+          🚀 Log expenses, change fields dynamically, or pull instant history metrics straight from your casual chat threads.
         </p>
       </section>
 
@@ -295,7 +279,7 @@ export default function HomePage() {
       <section className="text-center" style={{ padding: '90px 24px', borderTop: '1px solid var(--border)', background: 'linear-gradient(180deg, var(--bg) 0%, var(--surface) 100%)' }}>
         <div className="cf-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <h2 className="t-display" style={{ marginBottom: 16, fontSize: 38 }}>Ready to watch your savings velocity accelerate?</h2>
-          <p className="t-body" style={{ marginBottom: 40, fontSize: 16 }}>Try basic features fully free. Upgrade only when your operations expand.</p>
+          <p className="t-body" style={{ marginBottom: 40, fontSize: 16 }}>Try basic conversational features fully free. Upgrade only when your operations expand.</p>
           
           <div className="w-full flex justify-between items-center" style={{ justifyContent: 'center', padding: '0 16px' }}>
             <Link href="/app" className="cf-btn cf-btn-primary cf-btn-lg cf-btn-full" style={{ maxWidth: '360px', height: 'auto', minHeight: 52, whiteSpace: 'normal', padding: '14px 24px', textAlign: 'center', lineHeight: 1.3 }}>
