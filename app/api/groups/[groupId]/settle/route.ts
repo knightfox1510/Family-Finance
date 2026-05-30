@@ -1,19 +1,19 @@
-// app/api/groups/[groupId]/settle/route.ts
-// Phase 1 fixes:
-//   1. Uses computeNetDebts() from lib/debtEngine — fixes multilateral balance bugs
-//   2. Reads groups.simplify_debts to toggle debt simplification
-//   3. Member query uses direct profiles lookup (no FK join) — ghost users visible
-//   4. Real names resolved from household_settings when display_name is a role string
-//   5. Ghost token: HMAC signature is now verified before trusting profileId (Fix 8)
+// app/api/groups/[groupId]/settle/route.ts  (rate-limited patch)
+// Adds rate limiting to POST /settle: max 20 per hour per user.
+// GET is unchanged (reads don't need limiting).
+// Import additions at the top; POST handler gains the rate-limit check.
 
 import { NextResponse }    from 'next/server';
 import { logActivity }     from '@/lib/logActivity';
 import { createClient }    from '@supabase/supabase-js';
 import { computeNetDebts } from '@/lib/debtEngine';
-import { resolveGhostUserIdSimple } from '@/lib/ghostToken';
-import { resolveGhostUserId, shouldRefreshToken, issueRefreshedToken } from '@/lib/ghostToken';
-
-
+import {
+  resolveGhostUserIdSimple,
+  resolveGhostUserId,
+  shouldRefreshToken,
+  issueRefreshedToken,
+} from '@/lib/ghostToken';
+import { checkRateLimit, extractRateLimitId } from '@/lib/rateLimiter';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,7 +33,7 @@ async function resolveUserId(request: Request, fallback?: string | null): Promis
   return fallback ?? null;
 }
 
-// ── GET /api/groups/[groupId]/settle ─────────────────────────────────────────
+// ── GET (unchanged) ──────────────────────────────────────────────────────────
 export async function GET(
   request: Request,
   { params }: { params: { groupId: string } }
@@ -44,25 +44,21 @@ export async function GET(
 
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
 
-  // Verify membership
   const { data: member } = await supabase
     .from('group_members').select('id').eq('group_id', groupId).eq('user_id', userId).single();
   if (!member) return NextResponse.json({ error: 'Not a member' }, { status: 403 });
 
-  // ── Fetch group config (simplify_debts toggle) ────────────────────────────
   let shouldSimplify = false;
   try {
-    const { data: groupConfig, error: cfgErr } = await supabase
+    const { data: groupConfig } = await supabase
       .from('groups').select('simplify_debts').eq('id', groupId).single();
-    if (!cfgErr && groupConfig?.simplify_debts != null) shouldSimplify = groupConfig.simplify_debts;
+    if (groupConfig?.simplify_debts != null) shouldSimplify = groupConfig.simplify_debts;
   } catch {}
 
-  // ── Fetch members (direct query — works for ghost profiles) ──────────────
   const { data: memberRows } = await supabase
     .from('group_members').select('user_id, role').eq('group_id', groupId);
 
   const memberUserIds = (memberRows ?? []).map((r: any) => r.user_id);
-
   let profilesMap: Record<string, any> = {};
   if (memberUserIds.length > 0) {
     const { data: profileRows } = await supabase
@@ -72,7 +68,6 @@ export async function GET(
     for (const p of profileRows ?? []) profilesMap[p.id] = p;
   }
 
-  // Resolve real names for non-ghost members whose display_name is a role string
   const ROLE_STRINGS = new Set(['Partner A', 'Partner B', 'partner_a', 'partner_b']);
   const householdIds = [...new Set(
     Object.values(profilesMap)
@@ -108,14 +103,11 @@ export async function GET(
     return { id: profile.id, display_name: resolvedName, ghost_name: profile.ghost_name, is_ghost: false, role: row.role };
   }).filter(Boolean);
 
-  // ── Fetch raw balance view ────────────────────────────────────────────────
   const { data: balances } = await supabase
     .from('group_net_balances').select('*').eq('group_id', groupId);
 
-  // ── Compute net pairs via debt engine ─────────────────────────────────────
   const netPairs = computeNetDebts(balances ?? [], shouldSimplify);
 
-  // ── Fetch my unsettled splits ─────────────────────────────────────────────
   const { data: mySplits } = await supabase
     .from('transaction_splits')
     .select(`
@@ -139,19 +131,15 @@ export async function GET(
   });
 }
 
-
-// ── POST /api/groups/[groupId]/settle ────────────────────────────────────────
+// ── POST (rate-limited: 20/hour per user) ────────────────────────────────────
 export async function POST(
   request: Request,
   { params }: { params: { groupId: string } }
 ) {
   try {
     const { groupId } = params;
-    const ghostToken = request.headers.get('x-ghost-token');
+    const ghostToken  = request.headers.get('x-ghost-token');
     let callerId: string | null = null;
-
-    // Resolve caller — and for ghost tokens, keep the full result so we
-    // can check expiry and issue a refreshed token in the response.
     let ghostResult: Awaited<ReturnType<typeof resolveGhostUserId>> = null;
 
     if (ghostToken) {
@@ -162,9 +150,39 @@ export async function POST(
       callerId = await resolveUserId(request);
     }
 
+    if (!callerId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+
+    // ── Rate limit: 20 settle actions per hour ────────────────────────────────
+    const rateLimitId = extractRateLimitId(request, callerId);
+    const rateResult  = await checkRateLimit(
+      supabase,
+      'group_settle',
+      rateLimitId,
+      20,    // max 20
+      3600,  // per hour
+    );
+
+    if (!rateResult.allowed) {
+      return NextResponse.json(
+        { error: rateResult.error ?? 'Rate limit exceeded' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((rateResult.resetAt.getTime() - Date.now()) / 1000)),
+            'X-RateLimit-Limit':     '20',
+            'X-RateLimit-Remaining': '0',
+          },
+        }
+      );
+    }
+
     const { settledBy, splitIds, settledVia = 'manual', note } = await request.json();
-    if (!settledBy || !splitIds?.length) return NextResponse.json({ error: 'settledBy and splitIds required' }, { status: 400 });
-    if (callerId && callerId !== settledBy) return NextResponse.json({ error: 'settledBy must match authenticated user' }, { status: 403 });
+    if (!settledBy || !splitIds?.length) {
+      return NextResponse.json({ error: 'settledBy and splitIds required' }, { status: 400 });
+    }
+    if (callerId && callerId !== settledBy) {
+      return NextResponse.json({ error: 'settledBy must match authenticated user' }, { status: 403 });
+    }
 
     const resolvedUserId = callerId ?? settledBy;
 
@@ -180,11 +198,17 @@ export async function POST(
       .eq('group_transactions.group_id', groupId);
 
     if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
-    if (!splits || splits.length !== splitIds.length) return NextResponse.json({ error: 'Some splits are invalid or do not belong to you' }, { status: 400 });
+    if (!splits || splits.length !== splitIds.length) {
+      return NextResponse.json({ error: 'Some splits are invalid or do not belong to you' }, { status: 400 });
+    }
 
     const { error: updateError } = await supabase
       .from('transaction_splits')
-      .update({ is_settled: true, settled_at: new Date().toISOString(), settled_via: note ? `${settledVia}: ${note}` : settledVia })
+      .update({
+        is_settled:  true,
+        settled_at:  new Date().toISOString(),
+        settled_via: note ? `${settledVia}: ${note}` : settledVia,
+      })
       .in('id', splitIds);
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
@@ -194,13 +218,13 @@ export async function POST(
 
     logActivity(
       groupId, resolvedUserId, 'SETTLE_DEBT',
-      'Recorded a settlement of ' + splitIds.length + ' item' + (splitIds.length !== 1 ? 's' : ''),
+      `Recorded a settlement of ${splitIds.length} item${splitIds.length !== 1 ? 's' : ''}`,
       { split_ids: splitIds, method: settledVia }
     );
 
-    // Build response headers — attach a refreshed ghost token if the
-    // current one is within 7 days of expiry.
-    const responseHeaders: Record<string, string> = {};
+    const responseHeaders: Record<string, string> = {
+      'X-RateLimit-Remaining': String(rateResult.remaining),
+    };
     if (ghostResult && shouldRefreshToken(ghostResult.exp)) {
       responseHeaders['x-ghost-token-refreshed'] = issueRefreshedToken(
         ghostResult.profileId,
@@ -210,7 +234,7 @@ export async function POST(
 
     return NextResponse.json(
       { ok: true, settled_count: splitIds.length, remaining_splits: remainingUnsettled?.length ?? 0 },
-      { headers: responseHeaders },
+      { headers: responseHeaders }
     );
 
   } catch (err: any) {
