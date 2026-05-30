@@ -1,34 +1,33 @@
-import { NextResponse } from 'next/server';
+import { google } from '@ai-sdk/google';
+import { streamText } from 'ai';
+
+// Optional: Use edge runtime for faster streaming delivery
+export const runtime = 'edge';
 
 export async function POST(request: Request) {
   try {
-    const { prompt } = await request.json();
+    const { messages } = await request.json();
     
-    // Grabs the key securely on the server side (No NEXT_PUBLIC_ exposure!)
     const apiKey = process.env.GEMINI_API_KEY; 
     if (!apiKey) {
-      return NextResponse.json({ error: 'Server configuration missing API key' }, { status: 500 });
+      return new Response(
+        JSON.stringify({ error: 'Server configuration missing API key' }), 
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      }
-    );
+    // Call Gemini using Vercel AI SDK streamText
+    const result = streamText({
+      model: google('gemini-2.5-flash'),
+      messages: messages, // Passes down the entire conversational context
+    });
 
-    const data = await res.json();
-    if (data.error) {
-      return NextResponse.json({ error: data.error.message }, { status: 429 });
-    }
-
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    return NextResponse.json({ text });
+    // Convert the stream into a standardized Response object
+    return result.toDataStreamResponse();
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return new Response(
+      JSON.stringify({ error: err.message }), 
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
