@@ -16,14 +16,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fix: Added 'await' here so 'result' is the actual StreamTextResult object
+    // Call Gemini using Vercel AI SDK streamText
     const result = await streamText({
       model: google('gemini-2.5-flash'),
       messages: messages, // Passes down the entire conversational context
     });
 
-    // Now .toDataStreamResponse() will be successfully recognized!
-    return result.toDataStreamResponse();
+    // Fix: Using the correct method for SDK version 3.1.x
+    return result.toAIStreamResponse();
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message }), 
