@@ -234,50 +234,158 @@ function BalanceRow({ pair, members, userId, fmt, onSettle }: {
 
 // ── Settle modal ──────────────────────────────────────────────────────────────
 function SettleModal({ pair, members, mySplits, userId, groupId, fmt, ghostToken, onClose, onSettled }: {
-  pair: NetPair; members: Profile[]; mySplits: any[]; userId: string; groupId: string;
-  fmt: (n: number) => string; ghostToken?: string; onClose: () => void; onSettled: () => void;
+  pair:       NetPair;
+  members:    Profile[];
+  mySplits:   any[];
+  userId:     string;
+  groupId:    string;
+  fmt:        (n: number) => string;
+  ghostToken?: string;
+  onClose:    () => void;
+  onSettled:  () => void;
 }) {
   const [method, setMethod] = useState<'upi' | 'cash' | 'manual'>('upi');
   const [note, setNote]     = useState('');
   const [busy, setBusy]     = useState(false);
-  const creditor       = members.find((m) => m.id === pair.creditor);
-  const relevantSplits = mySplits.filter((s: any) => s.group_transactions?.paid_by === pair.creditor);
+
+  const creditor = members.find((m) => m.id === pair.creditor);
+
+  // FIX: use ALL unsettled splits for this user, not just the ones where
+  // paid_by matches pair.creditor. Debt simplification can reroute balances
+  // so that pair.creditor != the original payer of any individual split.
+  const relevantSplits = mySplits;
 
   const go = async () => {
-    if (!relevantSplits.length) { addToast('No unsettled items', 'error'); return; }
+    if (!relevantSplits.length) {
+      addToast('No unsettled items found', 'error');
+      return;
+    }
     setBusy(true);
     try {
       const h: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (ghostToken) { h['x-ghost-token'] = ghostToken; }
-      else { try { const { supabase } = await import('@/lib/supabaseClient'); const { data: { session } } = await supabase.auth.getSession(); if (session?.access_token) h['Authorization'] = 'Bearer ' + session.access_token; } catch {} }
-      const res  = await fetch('/api/groups/' + groupId + '/settle', { method: 'POST', headers: h, body: JSON.stringify({ settledBy: userId, splitIds: relevantSplits.map((s: any) => s.id), settledVia: method, note: note.trim() || undefined }) });
+      if (ghostToken) {
+        h['x-ghost-token'] = ghostToken;
+      } else {
+        try {
+          const { supabase } = await import('@/lib/supabaseClient');
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) h['Authorization'] = 'Bearer ' + session.access_token;
+        } catch {}
+      }
+
+      const res = await fetch('/api/groups/' + groupId + '/settle', {
+        method: 'POST',
+        headers: h,
+        body: JSON.stringify({
+          settledBy:  userId,
+          splitIds:   relevantSplits.map((s: any) => s.id),
+          settledVia: method,
+          note:       note.trim() || undefined,
+        }),
+      });
       const data = await res.json();
-      if (!res.ok) { addToast(data.error, 'error'); return; }
+
+      if (!res.ok) {
+        addToast(data.error, 'error');
+        return;
+      }
+
       addToast('Settled ' + fmt(pair.amount) + ' ✓', 'success');
       onSettled();
-    } catch { addToast('Could not record settlement', 'error'); } finally { setBusy(false); }
+    } catch {
+      addToast('Could not record settlement', 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div style={{ background: C.surface, borderRadius: '24px 24px 0 0', padding: '20px 24px 40px', maxWidth: 480, width: '100%' }} onClick={(e) => e.stopPropagation()}>
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+        zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: C.surface, borderRadius: '24px 24px 0 0',
+          padding: '20px 24px 40px', maxWidth: 480, width: '100%',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div style={{ width: 36, height: 4, background: C.border, borderRadius: 99, margin: '0 auto 20px' }} />
+
+        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: C.text3, marginBottom: 6 }}>You owe {displayName(creditor!)}</div>
-          <div style={{ fontSize: 40, fontWeight: 900, color: C.red }}>{fmt(pair.amount)}</div>
-          <div style={{ fontSize: 12, color: C.text3, marginTop: 4 }}>across {relevantSplits.length} transaction{relevantSplits.length !== 1 ? 's' : ''}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: C.text3, marginBottom: 6 }}>
+            You owe {displayName(creditor!)}
+          </div>
+          <div style={{ fontSize: 40, fontWeight: 900, color: C.red }}>
+            {fmt(pair.amount)}
+          </div>
+          <div style={{ fontSize: 12, color: C.text3, marginTop: 4 }}>
+            across {relevantSplits.length} transaction{relevantSplits.length !== 1 ? 's' : ''}
+          </div>
         </div>
+
+        {/* Payment method selector */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           {(['upi', 'cash', 'manual'] as const).map((m) => (
-            <button key={m} onClick={() => setMethod(m)} style={{ flex: 1, padding: '10px', borderRadius: 12, border: '1px solid ' + (method === m ? C.accent : C.border2), background: method === m ? C.accentBg : 'transparent', color: method === m ? C.accent : C.text2, fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize' }}>
+            <button
+              key={m}
+              onClick={() => setMethod(m)}
+              style={{
+                flex: 1, padding: '10px', borderRadius: 12,
+                border: '1px solid ' + (method === m ? C.accent : C.border2),
+                background: method === m ? C.accentBg : 'transparent',
+                color: method === m ? C.accent : C.text2,
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                textTransform: 'capitalize',
+              }}
+            >
               {m === 'upi' ? '⚡ UPI' : m === 'cash' ? '💵 Cash' : '✏ Manual'}
             </button>
           ))}
         </div>
-        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" style={{ width: '100%', background: C.surface2, border: '1.5px solid transparent', borderRadius: 12, color: C.textW, fontFamily: 'inherit', fontSize: 14, padding: '12px 16px', outline: 'none', boxSizing: 'border-box', marginBottom: 16 }} />
+
+        {/* Optional note */}
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Note (optional)"
+          style={{
+            width: '100%', background: C.surface2,
+            border: '1.5px solid transparent', borderRadius: 12,
+            color: C.textW, fontFamily: 'inherit', fontSize: 14,
+            padding: '12px 16px', outline: 'none',
+            boxSizing: 'border-box', marginBottom: 16,
+          }}
+        />
+
+        {/* Actions */}
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '13px', borderRadius: 99, border: '1px solid ' + C.border2, background: 'transparent', color: C.text2, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-          <button onClick={go} disabled={busy} style={{ flex: 2, padding: '13px', borderRadius: 99, border: 'none', background: busy ? C.surface2 : C.green, color: busy ? C.text3 : '#0a0a0a', fontSize: 14, fontWeight: 800, cursor: busy ? 'not-allowed' : 'pointer' }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '13px', borderRadius: 99,
+              border: '1px solid ' + C.border2, background: 'transparent',
+              color: C.text2, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={go}
+            disabled={busy}
+            style={{
+              flex: 2, padding: '13px', borderRadius: 99, border: 'none',
+              background: busy ? C.surface2 : C.green,
+              color: busy ? C.text3 : '#0a0a0a',
+              fontSize: 14, fontWeight: 800,
+              cursor: busy ? 'not-allowed' : 'pointer',
+            }}
+          >
             {busy ? 'Recording…' : 'Mark ' + fmt(pair.amount) + ' settled'}
           </button>
         </div>
