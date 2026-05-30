@@ -1,9 +1,7 @@
-// components/dashboard/Groups.tsx — with all Phase A/B patches applied
-// Fix 1:  Entire card is tappable (stopPropagation on action buttons)
-// Fix 8:  Suggestion chips clear description field
-// Fix 12: AvatarStack uses actual member initials
-// Phase A: Archive group + ArchivedGroupsSection
-// Phase B: ghostToken passed to GroupDetail
+// components/dashboard/Groups.tsx — Archive guard + avatar fix
+// Fix 1: Archive now blocked when net_balance !== 0 (pending settlements)
+// Fix 2: Group card shows real member avatars via Avatar component
+// Fix 3: GroupDetail MemberAvatar uses real Avatar component with photos
 
 'use client';
 
@@ -11,6 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { C } from '@/constants';
 import { Icon } from '@/components/ui/Icon';
 import { addToast } from '@/components/ui/ui';
+import { Avatar } from '@/components/ui/Avatar';
 import type { AppData } from '@/types';
 import { GroupDetail } from './GroupDetail';
 
@@ -19,6 +18,7 @@ interface GroupMember {
   display_name: string | null;
   ghost_name:   string | null;
   is_ghost:     boolean;
+  avatar_url?:  string | null;
 }
 
 interface Group {
@@ -70,13 +70,21 @@ function useIsMobile() {
   return isMobile;
 }
 
+// ── Member cluster using Avatar component for real photos ─────────────────────
 function MemberCluster({ members, total }: { members: GroupMember[]; total: number }) {
   const shown = members.slice(0, 4);
   return (
     <div style={{ display: 'flex', alignItems: 'center' }}>
       {shown.map((m, i) => (
-        <div key={m.id} title={memberName(m)} style={{ width: 26, height: 26, borderRadius: '50%', background: AVATAR_COLORS[i % AVATAR_COLORS.length], border: `2px solid ${C.surface}`, marginLeft: i > 0 ? -8 : 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#0a0a0a', zIndex: shown.length - i, position: 'relative', flexShrink: 0 }}>
-          {memberName(m).charAt(0).toUpperCase()}
+        <div key={m.id} style={{ marginLeft: i > 0 ? -8 : 0, zIndex: shown.length - i, position: 'relative', flexShrink: 0 }}>
+          <Avatar
+            profile={{
+              id: m.id,
+              display_name: memberName(m),
+              avatar_url: m.avatar_url ?? null,
+            }}
+            size={26}
+          />
         </div>
       ))}
       {total > 4 && (
@@ -294,7 +302,6 @@ export function Groups({ data, session, fmt }: Props) {
 
   useEffect(() => { loadGroups(); }, [loadGroups]);
 
-  // Auto-open group from invite link ?group= param
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const groupParam = params.get('group');
@@ -327,10 +334,19 @@ export function Groups({ data, session, fmt }: Props) {
 
   const archiveGroup = async (e: React.MouseEvent, group: Group) => {
     e.stopPropagation();
-    const confirmMsg = group.net_balance !== 0
-      ? `Archive "${group.name}"? There are still unsettled balances.`
-      : `Archive "${group.name}"? It will move to your archived groups.`;
+
+    // ── GUARD: Block archive if there are unsettled balances ──────────────
+    if (Math.abs(group.net_balance) > 0.01) {
+      addToast(
+        `Cannot archive "${group.name}" — there are unsettled balances of ${fmt(Math.abs(group.net_balance))}. Settle all debts first.`,
+        'error'
+      );
+      return;
+    }
+
+    const confirmMsg = `Archive "${group.name}"? It will move to your archived groups.`;
     if (!confirm(confirmMsg)) return;
+
     setArchivingId(group.id);
     try {
       const res = await fetch('/api/groups', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ groupId: group.id, userId, is_archived: true }) });
@@ -346,7 +362,6 @@ export function Groups({ data, session, fmt }: Props) {
     else { const d = await res.json(); addToast(d.error || 'Could not restore', 'error'); }
   };
 
-  // Render GroupDetail when a group is selected
   if (selectedGroup) {
     return (
       <GroupDetail
@@ -386,8 +401,9 @@ export function Groups({ data, session, fmt }: Props) {
 
       {/* Group cards */}
       {!loading && groups.map((g) => {
-        const isPositive = g.net_balance > 0;
-        const isSettled  = g.net_balance === 0;
+        const isPositive  = g.net_balance > 0;
+        const isSettled   = Math.abs(g.net_balance) < 0.01;
+        const hasPending  = !isSettled;
         return (
           <div
             key={g.id}
@@ -418,9 +434,21 @@ export function Groups({ data, session, fmt }: Props) {
                 <button onClick={(e) => copyGroupInvite(e, g.id)} title="Copy invite link" style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: copiedId === g.id ? C.greenBg : C.surface2, color: copiedId === g.id ? C.green : C.text2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.15s' }}>
                   <Icon name={copiedId === g.id ? 'check' : 'send'} size={15} color={copiedId === g.id ? C.green : C.text2} />
                 </button>
-                {/* Archive */}
-                <button onClick={(e) => archiveGroup(e, g)} title="Archive group" disabled={archivingId === g.id} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: C.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: archivingId === g.id ? 'not-allowed' : 'pointer', opacity: archivingId === g.id ? 0.5 : 1, transition: 'all 0.15s' }}>
-                  <Icon name="briefcase" size={15} color={C.text3} />
+                {/* Archive — grayed/locked when pending settlements */}
+                <button
+                  onClick={(e) => archiveGroup(e, g)}
+                  title={hasPending ? `Cannot archive — ${fmt(Math.abs(g.net_balance))} unsettled` : 'Archive group'}
+                  disabled={archivingId === g.id}
+                  style={{
+                    width: 34, height: 34, borderRadius: 10, border: hasPending ? `1px solid ${C.red}33` : 'none',
+                    background: hasPending ? `${C.red}10` : C.surface2,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: archivingId === g.id ? 'not-allowed' : 'pointer',
+                    opacity: archivingId === g.id ? 0.5 : 1,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <Icon name={hasPending ? 'alert' : 'briefcase'} size={15} color={hasPending ? C.red : C.text3} />
                 </button>
                 {/* Open */}
                 <div style={{ padding: '0 10px', height: 34, borderRadius: 10, background: C.accentBg, color: C.accent, fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
