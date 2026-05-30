@@ -338,20 +338,44 @@ export function ExpenseListPaginated({
               {isJoint && <option value="Joint">Joint</option>}
             </select>
             <button style={{ ...smallBtn(selectedTargetAccount ? C.amber : undefined), display: 'inline-flex', alignItems: 'center', gap: 4 }} disabled={!selectedTargetAccount}
-              onClick={() => { onBulkAssignToAccount([...selectedIds], selectedTargetAccount); setSelectedTargetAccount(''); setSelectedIds(new Set()); refresh(); }}>
+              onClick={() => {
+                const ids = [...selectedIds];
+                const acc = selectedTargetAccount;
+                setSelectedTargetAccount('');
+                setSelectedIds(new Set());
+                onBulkAssignToAccount(ids, acc);
+                refresh();
+              }}>
               <Icon name="sync" size={12} color={selectedTargetAccount ? C.amber : C.text2} /> Assign
             </button>
             <button style={smallBtn()} onClick={() => setSelectedIds(new Set())}>Deselect</button>
             <button style={{ ...smallBtn(C.amber), display: 'inline-flex', alignItems: 'center', gap: 4 }}
-              onClick={() => { onBulkFlagToSettle([...selectedIds]); setSelectedIds(new Set()); refresh(); }}>
+              onClick={() => {
+                const ids = [...selectedIds];
+                setSelectedIds(new Set());
+                onBulkFlagToSettle(ids);
+                refresh();
+              }}>
               <Icon name="alert" size={12} color={C.amber} /> Flag
             </button>
             <button style={{ ...smallBtn(C.green), display: 'inline-flex', alignItems: 'center', gap: 4 }}
-              onClick={() => { onBulkMarkAsSettled([...selectedIds]); setSelectedIds(new Set()); refresh(); }}>
+              onClick={() => {
+                const ids = [...selectedIds];
+                setSelectedIds(new Set());
+                onBulkMarkAsSettled(ids);
+                refresh();
+              }}>
               <Icon name="check" size={12} color={C.green} strokeWidth={3} /> Settle
             </button>
             <button style={{ ...smallBtn(C.red), fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}
-              onClick={() => { if (confirm(`Delete ${selectedIds.size} records?`)) { onBulkDelete([...selectedIds]); setSelectedIds(new Set()); refresh(); } }}>
+              onClick={() => {
+                if (confirm(`Delete ${selectedIds.size} records?`)) {
+                  const ids = [...selectedIds];
+                  setSelectedIds(new Set());
+                  onBulkDelete(ids);
+                  refresh();
+                }
+              }}>
               <Icon name="trash" size={12} color={C.red} /> Delete
             </button>
           </div>
@@ -456,7 +480,11 @@ export function ExpenseListPaginated({
                         <Icon name="briefcase" size={12} color={C.text2} /> Copy
                       </button>
                       {e.account !== 'Joint' && !e.settled && e.type !== 'income' && (
-                        <button style={{ ...smallBtn(C.amber), display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => { onBulkFlagToSettle([e.id]); refresh(); }}>
+                        <button style={{ ...smallBtn(C.amber), display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => {
+                          const ids = [e.id];
+                          onBulkFlagToSettle(ids);
+                          refresh();
+                        }}>
                           <Icon name="alert" size={12} color={C.amber} /> Flag
                         </button>
                       )}
