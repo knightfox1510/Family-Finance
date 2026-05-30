@@ -5,7 +5,7 @@
 import { NextResponse }        from 'next/server';
 import { logActivity }         from '@/lib/logActivity';
 import { createClient }        from '@supabase/supabase-js';
-import { resolveGhostUserId }  from '@/lib/ghostToken';
+import { resolveGhostUserIdSimple } from '@/lib/ghostToken';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,7 +18,7 @@ const supabase = createClient(
 async function resolveUserId(request: Request, fallbackUserId?: string | null): Promise<string | null> {
   // 1. Ghost token header — HMAC verified inside resolveGhostUserId
   const ghostToken = request.headers.get('x-ghost-token');
-  if (ghostToken) return resolveGhostUserId(ghostToken, supabase);
+  if (ghostToken) return resolveGhostUserIdSimple(ghostToken, supabase);
 
   // 2. Bearer token (regular Supabase session)
   const authHeader = request.headers.get('authorization');
