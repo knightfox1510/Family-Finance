@@ -340,7 +340,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
   const telegramHandle   = (s.telegramUsername ?? '').trim();
   const telegramLinked   = telegramHandle.length > 0;
   const waNumber = (s.whatsappNumber ?? '').replace(/\D/g, '');
-  const waLinked = waNumber.length >= 11;
+  const waLinked = waNumber.length >= 12;
 
   // ── Save with downgrade protection ────────────────────────────────────────
 
@@ -937,7 +937,7 @@ export function Settings({ data, householdId, onSave, onExport, onImport, onJoin
                   <input
                     type="tel"
                     inputMode="numeric"
-                    placeholder="9876543210"
+                    placeholder="9876543****"
                     maxLength={15} // Allows room for scaling
                     style={{ ...inputStyle, flex: 1, width: 'auto' }}
                     value={
