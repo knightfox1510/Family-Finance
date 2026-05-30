@@ -26,6 +26,8 @@ import { C, navForMode } from '@/constants';
 import { Icon } from '@/components/ui/Icon';
 import type { AppData, ViewId, HouseholdMode } from '@/types';
 import { Avatar } from '@/components/ui/Avatar'; // Imported avatar subcomponent
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { LoadDataError }  from '@/lib/supabaseHelpers';
 
 // ─── View imports ─────────────────────────────────────────────────────────────
 import { Dashboard }        from '@/components/dashboard/Dashboard';
@@ -82,6 +84,8 @@ const [session, setSession]           = useState<any>(null);
   const [data, setData]                 = useState<AppData | null>(null);
   const [loading, setLoading]           = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError]       = useState<string | null>(null);
+
 
   const [view, setView]                 = useState<ViewId>('home');
   const [prevView, setPrevView]         = useState<ViewId>('home');
@@ -116,10 +120,19 @@ const [session, setSession]           = useState<any>(null);
   }, []);
 
   useEffect(() => {
-    if (session) {
-      loadData(session.user.id).then((d) => { setData(d); setLoading(false); });
-      .catch((err) => { console.error(err); setLoadError(true); setLoading(false); });
-    }
+    if (!session) return;
+    setLoadError(null);
+    loadData(session.user.id)
+      .then((d) => { setData(d); setLoading(false); })
+      .catch((err) => {
+        console.error('[App] loadData failed:', err);
+        setLoadError(
+          err instanceof LoadDataError
+            ? err.message
+            : 'Could not load your data. Check your connection.',
+        );
+        setLoading(false);
+      });
   }, [session]);
 
   useEffect(() => {
@@ -165,9 +178,16 @@ const [session, setSession]           = useState<any>(null);
   const handleManualRefresh = async () => {
     if (!session || isRefreshing) return;
     setIsRefreshing(true);
+    setLoadError(null);
     try {
       const fresh = await loadData(session.user.id);
       setData(fresh);
+    } catch (err) {
+      setLoadError(
+        err instanceof LoadDataError
+          ? err.message
+          : 'Refresh failed. Check your connection.',
+      );
     } finally {
       setTimeout(() => setIsRefreshing(false), 500);
     }
@@ -256,7 +276,7 @@ const [session, setSession]           = useState<any>(null);
     setData(fresh);
   };
 
-  if (loading || !data) {
+ if (loading) {
     return (
       <div className="cf-loader-page animate-fade-in">
         <div className="cf-loader-logo">
@@ -271,6 +291,47 @@ const [session, setSession]           = useState<any>(null);
             Syncing household configurations…
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (loadError || !data) {
+    return (
+      <div style={{
+        minHeight: '100vh', background: 'var(--bg)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '24px', textAlign: 'center', gap: 20,
+        fontFamily: "'Inter', -apple-system, sans-serif",
+      }}>
+        <div style={{ fontSize: 40 }}>⚠️</div>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--textW)', marginBottom: 8 }}>
+            Could not load your data
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6, maxWidth: 300 }}>
+            {loadError ?? 'An unexpected error occurred. Your data is safe.'}
+          </div>
+        </div>
+        <button
+          onClick={handleManualRefresh}
+          style={{
+            background: 'var(--accent)', color: '#0a0a0a', border: 'none',
+            borderRadius: 99, padding: '13px 32px', fontSize: 15, fontWeight: 800,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          Try again
+        </button>
+        <button
+          onClick={() => supabase.auth.signOut().then(() => { window.location.href = '/'; })}
+          style={{
+            background: 'transparent', color: 'var(--text3)', border: 'none',
+            fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          Sign out and try a different account
+        </button>
       </div>
     );
   }
@@ -317,6 +378,7 @@ const [session, setSession]           = useState<any>(null);
   ];
 
   return (
+    <ErrorBoundary>
     <div
       style={{
         background: C.bg, minHeight: '100vh',
@@ -651,5 +713,6 @@ const [session, setSession]           = useState<any>(null);
 
       <ToastContainer />
     </div>
+      </ErrorBoundary>
   );
 }
