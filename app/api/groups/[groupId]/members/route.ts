@@ -7,7 +7,8 @@
 
 import { NextResponse }       from 'next/server';
 import { createClient }       from '@supabase/supabase-js';
-import { resolveGhostUserId } from '@/lib/ghostToken';
+import { resolveGhostUserIdSimple } from '@/lib/ghostToken';
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,7 +18,7 @@ const supabase = createClient(
 
 async function resolveUserId(request: Request, fallback: string | null): Promise<string | null> {
   const ghostToken = request.headers.get('x-ghost-token');
-  if (ghostToken) return resolveGhostUserId(ghostToken, supabase);
+  if (ghostToken) return resolveGhostUserIdSimple(ghostToken, supabase);
 
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
