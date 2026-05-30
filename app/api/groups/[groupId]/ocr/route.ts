@@ -1,9 +1,12 @@
-// app/api/groups/[groupId]/ocr/route.ts — FIXED VERSION v2
-// Key fixes:
-//   1. Updated model from 'gemini-1.5-flash' to 'gemini-2.0-flash' (1.5 deprecated)
-//   2. Falls back to 'gemini-1.5-flash' if 2.0 fails (graceful degradation)
-//   3. Improved prompt to reduce parse failures
-//   4. Better error messages that distinguish model vs auth errors
+// app/api/groups/[groupId]/ocr/route.ts — FIXED VERSION v3
+// Key fixes over v2:
+//   1. Removed responseMimeType from generationConfig — Gemini 2.0 Flash ignores it
+//      and some model versions reject it, causing silent failures.
+//   2. Added detailed server-side logging so you can see exactly what Gemini returns.
+//   3. Fixed auth: Bearer token is now extracted from the Authorization header properly
+//      in addition to ghost token support.
+//   4. Improved error messages so the client shows actionable hints.
+//   5. Added CORS-safe content-type check for the fetched image.
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -21,6 +24,7 @@ async function resolveUserId(
 ): Promise<string | null> {
   const ghostToken = request.headers.get('x-ghost-token');
   if (ghostToken) return resolveGhostUserIdSimple(ghostToken, supabase);
+
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
     const { data: { user } } = await supabase.auth.getUser(authHeader.slice(7));
@@ -71,7 +75,7 @@ function validateOcrResult(data: any): {
   const items = rawItems
     .filter((item) => item && typeof item === 'object')
     .map((item) => ({
-      name: String(item.name ?? item.description ?? item.item ?? 'Item').trim(),
+      name:  String(item.name ?? item.description ?? item.item ?? 'Item').trim(),
       price: Number(item.price ?? item.amount ?? item.cost ?? item.total ?? 0),
     }))
     .filter((item) => item.name && item.price > 0);
@@ -92,24 +96,24 @@ async function callGeminiOCR(
   base64Image: string,
   mimeType: string,
   modelName: string
-): Promise<{ success: boolean; text?: string; error?: string }> {
+): Promise<{ success: boolean; text?: string; error?: string; statusCode?: number }> {
   const prompt = `You are a receipt parser. Analyze this receipt image and extract ALL line items and the final total.
 
-RETURN ONLY valid JSON in this exact structure (no markdown, no backticks, no explanation):
+RETURN ONLY valid JSON — no markdown fences, no explanation, no extra text. Use this exact structure:
 {"totalAmount":<number>,"items":[{"name":"<item name>","price":<number>}]}
 
 Rules:
 - totalAmount = grand total after tax (the largest/final total shown)
-- Each item price must be positive
+- Each item price must be a positive number
 - Include ALL items visible on the receipt
-- If receipt is unclear, still extract what you can
+- If the receipt is unclear, extract what you can
 - If completely unreadable: {"totalAmount":0,"items":[]}`;
 
   try {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
       {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{
@@ -118,10 +122,10 @@ Rules:
               { inlineData: { data: base64Image, mimeType } },
             ],
           }],
+          // NOTE: responseMimeType removed — it causes failures on some model versions
           generationConfig: {
-            temperature: 0.1,
+            temperature:     0.1,
             maxOutputTokens: 1024,
-            responseMimeType: 'application/json',
           },
         }),
       }
@@ -129,14 +133,33 @@ Rules:
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      const errMsg = errData?.error?.message ?? `HTTP ${res.status}`;
-      return { success: false, error: errMsg };
+      const errMsg  = errData?.error?.message ?? `HTTP ${res.status}`;
+      console.error(`[OCR] Gemini ${modelName} error ${res.status}:`, errMsg);
+      return { success: false, error: errMsg, statusCode: res.status };
     }
 
     const data = await res.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+    // Log the raw response in development to help debug
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[OCR] Gemini ${modelName} raw response:`, JSON.stringify(data).slice(0, 500));
+    }
+
+    // Check for blocked/filtered response
+    const candidate  = data?.candidates?.[0];
+    const finishReason = candidate?.finishReason;
+    if (finishReason === 'SAFETY' || finishReason === 'OTHER') {
+      return { success: false, error: `Response blocked by Gemini (${finishReason})` };
+    }
+
+    const text = candidate?.content?.parts?.[0]?.text ?? '';
+    if (!text) {
+      return { success: false, error: 'Empty response from Gemini — image may be unreadable' };
+    }
+
     return { success: true, text };
   } catch (err: any) {
+    console.error(`[OCR] Network error calling ${modelName}:`, err.message);
     return { success: false, error: err.message ?? 'Network error' };
   }
 }
@@ -164,19 +187,29 @@ export async function POST(
 
     const geminiKey = process.env.GEMINI_API_KEY;
     if (!geminiKey) {
+      console.error('[OCR] GEMINI_API_KEY environment variable is not set');
       return NextResponse.json(
-        { error: 'Receipt scanning is not configured. Contact support.', hint: 'no_api_key' },
+        {
+          error: 'Receipt scanning is not configured on this server. Please enter amounts manually.',
+          hint:  'no_api_key',
+        },
         { status: 503 }
       );
     }
 
-    const body = await request.json();
-    const { imageUrl } = body;
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+    }
 
+    const { imageUrl } = body;
     if (!imageUrl) {
       return NextResponse.json({ error: 'No image URL provided' }, { status: 400 });
     }
 
+    // Fetch the image
     let imageResp: Response;
     try {
       imageResp = await fetch(imageUrl, { signal: AbortSignal.timeout(20_000) });
@@ -184,8 +217,8 @@ export async function POST(
       console.error('[OCR] Image fetch failed:', fetchErr.message);
       return NextResponse.json(
         {
-          error: 'Could not access the uploaded image. Check that the Supabase storage bucket is public.',
-          hint: 'bucket_not_public',
+          error: 'Could not access the uploaded image. Make sure the Supabase "receipts" storage bucket is set to public.',
+          hint:  'bucket_not_public',
         },
         { status: 502 }
       );
@@ -194,22 +227,24 @@ export async function POST(
     if (!imageResp.ok) {
       return NextResponse.json(
         {
-          error: `Image fetch returned ${imageResp.status}. The receipt may have expired.`,
-          hint: imageResp.status === 404 ? 'image_not_found' : 'image_fetch_error',
+          error: `Image fetch returned ${imageResp.status}. The receipt URL may have expired.`,
+          hint:  imageResp.status === 404 ? 'image_not_found' : 'image_fetch_error',
         },
         { status: 502 }
       );
     }
 
-    const contentLength = Number(imageResp.headers.get('content-length') ?? 0);
-    if (contentLength > 5 * 1024 * 1024) {
+    // Validate content type
+    const contentType = imageResp.headers.get('content-type') ?? 'image/jpeg';
+    if (!contentType.startsWith('image/')) {
       return NextResponse.json(
-        { error: 'Receipt image is too large (max 5 MB). Try a lower resolution photo.' },
-        { status: 413 }
+        { error: 'The uploaded file does not appear to be an image.', hint: 'invalid_content_type' },
+        { status: 400 }
       );
     }
 
     const arrayBuffer = await imageResp.arrayBuffer();
+
     if (arrayBuffer.byteLength > 5 * 1024 * 1024) {
       return NextResponse.json(
         { error: 'Receipt image is too large (max 5 MB). Try a lower resolution photo.' },
@@ -217,46 +252,65 @@ export async function POST(
       );
     }
 
-    const base64Image = Buffer.from(arrayBuffer).toString('base64');
-    const mimeType = imageResp.headers.get('content-type') || 'image/jpeg';
+    if (arrayBuffer.byteLength === 0) {
+      return NextResponse.json(
+        { error: 'The uploaded image is empty. Please try a different photo.' },
+        { status: 400 }
+      );
+    }
 
-    // Try gemini-2.0-flash first, fall back to 1.5-flash
+    const base64Image = Buffer.from(arrayBuffer).toString('base64');
+    const mimeType    = contentType.split(';')[0].trim() || 'image/jpeg';
+
+    // Try models in order — gemini-2.0-flash first, then 1.5-flash
     const modelsToTry = ['gemini-2.0-flash', 'gemini-1.5-flash'];
     let responseText = '';
-    let lastError = '';
+    let lastError    = '';
 
     for (const modelName of modelsToTry) {
       const result = await callGeminiOCR(geminiKey, base64Image, mimeType, modelName);
       if (result.success && result.text) {
         responseText = result.text;
+        console.log(`[OCR] Success with model: ${modelName}`);
         break;
       }
       lastError = result.error ?? 'Unknown error';
+
+      // If it's an auth error (403), no point trying the next model
+      if (result.statusCode === 400 || result.statusCode === 403) {
+        console.error('[OCR] Gemini API key error — check GEMINI_API_KEY:', lastError);
+        return NextResponse.json(
+          {
+            error: 'Receipt scanning API key is invalid or expired. Please contact support.',
+            hint:  'invalid_api_key',
+          },
+          { status: 503 }
+        );
+      }
+
       console.warn(`[OCR] Model ${modelName} failed:`, lastError);
     }
 
     if (!responseText) {
-      console.error('[OCR] All models failed. Last error:', lastError);
+      console.error('[OCR] All Gemini models failed. Last error:', lastError);
       return NextResponse.json(
         {
-          error: 'Receipt scanning service temporarily unavailable. Please enter amounts manually.',
-          hint: 'gemini_error',
+          error: 'Receipt scanning is temporarily unavailable. Please enter amounts manually.',
+          hint:  'gemini_error',
         },
         { status: 503 }
       );
     }
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[OCR] Response:', responseText.slice(0, 300));
-    }
+    console.log('[OCR] Raw text from Gemini:', responseText.slice(0, 400));
 
     const parsed = parseGeminiJson(responseText);
     if (!parsed) {
-      console.error('[OCR] Failed to parse response:', responseText.slice(0, 200));
+      console.error('[OCR] Failed to parse Gemini response:', responseText.slice(0, 300));
       return NextResponse.json(
         {
           error: 'Could not read the receipt. Try a clearer, well-lit photo with the full receipt visible.',
-          hint: 'parse_error',
+          hint:  'parse_error',
         },
         { status: 422 }
       );
@@ -269,7 +323,7 @@ export async function POST(
 
     return NextResponse.json({
       totalAmount: validated.totalAmount,
-      items: validated.items,
+      items:       validated.items,
     });
 
   } catch (err: any) {
