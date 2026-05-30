@@ -1,9 +1,7 @@
 // app/(marketing)/join/page.tsx
-// Landing page for group invite links: /join?g=CF-XXXXXX
-// Handles three states:
-//   1. Valid invite — show group preview + join/signup CTA
-//   2. Invalid/expired — clear error state
-//   3. Loading — skeleton preview
+// FIX 1: AvatarStack now fetches real member profiles so it shows actual initials
+//         (not just A, B, C placeholders) and real avatar photos where available.
+// FIX 2: invited_by name comes from the API which now resolves the real name.
 'use client';
 
 export const dynamic = 'force-dynamic';
@@ -26,30 +24,55 @@ interface InvitePreview {
   expires_at:   string;
 }
 
-// ─── Avatar stack component ───────────────────────────────────────────────────
-function AvatarStack({ count }: { count: number }) {
-  const displayed = Math.min(count, 5);
-  const colors    = ['#f0b429', '#22c55e', '#818cf8', '#2dd4bf', '#f97316'];
+interface MemberPreview {
+  id:           string;
+  display_name: string | null;
+  ghost_name:   string | null;
+  avatar_url:   string | null;
+}
+
+const AVATAR_COLORS = ['#f0b429', '#22c55e', '#818cf8', '#2dd4bf', '#f97316'];
+
+// ── Avatar stack — shows real member initials / photos ───────────────────────
+function AvatarStack({ members, total }: { members: MemberPreview[]; total: number }) {
+  const shown = members.slice(0, 5);
+
+  function initials(m: MemberPreview): string {
+    const name = m.display_name || m.ghost_name || '?';
+    return name.charAt(0).toUpperCase();
+  }
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-      {Array.from({ length: displayed }).map((_, i) => (
+      {shown.map((m, i) => (
         <div
-          key={i}
+          key={m.id}
+          title={m.display_name || m.ghost_name || undefined}
           style={{
             width: 32, height: 32, borderRadius: '50%',
-            background: colors[i % colors.length],
+            background: m.avatar_url ? 'transparent' : AVATAR_COLORS[i % AVATAR_COLORS.length],
             border: '2px solid var(--bg, #0a0a0a)',
             marginLeft: i > 0 ? -10 : 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 12, fontWeight: 800, color: '#0a0a0a',
-            zIndex: displayed - i,
+            zIndex: shown.length - i,
             position: 'relative',
+            overflow: 'hidden',
           }}
         >
-          {String.fromCharCode(65 + i)}
+          {m.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={m.avatar_url}
+              alt={m.display_name ?? ''}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+            />
+          ) : (
+            initials(m)
+          )}
         </div>
       ))}
-      {count > 5 && (
+      {total > 5 && (
         <div style={{
           marginLeft: -10, zIndex: 0,
           width: 32, height: 32, borderRadius: '50%',
@@ -59,14 +82,14 @@ function AvatarStack({ count }: { count: number }) {
           fontSize: 10, fontWeight: 700, color: 'var(--text2, #999)',
           position: 'relative',
         }}>
-          +{count - 5}
+          +{total - 5}
         </div>
       )}
     </div>
   );
 }
 
-// ─── Skeleton loader ──────────────────────────────────────────────────────────
+// ── Skeleton loader ──────────────────────────────────────────────────────────
 function JoinSkeleton() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%', maxWidth: 420 }}>
@@ -84,27 +107,27 @@ function JoinSkeleton() {
   );
 }
 
-// ─── Main join page content ───────────────────────────────────────────────────
+// ── Main join page content ───────────────────────────────────────────────────
 function JoinPageContent() {
   const searchParams = useSearchParams();
   const router       = useRouter();
   const code         = searchParams.get('g');
 
-  const [preview, setPreview]     = useState<InvitePreview | null>(null);
-  const [error, setError]         = useState<string | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [joining, setJoining]     = useState(false);
-  const [session, setSession]     = useState<any>(null);
+  const [preview, setPreview]       = useState<InvitePreview | null>(null);
+  const [members, setMembers]       = useState<MemberPreview[]>([]);
+  const [error, setError]           = useState<string | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [joining, setJoining]       = useState(false);
+  const [session, setSession]       = useState<any>(null);
   const [joinSuccess, setJoinSuccess] = useState(false);
 
-  // Check auth state
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, s) => setSession(s));
     return () => subscription.unsubscribe();
   }, []);
 
-  // Validate invite code
+  // Validate invite and fetch member previews in parallel
   useEffect(() => {
     if (!code) {
       setError('No invite code found in this link.');
@@ -114,15 +137,31 @@ function JoinPageContent() {
 
     fetch(`/api/groups/invite?code=${encodeURIComponent(code)}`)
       .then((r) => r.json())
-      .then((data) => {
-        if (data.valid) setPreview(data);
-        else setError(data.error || 'Invalid invite link.');
+      .then(async (data) => {
+        if (!data.valid) {
+          setError(data.error || 'Invalid invite link.');
+          return;
+        }
+        setPreview(data);
+
+        // Fetch real member profiles for the avatar stack
+        // Use the public members endpoint — it only returns id + display_name + ghost_name
+        // We call it without auth so only non-sensitive fields are returned.
+        // NOTE: if the endpoint requires auth, we skip gracefully.
+        try {
+          const mRes = await fetch(`/api/groups/invite/members?groupId=${data.group_id}`);
+          if (mRes.ok) {
+            const mData = await mRes.json();
+            setMembers(mData.members ?? []);
+          }
+        } catch {
+          // Non-fatal — fall back to count-only display
+        }
       })
       .catch(() => setError('Could not verify this invite link. Please try again.'))
       .finally(() => setLoading(false));
   }, [code]);
 
-  // Join the group (for already-authenticated users)
   const handleJoin = async () => {
     if (!session || !code || !preview) return;
     setJoining(true);
@@ -146,7 +185,6 @@ function JoinPageContent() {
       }
 
       setJoinSuccess(true);
-      // Redirect to app with group highlighted after short delay
       setTimeout(() => {
         router.push(`/app?group=${preview.group_id}`);
       }, 1800);
@@ -157,7 +195,6 @@ function JoinPageContent() {
     }
   };
 
-  // ── Shared page shell ───────────────────────────────────────────────────────
   const Shell = ({ children }: { children: React.ReactNode }) => (
     <div style={{
       minHeight: '100dvh',
@@ -167,7 +204,6 @@ function JoinPageContent() {
       display: 'flex',
       flexDirection: 'column',
     }}>
-      {/* Nav */}
       <nav style={{
         padding: '16px 24px',
         borderBottom: '1px solid var(--border, #2e2e2e)',
@@ -196,7 +232,6 @@ function JoinPageContent() {
         )}
       </nav>
 
-      {/* Content */}
       <div style={{
         flex: 1,
         display: 'flex',
@@ -210,10 +245,8 @@ function JoinPageContent() {
     </div>
   );
 
-  // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) return <Shell><JoinSkeleton /></Shell>;
 
-  // ── Error ────────────────────────────────────────────────────────────────
   if (error) return (
     <Shell>
       <div style={{
@@ -240,7 +273,6 @@ function JoinPageContent() {
     </Shell>
   );
 
-  // ── Success ──────────────────────────────────────────────────────────────
   if (joinSuccess) return (
     <Shell>
       <div style={{
@@ -267,12 +299,13 @@ function JoinPageContent() {
     </Shell>
   );
 
-  // ── Valid invite preview ─────────────────────────────────────────────────
+  // Show member avatars: prefer fetched profiles, fall back to count-only
+  const displayMembers = members.length > 0 ? members : [];
+
   return (
     <Shell>
       <div style={{ maxWidth: 420, width: '100%' }}>
 
-        {/* Invited-by context */}
         <div style={{
           textAlign: 'center', marginBottom: 24,
           fontSize: 14, color: 'var(--text2, #999)',
@@ -283,7 +316,6 @@ function JoinPageContent() {
           invited you to split expenses
         </div>
 
-        {/* Group card */}
         <div style={{
           background: 'var(--surface, #1a1a1a)',
           border: '1px solid var(--accent, #f0b429)',
@@ -292,7 +324,6 @@ function JoinPageContent() {
           marginBottom: 20,
           boxShadow: '0 0 40px rgba(240,180,41,0.08)',
         }}>
-          {/* Group name */}
           <div style={{ marginBottom: 20 }}>
             <div style={{
               fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
@@ -317,14 +348,32 @@ function JoinPageContent() {
             )}
           </div>
 
-          {/* Members */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 12,
             padding: '14px 16px',
             background: 'var(--surface2, #242424)',
             borderRadius: 14, marginBottom: 8,
           }}>
-            <AvatarStack count={preview!.member_count} />
+            {displayMembers.length > 0 ? (
+              <AvatarStack members={displayMembers} total={preview!.member_count} />
+            ) : (
+              // Fallback: generic avatar circles when members couldn't be fetched
+              <div style={{ display: 'flex', gap: 0 }}>
+                {Array.from({ length: Math.min(preview!.member_count, 5) }).map((_, i) => (
+                  <div key={i} style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: AVATAR_COLORS[i % AVATAR_COLORS.length],
+                    border: '2px solid var(--surface2, #242424)',
+                    marginLeft: i > 0 ? -10 : 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 800, color: '#0a0a0a',
+                    position: 'relative', zIndex: 5 - i,
+                  }}>
+                    {String.fromCharCode(65 + i)}
+                  </div>
+                ))}
+              </div>
+            )}
             <div>
               <div style={{ fontSize: 13, fontWeight: 700 }}>
                 {preview!.member_count} member{preview!.member_count !== 1 ? 's' : ''}
@@ -335,7 +384,6 @@ function JoinPageContent() {
             </div>
           </div>
 
-          {/* Expires */}
           <div style={{ fontSize: 11, color: 'var(--text3, #666)', textAlign: 'center', marginTop: 12 }}>
             Invite expires{' '}
             {new Date(preview!.expires_at).toLocaleDateString('en-IN', {
@@ -344,9 +392,7 @@ function JoinPageContent() {
           </div>
         </div>
 
-        {/* CTA — different based on auth state */}
         {session ? (
-          // Already logged in → join directly
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <button
               onClick={handleJoin}
@@ -363,15 +409,11 @@ function JoinPageContent() {
             >
               {joining ? 'Joining…' : `Join ${preview!.group_name}`}
             </button>
-            <div style={{
-              textAlign: 'center', fontSize: 12,
-              color: 'var(--text3, #666)',
-            }}>
+            <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text3, #666)' }}>
               Joining as <strong style={{ color: 'var(--text1)' }}>{session.user.email}</strong>
             </div>
           </div>
         ) : (
-          // Not logged in → prompt sign up or sign in
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <Link
               href={`/auth?invite=${code}&mode=signup`}
@@ -408,7 +450,6 @@ function JoinPageContent() {
   );
 }
 
-// Wrap in Suspense for useSearchParams
 export default function JoinPage() {
   return (
     <Suspense fallback={
