@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   try {
     const { messages } = await request.json();
     
-    // Grabs your existing key name perfectly
+    // Grabs your existing key name from your project variables
     const apiKey = process.env.GEMINI_API_KEY; 
     if (!apiKey) {
       return new Response(
@@ -14,13 +14,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Call Gemini and explicitly pass your existing GEMINI_API_KEY variable
+    // FIX: Map your key directly to the exact name the SDK expects in the environment loop.
+    // This perfectly bypasses strict TypeScript parameters while solving the runtime gap!
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = apiKey;
+
+    // Call Gemini with standard configuration settings to keep types happy
     const result = await streamText({
-      model: google('gemini-2.5-flash', { apiKey }),
+      model: google('gemini-2.5-flash'),
       messages: messages,
     });
 
-    // Return the stable Node-friendly streaming response
+    // Return the stable streaming response stream channel
     return new StreamingTextResponse(result.textStream);
   } catch (err: any) {
     return new Response(
