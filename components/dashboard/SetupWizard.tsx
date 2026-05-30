@@ -12,7 +12,7 @@ const CHANNEL_ICONS: Record<string, string> = { whatsapp: 'messageCircle', teleg
 const FEATURE_ICONS: Record<string, string> = { Dashboard: 'barChart', 'Bot logging': 'messageCircle', Settlements: 'refresh', 'Goals & EMI': 'target' };
 
 interface Props {
-  onComplete: (mode: HouseholdMode, nameA: string, nameB: string, telegramUsername?: string) => void;
+  onComplete: (mode: HouseholdMode, nameA: string, nameB: string, telegramUsername?: string, whatsappNumber?: string) => void;
 }
 
 function StepDots({ step }: { step: Step }) {
@@ -335,7 +335,13 @@ export function SetupWizard({ onComplete }: Props) {
           </div>
         </div>
         <div style={{ marginTop: 32 }}>
-          <PrimaryBtn fullWidth onClick={() => onComplete(mode, nameA.trim(), isSolo ? '' : nameB.trim() || 'Partner B', telegramUsername.trim() || undefined)}>
+          <PrimaryBtn fullWidth onClick={() => onComplete(
+            mode,
+            nameA.trim(),
+            isSolo ? '' : nameB.trim() || 'Partner B',
+            telegramUsername.trim() || undefined,
+            whatsappNumber.trim() || undefined,
+          )}>
             Open ChillarFlow →
           </PrimaryBtn>
         </div>
