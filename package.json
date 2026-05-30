@@ -13,10 +13,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ai-sdk/google": "0.0.18",
+    "@google/generative-ai": "^0.21.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.105.4",
     "ai": "3.1.30",
-  "@ai-sdk/google": "0.0.18",
     "autoprefixer": "10.4.15",
     "jose": "^5.9.6",
     "next": "^14.1.0",
@@ -30,9 +31,9 @@
   "devDependencies": {
     "@playwright/test": "^1.44.0",
     "@types/node": "20.6.2",
-    "@types/web-push": "^3.6.3",
     "@types/react": "18.2.22",
     "@types/react-dom": "18.2.7",
+    "@types/web-push": "^3.6.3",
     "@vitest/coverage-v8": "^1.6.0",
     "eslint": "8.49.0",
     "eslint-config-next": "13.5.1",
