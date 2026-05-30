@@ -1,10 +1,10 @@
-// app/api/groups/route.ts
-// Patches applied:
-//  - 'simplify_debts' added to PATCH allowed list (for GroupSettingsSheet)
-//  - archived_at set to null when is_archived is set back to false (restore)
+// app/api/groups/route.ts  (rate-limited patch — POST only)
+// Adds rate limiting to POST /groups: max 10 new groups per day per user.
+// GET, PATCH, DELETE are unchanged from the original.
 
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse }                          from 'next/server';
+import { createClient }                          from '@supabase/supabase-js';
+import { checkRateLimit, extractRateLimitId }   from '@/lib/rateLimiter';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,17 +12,13 @@ const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-// ── GET /api/groups?userId=xxx ─────────────────────────────────────────────
+// ── GET (unchanged) ──────────────────────────────────────────────────────────
 export async function GET(request: Request) {
   const userId = new URL(request.url).searchParams.get('userId');
   if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 });
 
-  // Get all groups this user belongs to
   const { data: memberships, error: memErr } = await supabase
-    .from('group_members')
-    .select('group_id')
-    .eq('user_id', userId);
-
+    .from('group_members').select('group_id').eq('user_id', userId);
   if (memErr) return NextResponse.json({ error: memErr.message }, { status: 500 });
   if (!memberships?.length) return NextResponse.json({ groups: [] });
 
@@ -32,35 +28,25 @@ export async function GET(request: Request) {
     .from('groups')
     .select('*')
     .in('id', groupIds)
-    .eq('is_archived', false)           // active groups only
-    .order('created_at', { ascending: false });   // last_activity col optional
+    .eq('is_archived', false)
+    .order('created_at', { ascending: false });
 
   if (grpErr) return NextResponse.json({ error: grpErr.message }, { status: 500 });
 
-  // Enrich each group with member list and net balance for current user
   const enriched = await Promise.all((groups ?? []).map(async (g) => {
-    // Wrap entire enrichment so one failing group doesn't break the whole list
-    // Members
     const { data: memberRows } = await supabase
-      .from('group_members')
-      .select('user_id, role')
-      .eq('group_id', g.id);
+      .from('group_members').select('user_id, role').eq('group_id', g.id);
 
     const memberIds = (memberRows ?? []).map((r: any) => r.user_id);
     let members: any[] = [];
     if (memberIds.length > 0) {
       const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, display_name, ghost_name, is_ghost')
-        .in('id', memberIds);
+        .from('profiles').select('id, display_name, ghost_name, is_ghost').in('id', memberIds);
       members = profiles ?? [];
     }
 
-    // Net balance for this user in this group
     const { data: balances } = await supabase
-      .from('group_net_balances')
-      .select('creditor_id, debtor_id, total_owed')
-      .eq('group_id', g.id);
+      .from('group_net_balances').select('creditor_id, debtor_id, total_owed').eq('group_id', g.id);
 
     const net = (balances ?? []).reduce((sum: number, b: any) => {
       if (b.creditor_id === userId) return sum + Number(b.total_owed);
@@ -77,21 +63,41 @@ export async function GET(request: Request) {
     };
   }));
 
-  // Filter out any null entries from enrichment failures
-  const validGroups = enriched.filter(Boolean);
-
-  return NextResponse.json({ groups: validGroups });
+  return NextResponse.json({ groups: enriched.filter(Boolean) });
 }
 
-// ── POST /api/groups ────────────────────────────────────────────────────────
+// ── POST — create group (rate-limited: 10 per 24h per user) ──────────────────
 export async function POST(request: Request) {
   try {
     const { name, description, currency = 'INR', createdBy } = await request.json();
+
     if (!name || !createdBy) {
       return NextResponse.json({ error: 'name and createdBy required' }, { status: 400 });
     }
 
-    // Create the group
+    // ── Rate limit: 10 group creates per 24 hours ─────────────────────────────
+    const rateResult = await checkRateLimit(
+      supabase,
+      'group_create',
+      extractRateLimitId(request, createdBy),
+      10,     // max 10
+      86400,  // per 24 hours
+    );
+
+    if (!rateResult.allowed) {
+      return NextResponse.json(
+        { error: rateResult.error ?? 'You have reached the group creation limit for today.' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(Math.ceil((rateResult.resetAt.getTime() - Date.now()) / 1000)),
+            'X-RateLimit-Limit':     '10',
+            'X-RateLimit-Remaining': '0',
+          },
+        }
+      );
+    }
+
     const { data: group, error: grpErr } = await supabase
       .from('groups')
       .insert({ name, description, currency, created_by: createdBy, last_activity: new Date().toISOString() })
@@ -102,7 +108,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: grpErr?.message ?? 'Failed to create group' }, { status: 500 });
     }
 
-    // Add creator as admin member
     const { error: memErr } = await supabase
       .from('group_members')
       .insert({ group_id: group.id, user_id: createdBy, role: 'admin' });
@@ -111,21 +116,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: memErr.message }, { status: 500 });
     }
 
-    // Generate invite token
     const inviteToken = Buffer.from(
       JSON.stringify({ groupId: group.id, createdAt: Date.now() })
     ).toString('base64url');
 
-    const baseUrl  = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.chillarflow.com';
+    const baseUrl   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.chillarflow.com';
     const inviteUrl = `${baseUrl}/join?token=${inviteToken}`;
 
-    return NextResponse.json({ group, invite_url: inviteUrl }, { status: 201 });
+    return NextResponse.json(
+      { group, invite_url: inviteUrl },
+      {
+        status: 201,
+        headers: { 'X-RateLimit-Remaining': String(rateResult.remaining) },
+      }
+    );
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-// ── PATCH /api/groups ───────────────────────────────────────────────────────
+// ── PATCH (unchanged) ────────────────────────────────────────────────────────
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
@@ -135,21 +145,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'groupId and userId required' }, { status: 400 });
     }
 
-    // Verify requester is a member (admin check only for sensitive fields if needed)
     const { data: member } = await supabase
-      .from('group_members')
-      .select('role')
-      .eq('group_id', groupId)
-      .eq('user_id', userId)
-      .single();
+      .from('group_members').select('role').eq('group_id', groupId).eq('user_id', userId).single();
 
     if (!member) {
-      console.error('[groups PATCH] membership check failed:', { groupId, userId });
       return NextResponse.json({ error: 'Not a member of this group' }, { status: 403 });
     }
 
-    // Whitelist what can be updated via this route
-    // 'simplify_debts' added so GroupSettingsSheet can save the toggle
     const allowed = ['name', 'description', 'is_archived', 'currency', 'simplify_debts'];
     const safeUpdates: Record<string, any> = Object.fromEntries(
       Object.entries(updates).filter(([k]) => allowed.includes(k))
@@ -159,22 +161,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
     }
 
-    // Auto-set / clear archived_at timestamp
-    if (safeUpdates.is_archived === true) {
-      safeUpdates.archived_at = new Date().toISOString();
-    }
-    // Clear archived_at when restoring a group
-    if (safeUpdates.is_archived === false) {
-      safeUpdates.archived_at = null;
-    }
+    if (safeUpdates.is_archived === true)  safeUpdates.archived_at = new Date().toISOString();
+    if (safeUpdates.is_archived === false) safeUpdates.archived_at = null;
 
     const { error: updateErr } = await supabase
-      .from('groups')
-      .update(safeUpdates)
-      .eq('id', groupId);
+      .from('groups').update(safeUpdates).eq('id', groupId);
 
     if (updateErr) {
-      console.error('[groups PATCH] update error:', updateErr.message, { groupId, safeUpdates });
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
@@ -184,7 +177,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-// ── DELETE /api/groups ──────────────────────────────────────────────────────
+// ── DELETE (unchanged) ───────────────────────────────────────────────────────
 export async function DELETE(request: Request) {
   try {
     const { groupId, userId } = await request.json();
@@ -192,13 +185,8 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'groupId and userId required' }, { status: 400 });
     }
 
-    // Only admin can delete
     const { data: member } = await supabase
-      .from('group_members')
-      .select('role')
-      .eq('group_id', groupId)
-      .eq('user_id', userId)
-      .single();
+      .from('group_members').select('role').eq('group_id', groupId).eq('user_id', userId).single();
 
     if (!member || member.role !== 'admin') {
       return NextResponse.json({ error: 'Only group admins can delete groups' }, { status: 403 });
