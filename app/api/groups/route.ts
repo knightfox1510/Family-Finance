@@ -116,12 +116,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: memErr.message }, { status: 500 });
     }
 
-    const inviteToken = Buffer.from(
-      JSON.stringify({ groupId: group.id, createdAt: Date.now() })
-    ).toString('base64url');
+    const inviteCode  = 'CF-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+    const inviteExp   = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const baseUrl   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.chillarflow.com';
-    const inviteUrl = `${baseUrl}/join?token=${inviteToken}`;
+    await supabase.from('group_invites').insert({
+      group_id:   group.id,
+      code:       inviteCode,
+      created_by: createdBy,
+      expires_at: inviteExp,
+    });
+
+    const siteUrl    = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.chillarflow.com';
+    const inviteUrl  = `${siteUrl}/join?g=${inviteCode}`;
 
     return NextResponse.json(
       { group, invite_url: inviteUrl },
