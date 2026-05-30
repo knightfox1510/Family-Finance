@@ -10,7 +10,8 @@ import { NextResponse }    from 'next/server';
 import { logActivity }     from '@/lib/logActivity';
 import { createClient }    from '@supabase/supabase-js';
 import { computeNetDebts } from '@/lib/debtEngine';
-import { resolveGhostUserId } from '@/lib/ghostToken';
+import { resolveGhostUserIdSimple } from '@/lib/ghostToken';
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,7 +21,7 @@ const supabase = createClient(
 
 async function resolveUserId(request: Request, fallback?: string | null): Promise<string | null> {
   const ghostToken = request.headers.get('x-ghost-token');
-  if (ghostToken) return resolveGhostUserId(ghostToken, supabase);
+  if (ghostToken) return resolveGhostUserIdSimple(ghostToken, supabase);
 
   const authHeader = request.headers.get('authorization');
   if (authHeader?.startsWith('Bearer ')) {
@@ -148,7 +149,7 @@ export async function POST(
     let callerId: string | null = null;
 
     if (ghostToken) {
-      callerId = await resolveGhostUserId(ghostToken, supabase);
+      callerId = await resolveGhostUserIdSimple(ghostToken, supabase);
       if (!callerId) return NextResponse.json({ error: 'Invalid or expired ghost token' }, { status: 401 });
     } else {
       callerId = await resolveUserId(request);
